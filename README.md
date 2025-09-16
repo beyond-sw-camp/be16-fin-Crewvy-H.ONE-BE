@@ -76,3 +76,17 @@
     2.  **배포:** 빌드된 `.jar` 아티팩트를 **중앙 아티팩트 저장소(예: AWS CodeArtifact, GitHub Packages)**에 배포합니다.
     3.  **의존성 주입:** 공통 모듈이 필요한 각 마이크로서비스에서는 `build.gradle` 에 해당 라이브러리를 의존성으로 추가하여 사용합니다.
 * **기대 효과:** 코드 중복을 최소화하고, 공통 로직 수정 시 라이브러리 버전 업데이트만으로 모든 서비스에 일관되게 변경 사항을 적용할 수 있어 유지보수성이 향상됩니다.
+
+---
+
+## 5. 산출물
+
+| 항목       | 링크 |
+|----------|---|
+| 요구사항 정의서 | [열기](https://docs.google.com/spreadsheets/d/1OWBwOKICwviN1j20aa2d0-GFYH7mc54pXyNh_uE32rs/edit?gid=0#gid=0) |
+| WBS      | [열기](https://docs.google.com/spreadsheets/d/1OWBwOKICwviN1j20aa2d0-GFYH7mc54pXyNh_uE32rs/edit?gid=437381057#gid=437381057) |
+| ERD      | [열기]() |
+| 화면설계서    | [열기]() |
+| API 명세서  | [열기]() |
+
+---
