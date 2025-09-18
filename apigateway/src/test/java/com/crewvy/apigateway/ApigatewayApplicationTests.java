@@ -1,10 +1,10 @@
-package com.study.odersystem;
+package com.crewvy.apigateway;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class OdersystemApplicationTests {
+class ApigatewayApplicationTests {
 
 	@Test
 	void contextLoads() {

@@ -1,10 +1,10 @@
-package com.h_one.apigateway;
+package com.crewvy.eureka;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class ApigatewayApplicationTests {
+class EurekaApplicationTests {
 
 	@Test
 	void contextLoads() {
