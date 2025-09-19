@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/apigateway/H.ONE.apigateway.main.iml" filepath="$PROJECT_DIR$/.idea/modules/apigateway/H.ONE.apigateway.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/member-service/H.ONE.member-service.main.iml" filepath="$PROJECT_DIR$/.idea/modules/member-service/H.ONE.member-service.main.iml" />
     </modules>
   </component>
 </project>

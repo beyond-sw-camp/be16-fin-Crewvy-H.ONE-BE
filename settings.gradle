@@ -1,3 +1,4 @@
 rootProject.name = 'H.ONE'
 include("apigateway")
 include("eureka")
+include("member-service")
