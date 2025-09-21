@@ -1,17 +1,15 @@
 package com.crewvy.member_service.member.dto.response;
 
-import com.chillex.gooseBumps.common.constant.code.member.LoginStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Getter;
+import lombok.Data;
 import lombok.NoArgsConstructor;
 
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Getter
 @Builder
-public class MemberLoginResDto {
-    private LoginStatus status;
+public class LoginResDto {
     private String accessToken;
     private String refreshToken;
 }

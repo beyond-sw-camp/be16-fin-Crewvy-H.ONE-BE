@@ -2,62 +2,75 @@ package com.crewvy.apigateway;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
-import jakarta.annotation.PostConstruct;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.ServletRequest;
-import jakarta.servlet.ServletResponse;
-import jakarta.servlet.http.HttpServletRequest;
+import org.apache.http.HttpHeaders;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpHeaders;
+import org.springframework.cloud.gateway.filter.GatewayFilterChain;
+import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
-import org.springframework.web.filter.GenericFilterBean;
+import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
 
-import java.io.IOException;
 import java.security.Key;
-import java.util.ArrayList;
 import java.util.List;
 
 @Component
-public class JwtTokenFilter extends GenericFilterBean {
-
+public class JwtTokenFilter implements GlobalFilter {
     @Value("${jwt.secretKeyAt}")
     private String secretKeyAt;
+    private Key secret_at_key;
 
-    private Key secretAtKey;
+    private static final List<String> ALLOWED_PATH = List.of(
+            "/member/create-admin",
+            "/member/create",
+            "/member/login"
+    );
 
-    @PostConstruct
-    public void init() {
-        byte[] atByte = java.util.Base64.getDecoder().decode(secretKeyAt);
-        this.secretAtKey = Keys.hmacShaKeyFor(atByte);
-    }
+    private static final List<String> ADMIN_ONLY_PATH = List.of(
+//            "/member/list"
+    );
 
     @Override
-    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
-        HttpServletRequest req = (HttpServletRequest) request;
+    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        String bearerToken = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        System.out.println("bearerToken: " + bearerToken);
 
-        String bearerToken = req.getHeader(HttpHeaders.AUTHORIZATION);
-        if (bearerToken == null) {
-            chain.doFilter(request, response);
-            return;
+        String urlPath = exchange.getRequest().getURI().getRawPath();
+        System.out.println("UrlPath: " + urlPath);
+
+        if (ALLOWED_PATH.contains((urlPath))) {
+            return chain.filter(exchange);
         }
 
         try {
+            if (bearerToken == null || !bearerToken.startsWith("Bearer ")) {
+                throw new IllegalArgumentException("토큰이 없거나 형식이 잘못 되었습니다.");
+            }
+
             String token = bearerToken.substring(7);
+
             Claims claims = Jwts.parserBuilder()
-                    .setSigningKey(this.secretAtKey)
+                    .setSigningKey(secretKeyAt)
                     .build()
                     .parseClaimsJws(token)
                     .getBody();
-            List<GrantedAuthority> authorityList = new ArrayList<>();
-            authorityList.add(new SimpleGrantedAuthority("ROLE_" + claims.get("roleCode")));
-            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(claims.getSubject(), "", authorityList);
-            authentication.setDetails(claims);
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            String email = claims.getSubject();
+            String role = claims.get("role", String.class);
+
+            if (ADMIN_ONLY_PATH.contains(urlPath) && !role.equals("ADMIN")) {
+                exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
+                return exchange.getResponse().setComplete();
+            }
+            ServerWebExchange serverWebExchange = exchange.mutate()
+                    .request(r -> r
+                            .header("X-User-Email", email)
+                            .header("X-User-Role", role))
+                    .build();
+            return chain.filter(serverWebExchange);
         } catch (Exception e) {
-            log.error("JWT Filter Error: {}", e.getMessage());
+            e.printStackTrace();
+            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+            return exchange.getResponse().setComplete();
         }
-        chain.doFilter(request, response);
     }
 }
