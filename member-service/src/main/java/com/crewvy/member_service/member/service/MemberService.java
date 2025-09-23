@@ -1,11 +1,11 @@
 package com.crewvy.member_service.member.service;
 
 import com.crewvy.member_service.common.auth.JwtTokenProvider;
-import com.crewvy.member_service.common.constant.YnColumn;
-import com.crewvy.member_service.member.dto.request.CreateAdminReqDto;
-import com.crewvy.member_service.member.dto.request.CreateMemberReqDto;
-import com.crewvy.member_service.member.dto.request.LoginReqDto;
-import com.crewvy.member_service.member.dto.response.LoginResDto;
+import com.crewvy.member_service.common.constant.Bool;
+import com.crewvy.member_service.member.dto.request.CreateAdminReq;
+import com.crewvy.member_service.member.dto.request.CreateMemberReq;
+import com.crewvy.member_service.member.dto.request.LoginReq;
+import com.crewvy.member_service.member.dto.response.LoginRes;
 import com.crewvy.member_service.member.entity.Company;
 import com.crewvy.member_service.member.entity.Member;
 import com.crewvy.member_service.member.repository.CompanyRepository;
@@ -33,68 +33,68 @@ public class MemberService {
     }
 
     // 관리자 계정 생성
-    public UUID createAdmin(CreateAdminReqDto createAdminReqDto){
-        if (memberRepository.findByEmail(createAdminReqDto.getEmail()).isPresent()) {
+    public UUID createAdmin(CreateAdminReq createAdminReq) {
+        if (memberRepository.findByEmail(createAdminReq.getEmail()).isPresent()) {
             throw new IllegalArgumentException("사용할 수 없는 이메일입니다.");
         }
 
-        if (!createAdminReqDto.getPassword().equals(createAdminReqDto.getCheckPw())) {
+        if (!createAdminReq.getPassword().equals(createAdminReq.getCheckPw())) {
             throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
         }
 
-        String encodePassword = passwordEncoder.encode(createAdminReqDto.getPassword());
+        String encodePassword = passwordEncoder.encode(createAdminReq.getPassword());
 
-        // 테스트용 회사
-        Company testCompany = Company.builder().companyName("테스트회사").build();
-        companyRepository.save(testCompany);
+        Company company = Company.builder().companyName(createAdminReq.getCompanyName()).build();
+        companyRepository.save(company);
 
-        Member savedMember = memberRepository.save(createAdminReqDto.toEntity(encodePassword, testCompany));
-        return savedMember.getMemberId();
+        Member savedMember = memberRepository.save(createAdminReq.toEntity(encodePassword, company));
+        return savedMember.getId();
     }
 
     // 사용자 계정 생성
-    public UUID createMember(CreateMemberReqDto createMemberRequestDto) {
-        if (memberRepository.findByEmail(createMemberRequestDto.getEmail()).isPresent()) {
+    public UUID createMember(String email, CreateMemberReq createMemberReq) {
+        if (memberRepository.findByEmail(createMemberReq.getEmail()).isPresent()) {
             throw new IllegalArgumentException("사용할 수 없는 이메일입니다.");
         }
 
-        String encodePassword = passwordEncoder.encode(createMemberRequestDto.getPassword());
+        String encodePassword = passwordEncoder.encode(createMemberReq.getPassword());
+        Member member = memberRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
+        System.out.println(member);
+        Company company = companyRepository.findByCompanyName(member.getCompany().getCompanyName())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회사명입니다."));
 
-        // 테스트용 회사
-        Company testCompany = Company.builder().companyName("테스트회사").build();
-        companyRepository.save(testCompany);
-
-        Member savedMember = memberRepository.save(createMemberRequestDto.toEntity(encodePassword, testCompany));
-        return savedMember.getMemberId();
+        Member savedMember = memberRepository.save(createMemberReq.toEntity(encodePassword, company));
+        return savedMember.getId();
     }
 
     // 로그인
-    public LoginResDto doLogin(LoginReqDto loginReqDto) {
-        Member member = memberRepository.findByEmail(loginReqDto.getEmail()).orElseThrow(()
+    public LoginRes doLogin(LoginReq loginReq) {
+        Member member = memberRepository.findByEmail(loginReq.getEmail()).orElseThrow(()
                 -> new IllegalArgumentException("email 또는 비밀번호가 일치하지 않습니다."));
 
-        if (!passwordEncoder.matches(loginReqDto.getPassword(), member.getPassword())) {
+        if (!passwordEncoder.matches(loginReq.getPassword(), member.getPassword())) {
             throw new IllegalArgumentException("email 또는 비밀번호가 일치하지 않습니다.");
         }
 
-        if (member.getYnDel().equals(YnColumn.isTrue)) {
+        if (member.getYnDel().equals(Bool.TRUE)) {
             throw new IllegalArgumentException("탈퇴한 회원입니다.");
         }
 
         String accessToken = jwtTokenProvider.createAtToken(member);
 //        String refreshToken = jwtTokenProvider.createRtToken(member);
-        return LoginResDto.builder()
+        return LoginRes.builder()
                 .accessToken(accessToken)
 //                .refreshToken(refreshToken)
                 .build();
     }
 
 //    // AT 재발급
-//    public LoginResDto generateNewAt(GenerateNewAtDto generateNewAtDto) {
-//        Member member = jwtTokenProvider.validateRt(generateNewAtDto.getRefreshToken());
+//    public LoginResDto generateNewAt(GenerateNewAtReq generateNewAtReq) {
+//        Member member = jwtTokenProvider.validateRt(generateNewAtReq.getRefreshToken());
 //
 //        String accessToken = jwtTokenProvider.createAtToken(member);
-//        return LoginResDto.builder()
+//        return LoginRes.builder()
 //                .accessToken(accessToken)
 //                .build();
 //    }

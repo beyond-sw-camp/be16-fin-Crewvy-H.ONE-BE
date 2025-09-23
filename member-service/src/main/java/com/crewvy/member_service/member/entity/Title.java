@@ -16,7 +16,7 @@ import java.util.UUID;
 public class Title {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID jobTitleId;
+    private UUID id;
 
     @Column(nullable = false)
     private String name;

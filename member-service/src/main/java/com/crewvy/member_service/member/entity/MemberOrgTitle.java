@@ -17,7 +17,7 @@ import java.util.UUID;
 public class MemberOrgTitle {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID memberOrgTitleId;
+    private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
@@ -28,7 +28,7 @@ public class MemberOrgTitle {
     private Organization organization;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "job_title_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
+    @JoinColumn(name = "title_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private Title title;
 
     @Column(nullable = false)

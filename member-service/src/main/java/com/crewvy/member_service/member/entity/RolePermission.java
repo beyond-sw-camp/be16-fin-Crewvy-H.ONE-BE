@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 public class RolePermission {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long rolePermissionId;
+    private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "role_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)

@@ -1,5 +1,6 @@
 package com.crewvy.member_service.member.entity;
 
+import com.crewvy.member_service.common.constant.Bool;
 import com.crewvy.member_service.common.constant.MemberStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -17,7 +18,7 @@ import java.util.UUID;
 public class Member {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID memberId;
+    private UUID id;
 
     @Column(nullable = false, unique = true)
     private String email;
@@ -26,15 +27,21 @@ public class Member {
 
     private String name;
 
+    private String telNumber;
+
     private String phoneNumber;
 
     @Column(nullable = false)
-    private boolean isPhoneNumberPublic;
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private Bool isPhoneNumberPublic = Bool.TRUE;
 
     private String address;
 
     @Column(nullable = false)
-    private boolean isAddressDisclosure;
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private Bool isAddressDisclosure = Bool.TRUE;
 
     private String sabun;
 
@@ -45,10 +52,13 @@ public class Member {
     private String profileUrl;
 
     @Column(nullable = false)
-    private MemberStatus memberStatus;
+    @Builder.Default
+    private MemberStatus memberStatus = MemberStatus.WORKING;
 
     @Column(nullable = false)
-    private String ynDel;
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private Bool ynDel = Bool.FALSE;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)

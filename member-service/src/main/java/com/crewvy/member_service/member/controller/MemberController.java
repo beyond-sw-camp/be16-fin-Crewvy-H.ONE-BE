@@ -1,9 +1,10 @@
 package com.crewvy.member_service.member.controller;
 
 import com.crewvy.member_service.common.dto.ApiResponse;
-import com.crewvy.member_service.member.dto.request.CreateAdminReqDto;
-import com.crewvy.member_service.member.dto.request.CreateMemberReqDto;
-import com.crewvy.member_service.member.dto.request.LoginReqDto;
+import com.crewvy.member_service.member.dto.request.CreateAdminReq;
+import com.crewvy.member_service.member.dto.request.CreateMemberReq;
+import com.crewvy.member_service.member.dto.request.GenerateNewAtReq;
+import com.crewvy.member_service.member.dto.request.LoginReq;
 import com.crewvy.member_service.member.service.MemberService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -22,29 +23,30 @@ public class MemberController {
 
     // 관리자 계정 생성
     @PostMapping("/create-admin")
-    public ResponseEntity<?> createAdmin(@ModelAttribute @Valid CreateAdminReqDto createAdminReqDto) {
-        return new ResponseEntity<>(new ApiResponse(
-                true, memberService.createAdmin(createAdminReqDto), "계정 생성 성공"), HttpStatus.CREATED);
+    public ResponseEntity<?> createAdmin(@ModelAttribute @Valid CreateAdminReq createAdminReq) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.createAdmin(createAdminReq), "계정 생성 성공"),  HttpStatus.CREATED);
     }
 
     // 사용자 계정 생성
     @PostMapping("/create")
-    public ResponseEntity<?> createMember(@ModelAttribute @Valid CreateMemberReqDto createMemberRequestDto) {
-        return new ResponseEntity<>(new ApiResponse(
-                true, memberService.createMember(createMemberRequestDto), "계정 생성 성공"), HttpStatus.CREATED);
+    public ResponseEntity<?> createMember(@RequestHeader("X-User-Email")String email,
+                                          @ModelAttribute @Valid CreateMemberReq createMemberRequest) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.createMember(email, createMemberRequest), "계정 생성 성공"),  HttpStatus.CREATED);
     }
 
     // 로그인
     @PostMapping("/login")
-    public ResponseEntity<?> memberDoLogin(@RequestBody @Valid LoginReqDto loginReqDto) {
-        return new ResponseEntity<>(new ApiResponse(
-                true, memberService.doLogin(loginReqDto), "로그인 성공"), HttpStatus.OK);
+    public ResponseEntity<?> memberDoLogin(@RequestBody @Valid LoginReq loginReq) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.doLogin(loginReq), "계정 생성 성공"),  HttpStatus.CREATED);
     }
 
 //    // AT 재발급
 //    @PostMapping("/generate-at")
-//    public ResponseEntity<?> generateNewAt(@RequestBody GenerateNewAtDto generateNewAtDto) {
+//    public ResponseEntity<?> generateNewAt(@RequestBody GenerateNewAtReq generateNewAtReq) {
 //        return new ResponseEntity<>(new ApiResponse(
-//                true, memberService.generateNewAt(generateNewAtDto), "Access token 재발급 성공"), HttpStatus.OK);
+//                true, memberService.generateNewAt(generateNewAtReq), "Access token 재발급 성공"), HttpStatus.OK);
 //    }
 }

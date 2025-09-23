@@ -7,6 +7,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
-public class GenerateNewAtDto {
+public class GenerateNewAtReq {
     private String refreshToken;
 }

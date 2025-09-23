@@ -2,6 +2,8 @@ package com.crewvy.apigateway;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import org.apache.http.HttpHeaders;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -18,11 +20,16 @@ import java.util.List;
 public class JwtTokenFilter implements GlobalFilter {
     @Value("${jwt.secretKeyAt}")
     private String secretKeyAt;
-    private Key secret_at_key;
+    private Key atKey;
+
+    @PostConstruct
+    public void init() {
+        byte[] atByte = java.util.Base64.getDecoder().decode(secretKeyAt);
+        this.atKey = Keys.hmacShaKeyFor(atByte);
+    }
 
     private static final List<String> ALLOWED_PATH = List.of(
             "/member/create-admin",
-            "/member/create",
             "/member/login"
     );
 
@@ -50,7 +57,7 @@ public class JwtTokenFilter implements GlobalFilter {
             String token = bearerToken.substring(7);
 
             Claims claims = Jwts.parserBuilder()
-                    .setSigningKey(secretKeyAt)
+                    .setSigningKey(atKey)
                     .build()
                     .parseClaimsJws(token)
                     .getBody();

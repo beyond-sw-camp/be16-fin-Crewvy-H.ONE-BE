@@ -16,14 +16,14 @@ import java.util.UUID;
 public class GradeHistory {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID jobGradeHistoryId;
+    private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private Member member;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "job_grade_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
+    @JoinColumn(name = "grade_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private Grade grade;
 
     @Column(nullable = false)
