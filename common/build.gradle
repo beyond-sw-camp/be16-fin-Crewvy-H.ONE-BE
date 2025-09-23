@@ -1,0 +1,53 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '3.5.6'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'crewvy'
+version = '0.0.1-SNAPSHOT'
+description = 'common'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(17)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	// Spring Security 관련 클래스를 사용하기 위한 의존성
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+
+	// HttpServletRequest, FilterChain 등을 사용하기 위해 필요
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.security:spring-security-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+	// Lombok
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+
+	// JWT
+	 implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
+	 runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
+	 runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
+}
+
+// 공통 모듈은 실행 가능한 JAR 파일이 아니므로 bootJar 빌드를 비활성화
+bootJar {
+	enabled = false
+}
+
+jar {
+	enabled = true
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}

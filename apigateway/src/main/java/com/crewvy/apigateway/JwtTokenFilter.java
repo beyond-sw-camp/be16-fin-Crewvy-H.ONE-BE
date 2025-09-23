@@ -1,0 +1,83 @@
+package com.crewvy.apigateway;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
+import org.apache.http.HttpHeaders;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cloud.gateway.filter.GatewayFilterChain;
+import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Component;
+import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
+
+import java.security.Key;
+import java.util.List;
+
+@Component
+public class JwtTokenFilter implements GlobalFilter {
+    @Value("${jwt.secretKeyAt}")
+    private String secretKeyAt;
+    private Key atKey;
+
+    @PostConstruct
+    public void init() {
+        byte[] atByte = java.util.Base64.getDecoder().decode(secretKeyAt);
+        this.atKey = Keys.hmacShaKeyFor(atByte);
+    }
+
+    private static final List<String> ALLOWED_PATH = List.of(
+            "/member/create-admin",
+            "/member/login"
+    );
+
+    private static final List<String> ADMIN_ONLY_PATH = List.of(
+//            "/member/list"
+    );
+
+    @Override
+    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        String bearerToken = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        System.out.println("bearerToken: " + bearerToken);
+
+        String urlPath = exchange.getRequest().getURI().getRawPath();
+        System.out.println("UrlPath: " + urlPath);
+
+        if (ALLOWED_PATH.contains((urlPath))) {
+            return chain.filter(exchange);
+        }
+
+        try {
+            if (bearerToken == null || !bearerToken.startsWith("Bearer ")) {
+                throw new IllegalArgumentException("토큰이 없거나 형식이 잘못 되었습니다.");
+            }
+
+            String token = bearerToken.substring(7);
+
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(atKey)
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+            String email = claims.getSubject();
+            String role = claims.get("role", String.class);
+
+            if (ADMIN_ONLY_PATH.contains(urlPath) && !role.equals("ADMIN")) {
+                exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
+                return exchange.getResponse().setComplete();
+            }
+            ServerWebExchange serverWebExchange = exchange.mutate()
+                    .request(r -> r
+                            .header("X-User-Email", email)
+                            .header("X-User-Role", role))
+                    .build();
+            return chain.filter(serverWebExchange);
+        } catch (Exception e) {
+            e.printStackTrace();
+            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+            return exchange.getResponse().setComplete();
+        }
+    }
+}
