@@ -58,11 +58,9 @@ public class MemberService {
         }
 
         String encodePassword = passwordEncoder.encode(createMemberReq.getPassword());
-        Member member = memberRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
-        System.out.println(member);
-        Company company = companyRepository.findByCompanyName(member.getCompany().getCompanyName())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회사명입니다."));
+        Company company = companyRepository.findById(memberRepository.findByEmail(email)
+                        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다.")).getCompany().getId())
+                        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회사명입니다."));
 
         Member savedMember = memberRepository.save(createMemberReq.toEntity(encodePassword, company));
         return savedMember.getId();
