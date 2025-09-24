@@ -61,6 +61,9 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	implementation 'com.neovisionaries:nv-i18n:1.29'
 	implementation 'org.springframework.boot:spring-boot-starter-amqp'
+
+	// 3. common 모듈을 의존성으로 추가
+	implementation project(':common')
 }
 
 dependencyManagement {
