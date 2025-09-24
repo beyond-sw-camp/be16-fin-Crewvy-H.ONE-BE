@@ -29,7 +29,7 @@ public class CreateAdminReq {
     private String bankAccount;
     private String profileUrl;
     @NotEmpty(message = "회사명을 입력해 주세요.")
-    private String CompanyName;
+    private String companyName;
 
     public Member toEntity(String encodePassword, Company company){
         return Member.builder()
