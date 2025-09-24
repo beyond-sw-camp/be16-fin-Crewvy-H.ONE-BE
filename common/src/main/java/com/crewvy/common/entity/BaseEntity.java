@@ -1,4 +1,4 @@
-package com.crewvy.member_service.common.entity;
+package com.crewvy.common.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.MappedSuperclass;

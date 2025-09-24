@@ -1,7 +1,5 @@
 package com.crewvy.member_service.member.dto.request;
 
-import com.crewvy.member_service.common.constant.MemberStatus;
-import com.crewvy.member_service.common.constant.Bool;
 import com.crewvy.member_service.member.entity.Company;
 import com.crewvy.member_service.member.entity.Member;
 import jakarta.validation.constraints.NotEmpty;

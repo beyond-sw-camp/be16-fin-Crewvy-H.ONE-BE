@@ -1,6 +1,6 @@
-package com.crewvy.member_service.common.converter;
+package com.crewvy.member_service.member.converter;
 
-import com.crewvy.member_service.common.constant.MemberStatus;
+import com.crewvy.member_service.member.constant.MemberStatus;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 

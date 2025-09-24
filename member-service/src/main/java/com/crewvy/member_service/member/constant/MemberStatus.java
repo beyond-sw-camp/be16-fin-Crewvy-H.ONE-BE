@@ -1,4 +1,4 @@
-package com.crewvy.member_service.common.constant;
+package com.crewvy.member_service.member.constant;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

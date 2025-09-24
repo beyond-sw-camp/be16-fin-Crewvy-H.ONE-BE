@@ -1,5 +1,5 @@
 
-package com.crewvy.member_service.common.dto;
+package com.crewvy.common.dto;
 
 import lombok.Getter;
 

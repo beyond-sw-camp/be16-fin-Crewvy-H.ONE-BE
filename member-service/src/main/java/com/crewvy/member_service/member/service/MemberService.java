@@ -1,7 +1,7 @@
 package com.crewvy.member_service.member.service;
 
-import com.crewvy.member_service.common.auth.JwtTokenProvider;
-import com.crewvy.member_service.common.constant.Bool;
+import com.crewvy.member_service.member.auth.JwtTokenProvider;
+import com.crewvy.common.entity.Bool;
 import com.crewvy.member_service.member.dto.request.CreateAdminReq;
 import com.crewvy.member_service.member.dto.request.CreateMemberReq;
 import com.crewvy.member_service.member.dto.request.LoginReq;
