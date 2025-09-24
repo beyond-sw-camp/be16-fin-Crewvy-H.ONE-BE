@@ -33,14 +33,14 @@ dependencies {
 	// HttpServletRequest, FilterChain 등을 사용하기 위해 필요
 //	implementation 'org.springframework.boot:spring-boot-starter-web'
 
-	// 👇 2. 'spring-boot-starter-security' -> 더 가벼운 의존성으로 분리
+	// 2. 'spring-boot-starter-security' -> 더 가벼운 의존성으로 분리
 	// Spring Security의 핵심 기능
 //	implementation 'org.springframework.security:spring-security-core'
 	// Filter 등을 사용하기 위한 웹 관련 기능
 //	implementation 'org.springframework.security:spring-security-web'
 //	implementation 'org.springframework.security:spring-security-config'
 
-	// 👇 3. 'spring-boot-starter-web' -> 'servlet-api'로 변경
+	// 3. 'spring-boot-starter-web' -> 'servlet-api'로 변경
 	// HttpServletRequest 등을 사용하기 위한 최소한의 의존성
 	compileOnly 'jakarta.servlet:jakarta.servlet-api:6.0.0'
 
