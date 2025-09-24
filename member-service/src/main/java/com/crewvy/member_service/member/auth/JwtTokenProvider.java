@@ -1,4 +1,4 @@
-package com.crewvy.member_service.common.auth;
+package com.crewvy.member_service.member.auth;
 
 import com.crewvy.member_service.member.entity.Member;
 import com.crewvy.member_service.member.repository.MemberRepository;

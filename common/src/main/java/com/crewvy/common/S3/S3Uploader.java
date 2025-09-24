@@ -1,4 +1,4 @@
-package crewvy.common.S3;
+package com.crewvy.common.S3;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;

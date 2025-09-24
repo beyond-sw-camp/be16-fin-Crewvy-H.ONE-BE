@@ -1,7 +1,8 @@
 package com.crewvy.member_service.member.entity;
 
-import com.crewvy.member_service.common.constant.Bool;
-import com.crewvy.member_service.common.constant.MemberStatus;
+import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.common.entity.Bool;
+import com.crewvy.member_service.member.constant.MemberStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,7 +16,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Member {
+public class Member extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;

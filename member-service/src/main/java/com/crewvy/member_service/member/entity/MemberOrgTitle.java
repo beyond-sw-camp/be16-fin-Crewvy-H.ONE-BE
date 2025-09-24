@@ -1,5 +1,6 @@
 package com.crewvy.member_service.member.entity;
 
+import com.crewvy.common.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,7 +15,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class MemberOrgTitle {
+public class MemberOrgTitle extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;

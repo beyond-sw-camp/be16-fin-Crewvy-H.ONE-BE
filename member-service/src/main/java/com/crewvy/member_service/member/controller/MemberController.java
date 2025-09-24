@@ -1,9 +1,8 @@
 package com.crewvy.member_service.member.controller;
 
-import com.crewvy.member_service.common.dto.ApiResponse;
+import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.member_service.member.dto.request.CreateAdminReq;
 import com.crewvy.member_service.member.dto.request.CreateMemberReq;
-import com.crewvy.member_service.member.dto.request.GenerateNewAtReq;
 import com.crewvy.member_service.member.dto.request.LoginReq;
 import com.crewvy.member_service.member.service.MemberService;
 import jakarta.validation.Valid;

@@ -1,4 +1,4 @@
-package com.crewvy.member_service.common.config;
+package com.crewvy.member_service.member.config;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
