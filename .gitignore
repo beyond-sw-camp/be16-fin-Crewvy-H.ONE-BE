@@ -208,3 +208,13 @@ $RECYCLE.BIN/
 application.yml
 application-local.yml
 .gradle/
+
+# Recommended additions for this project
+build/
+*.iml
+
+# Ignore all IntelliJ project files.
+/.idea/
+
+# Log files
+*.log
