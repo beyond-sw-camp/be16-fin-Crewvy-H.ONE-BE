@@ -214,7 +214,7 @@ build/
 *.iml
 
 # Ignore all IntelliJ project files.
-/.idea/
+.idea/
 
 # Log files
 *.log
