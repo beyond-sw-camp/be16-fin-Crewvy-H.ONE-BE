@@ -59,6 +59,10 @@ dependencies {
 
 	// Redis
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+	// 3. common 모듈을 의존성으로 추가
+	implementation project(':common')
+
 }
 
 dependencyManagement {
