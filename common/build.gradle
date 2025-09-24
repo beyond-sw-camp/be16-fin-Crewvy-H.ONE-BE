@@ -1,6 +1,8 @@
 plugins {
-	id 'java'
-	id 'org.springframework.boot' version '3.5.6'
+//	id 'java'
+//	id 'org.springframework.boot' version '3.5.6'
+//	id 'io.spring.dependency-management' version '1.1.7'
+	id 'java-library'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
 
@@ -18,13 +20,31 @@ repositories {
 	mavenCentral()
 }
 
+dependencyManagement {
+	imports {
+		// 스프링 부트의 버전 관리를 위한 BOM(Bill of Materials)을 가져옵니다.
+		mavenBom "org.springframework.boot:spring-boot-dependencies:3.3.4" // 사용하는 스프링 부트 버전
+	}
+}
+
 dependencies {
 	// Spring Security 관련 클래스를 사용하기 위한 의존성
-	implementation 'org.springframework.boot:spring-boot-starter-security'
-
+//	implementation 'org.springframework.boot:spring-boot-starter-security'
 	// HttpServletRequest, FilterChain 등을 사용하기 위해 필요
-	implementation 'org.springframework.boot:spring-boot-starter-web'
+//	implementation 'org.springframework.boot:spring-boot-starter-web'
 
+	// 👇 2. 'spring-boot-starter-security' -> 더 가벼운 의존성으로 분리
+	// Spring Security의 핵심 기능
+//	implementation 'org.springframework.security:spring-security-core'
+	// Filter 등을 사용하기 위한 웹 관련 기능
+//	implementation 'org.springframework.security:spring-security-web'
+//	implementation 'org.springframework.security:spring-security-config'
+
+	// 👇 3. 'spring-boot-starter-web' -> 'servlet-api'로 변경
+	// HttpServletRequest 등을 사용하기 위한 최소한의 의존성
+	compileOnly 'jakarta.servlet:jakarta.servlet-api:6.0.0'
+
+//	이 아래는 수정X
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -40,13 +60,13 @@ dependencies {
 }
 
 // 공통 모듈은 실행 가능한 JAR 파일이 아니므로 bootJar 빌드를 비활성화
-bootJar {
-	enabled = false
-}
-
-jar {
-	enabled = true
-}
+//bootJar {
+//	enabled = false
+//}
+//
+//jar {
+//	enabled = true
+//}
 
 tasks.named('test') {
 	useJUnitPlatform()
