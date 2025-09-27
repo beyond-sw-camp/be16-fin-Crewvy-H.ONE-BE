@@ -1,0 +1,42 @@
+package com.crewvy.workforce_service.attendance.entity;
+
+import com.crewvy.workforce_service.attendance.enums.PolicyCategory;
+import com.crewvy.workforce_service.attendance.enums.PolicyTypeCode;
+import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.util.UUID;
+
+@Entity
+@Table(name = "policy_type")
+@Getter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class PolicyType {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "policy_type_id", nullable = false)
+    private UUID policyTypeId;
+
+    @Column(name = "company_id", nullable = false)
+    private UUID companyId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type_code", nullable = false)
+    private PolicyTypeCode typeCode;
+
+    @Column(name = "type_name", nullable = false)
+    private String typeName;
+
+    @Column(name = "balance_deductible", nullable = false)
+    private boolean balanceDeductible;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category_code", nullable = false)
+    private PolicyCategory categoryCode;
+}
