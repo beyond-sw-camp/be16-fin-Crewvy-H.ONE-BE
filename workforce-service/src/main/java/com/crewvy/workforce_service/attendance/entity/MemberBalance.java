@@ -44,4 +44,7 @@ public class MemberBalance {
 
     @Column(name = "expiration_date")
     private LocalDate expirationDate;
+
+    @Column(name = "is_paid", nullable = false)
+    private Boolean isPaid;
 }

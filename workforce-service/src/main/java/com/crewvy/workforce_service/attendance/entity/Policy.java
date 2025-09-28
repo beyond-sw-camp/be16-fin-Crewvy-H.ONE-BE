@@ -35,6 +35,9 @@ public class Policy {
     @Column(name = "rule_details", columnDefinition = "json")
     private String ruleDetails;
 
+    @Column(name = "is_paid", nullable = false)
+    private Boolean isPaid;
+
     @Column(name = "is_active", nullable = false)
     private Boolean isActive;
 }
