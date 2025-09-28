@@ -1,5 +1,6 @@
 package com.crewvy.workforce_service.attendance.entity;
 
+import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.workforce_service.attendance.enums.RequestStatus;
 import com.crewvy.workforce_service.attendance.enums.RequestUnit;
 import jakarta.persistence.*;
@@ -18,7 +19,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Request {
+public class Request extends BaseEntity {
 
     @Id
     @Column(name = "request_id", nullable = false, columnDefinition = "BINARY(16)")

@@ -1,5 +1,6 @@
 package com.crewvy.workforce_service.attendance.entity;
 
+import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.workforce_service.attendance.enums.BalanceTypeCode;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -16,7 +17,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class MemberBalance {
+public class MemberBalance extends BaseEntity {
 
     @Id
     @Column(name = "member_balance_id", nullable = false, columnDefinition = "BINARY(16)")

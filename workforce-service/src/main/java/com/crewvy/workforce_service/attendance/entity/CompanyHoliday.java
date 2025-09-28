@@ -1,5 +1,6 @@
 package com.crewvy.workforce_service.attendance.entity;
 
+import com.crewvy.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -18,7 +19,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CompanyHoliday {
+public class CompanyHoliday extends BaseEntity {
 
     @Id
     @Column(name = "company_holiday_id", nullable = false, columnDefinition = "BINARY(16)")

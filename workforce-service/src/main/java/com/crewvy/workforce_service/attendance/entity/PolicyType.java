@@ -1,5 +1,6 @@
 package com.crewvy.workforce_service.attendance.entity;
 
+import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.workforce_service.attendance.enums.PolicyCategory;
 import com.crewvy.workforce_service.attendance.enums.PolicyTypeCode;
 import jakarta.persistence.*;
@@ -16,7 +17,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PolicyType {
+public class PolicyType extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
