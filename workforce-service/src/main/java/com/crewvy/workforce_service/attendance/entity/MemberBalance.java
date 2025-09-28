@@ -1,9 +1,7 @@
 package com.crewvy.workforce_service.attendance.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import com.crewvy.workforce_service.attendance.enums.BalanceTypeCode;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -27,8 +25,9 @@ public class MemberBalance {
     @Column(name = "member_id", nullable = false, columnDefinition = "BINARY(16)")
     private UUID memberId;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "balance_type_code", nullable = false)
-    private String balanceTypeCode;
+    private BalanceTypeCode balanceTypeCode;
 
     @Column(name = "year", nullable = false)
     private Integer year;
