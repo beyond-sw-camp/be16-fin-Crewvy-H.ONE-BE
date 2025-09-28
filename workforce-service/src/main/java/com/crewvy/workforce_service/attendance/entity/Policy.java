@@ -1,5 +1,6 @@
 package com.crewvy.workforce_service.attendance.entity;
 
+import com.crewvy.common.converter.JsonToMapConverter;
 import com.crewvy.common.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -8,6 +9,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -34,17 +36,15 @@ public class Policy extends BaseEntity {
 
     // 정책별 세부 규칙 (JSON 형식으로 저장)
     @Column(name = "rule_details", columnDefinition = "json")
-    private String ruleDetails;
+    @Convert(converter = JsonToMapConverter.class)
+    private Map<String, Object> ruleDetails;
 
-    // 유급 여부
     @Column(name = "is_paid", nullable = false)
     private Boolean isPaid;
 
-    // 정책 유효 시작일
     @Column(name = "effective_from", nullable = false)
     private LocalDate effectiveFrom;
 
-    // 정책 유효 종료일 (null이면 현재도 유효)
     @Column(name = "effective_to")
     private LocalDate effectiveTo;
 }
