@@ -20,6 +20,7 @@ import java.util.UUID;
 public class MemberBalance extends BaseEntity {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "member_balance_id", nullable = false, columnDefinition = "BINARY(16)")
     private UUID memberBalanceId;
 

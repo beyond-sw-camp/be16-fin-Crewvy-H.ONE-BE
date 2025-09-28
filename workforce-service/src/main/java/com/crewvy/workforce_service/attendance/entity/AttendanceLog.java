@@ -17,6 +17,7 @@ import java.util.UUID;
 public class AttendanceLog extends BaseEntity {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "attendance_log_id", nullable = false, columnDefinition = "BINARY(16)")
     private UUID attendanceLogId;
 

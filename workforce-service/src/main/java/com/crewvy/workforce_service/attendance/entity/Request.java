@@ -22,6 +22,7 @@ import java.util.UUID;
 public class Request extends BaseEntity {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "request_id", nullable = false, columnDefinition = "BINARY(16)")
     private UUID requestId;
 
