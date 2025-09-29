@@ -56,6 +56,9 @@ dependencies {
 	// @ConditionalOnProperty 등 자동 설정 관련 기능을 사용하기 위해 필요합니다.
 	implementation 'org.springframework.boot:spring-boot-autoconfigure'
 
+	// JSON 변환 지원을 위한 jackson 의존성 추가
+	implementation 'org.springframework.boot:spring-boot-starter-json'
+
 //	이 아래는 수정X
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
