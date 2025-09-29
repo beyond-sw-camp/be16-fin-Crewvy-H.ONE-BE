@@ -3,6 +3,8 @@ package com.crewvy.workforce_service.attendance.entity;
 import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.workforce_service.attendance.constant.PolicyCategory;
 import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
+import com.crewvy.workforce_service.attendance.converter.PolicyCategoryConverter;
+import com.crewvy.workforce_service.attendance.converter.PolicyTypeCodeConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,6 +30,7 @@ public class PolicyType extends BaseEntity {
     private UUID companyId;
 
     @Column(name = "type_code", nullable = false)
+    @Convert(converter = PolicyTypeCodeConverter.class)
     private PolicyTypeCode typeCode;
 
     @Column(name = "type_name", nullable = false)
@@ -37,5 +40,6 @@ public class PolicyType extends BaseEntity {
     private boolean balanceDeductible;
 
     @Column(name = "category_code", nullable = false)
+    @Convert(converter = PolicyCategoryConverter.class)
     private PolicyCategory categoryCode;
 }

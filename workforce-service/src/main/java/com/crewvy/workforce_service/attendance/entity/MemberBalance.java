@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.attendance.entity;
 
 import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.workforce_service.attendance.constant.BalanceTypeCode;
+import com.crewvy.workforce_service.attendance.converter.BalanceTypeCodeConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,6 +29,7 @@ public class MemberBalance extends BaseEntity {
     private UUID memberId;
 
     @Column(name = "balance_type_code", nullable = false)
+    @Convert(converter = BalanceTypeCodeConverter.class)
     private BalanceTypeCode balanceTypeCode;
 
     @Column(name = "year", nullable = false)

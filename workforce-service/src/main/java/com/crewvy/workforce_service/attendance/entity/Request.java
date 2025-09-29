@@ -3,6 +3,8 @@ package com.crewvy.workforce_service.attendance.entity;
 import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.workforce_service.attendance.constant.RequestStatus;
 import com.crewvy.workforce_service.attendance.constant.RequestUnit;
+import com.crewvy.workforce_service.attendance.converter.RequestStatusConverter;
+import com.crewvy.workforce_service.attendance.converter.RequestUnitConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -37,6 +39,7 @@ public class Request extends BaseEntity {
     private UUID documentId;
 
     @Column(name = "request_unit", nullable = false)
+    @Convert(converter = RequestUnitConverter.class)
     private RequestUnit requestUnit;
 
     @Column(name = "start_at", nullable = false)
@@ -52,6 +55,7 @@ public class Request extends BaseEntity {
     private String reason;
 
     @Column(name = "status", nullable = false)
+    @Convert(converter = RequestStatusConverter.class)
     private RequestStatus status;
 
     @Column(name = "work_location")
