@@ -2,6 +2,8 @@ package com.crewvy.workspace_service.meeting.entity;
 
 import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.workspace_service.meeting.constant.VideoConferenceStatus;
+import com.crewvy.workspace_service.meeting.converter.MinuteStatusConverter;
+import com.crewvy.workspace_service.meeting.converter.VideoConferenceStatusConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -43,6 +45,7 @@ public class VideoConference extends BaseEntity {
 
     @Builder.Default
     @Column(name = "status", nullable = false)
+    @Convert(converter = VideoConferenceStatusConverter.class)
     private VideoConferenceStatus status = VideoConferenceStatus.WAITING;
 
     @Builder.Default
