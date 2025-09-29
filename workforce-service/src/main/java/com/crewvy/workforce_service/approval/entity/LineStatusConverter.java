@@ -8,20 +8,13 @@ public class LineStatusConverter implements AttributeConverter<LineStatus, Strin
 
     @Override
     public String convertToDatabaseColumn(LineStatus lineStatus) {
-        if (lineStatus == null) {
-            return null;
-        }
-        return lineStatus.getDescription();
+        if (lineStatus == null) return null;
+        return lineStatus.getCodeValue();
     }
 
     @Override
-    public LineStatus convertToEntityAttribute(String description) {
-        if (description == null) {
-            return null;
-        }
-        return java.util.stream.Stream.of(LineStatus.values())
-                .filter(c -> c.getDescription().equals(description))
-                .findFirst()
-                .orElseThrow(IllegalArgumentException::new);
+    public LineStatus convertToEntityAttribute(String codeValue) {
+        if (codeValue == null) return null;
+        return LineStatus.fromCode(codeValue);
     }
 }

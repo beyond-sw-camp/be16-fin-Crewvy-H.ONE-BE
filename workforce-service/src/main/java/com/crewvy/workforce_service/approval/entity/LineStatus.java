@@ -1,18 +1,24 @@
 package com.crewvy.workforce_service.approval.entity;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import java.util.Arrays;
+
+@Getter
+@AllArgsConstructor
 public enum LineStatus {
-    WAITING("대기"),    // 아직 결재 순서가 아님
-    PENDING("진행중"),  // 현재 결재할 차례
-    APPROVED("승인"),   // 해당 결재자가 승인함
-    REJECTED("반려");   // 해당 결재자가 반려함
+    WAITING("LS001", "대기"),
+    PENDING("LS002", "진행중"),
+    APPROVED("LS003", "승인"),
+    REJECTED("LS004", "반려");
 
-    private final String description;
+    private final String codeValue;
+    private final String codeName;
 
-    LineStatus(String description) {
-        this.description = description;
-    }
-
-    public String getDescription() {
-        return description;
+    public static LineStatus fromCode(String codeValue) {
+        return Arrays.stream(values())
+                .filter(v -> v.getCodeValue().equals(codeValue))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Unknown LineStatus code: " + codeValue));
     }
 }
