@@ -1,6 +1,8 @@
 package com.crewvy.workforce_service.salary.entity;
 
 import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.workforce_service.salary.constant.SalaryStatus;
+import com.crewvy.workforce_service.salary.converter.SalaryStatusConverter;
 import jakarta.persistence.*;
 
 import java.time.LocalDate;
@@ -27,7 +29,8 @@ public class Salary extends BaseEntity {
 
     private LocalDate paymentDate;
 
-    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Convert(converter = SalaryStatusConverter.class)
     private SalaryStatus salaryStatus;
 
     @OneToMany(mappedBy = "ordering", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
