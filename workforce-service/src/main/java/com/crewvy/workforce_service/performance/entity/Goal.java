@@ -35,7 +35,7 @@ public class Goal extends BaseEntity {
 
     private LocalDate endDate;
 
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = GoalStatusConverter.class)
     private GoalStatus status;
 
     private String comment;

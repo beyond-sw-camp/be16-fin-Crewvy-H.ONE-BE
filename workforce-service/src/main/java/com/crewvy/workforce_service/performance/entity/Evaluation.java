@@ -28,7 +28,7 @@ public class Evaluation {
     @Convert(converter = GradeConverter.class)
     private Grade grade;
 
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = EvaluationTypeConverter.class)
     private EvaluationType type;
 
     private String comment;
