@@ -1,11 +1,20 @@
 package com.crewvy.workforce_service.reservation.entity;
 
 import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.workforce_service.reservation.constant.ReservationStatus;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@Getter
 @Entity
 public class Reservation extends BaseEntity {
 
