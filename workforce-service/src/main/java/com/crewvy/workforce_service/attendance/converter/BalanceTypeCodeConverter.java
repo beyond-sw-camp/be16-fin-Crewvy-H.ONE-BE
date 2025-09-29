@@ -1,6 +1,5 @@
 package com.crewvy.workforce_service.attendance.converter;
 
-import com.crewvy.workforce_service.attendance.constant.BalanceTypeCode;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 
