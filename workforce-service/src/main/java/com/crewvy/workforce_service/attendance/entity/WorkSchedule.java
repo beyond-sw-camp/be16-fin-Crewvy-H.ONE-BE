@@ -24,7 +24,7 @@ public class WorkSchedule extends BaseEntity {
     private UUID workScheduleId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "policy_id")
+    @JoinColumn(name = "policy_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private Policy policy;
 
     @Column(name = "member_id", nullable = false, columnDefinition = "BINARY(16)")

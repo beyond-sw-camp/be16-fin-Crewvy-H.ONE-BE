@@ -26,7 +26,7 @@ public class Policy extends BaseEntity {
     private UUID policyId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "policy_type_id")
+    @JoinColumn(name = "policy_type_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private PolicyType policyType;
 
     @Column(name = "company_id", nullable = false, columnDefinition = "BINARY(16)")
