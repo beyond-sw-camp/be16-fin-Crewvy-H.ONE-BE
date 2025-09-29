@@ -2,7 +2,6 @@ package com.crewvy.workforce_service.performance.entity;
 
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
-import java.util.stream.Stream;
 
 @Converter
 public class EvaluationTypeConverter implements AttributeConverter<EvaluationType, String> {
@@ -12,17 +11,14 @@ public class EvaluationTypeConverter implements AttributeConverter<EvaluationTyp
         if (evaluationType == null) {
             return null;
         }
-        return evaluationType.getDescription();
+        return evaluationType.getCodeValue(); // DB 저장 시 codeValue ("ET001") 저장
     }
 
     @Override
-    public EvaluationType convertToEntityAttribute(String description) {
-        if (description == null) {
+    public EvaluationType convertToEntityAttribute(String codeValue) {
+        if (codeValue == null) {
             return null;
         }
-        return Stream.of(EvaluationType.values())
-                .filter(c -> c.getDescription().equals(description))
-                .findFirst()
-                .orElseThrow(IllegalArgumentException::new);
+        return EvaluationType.fromCode(codeValue); // DB 조회 시 codeValue로 Enum 생성
     }
 }
