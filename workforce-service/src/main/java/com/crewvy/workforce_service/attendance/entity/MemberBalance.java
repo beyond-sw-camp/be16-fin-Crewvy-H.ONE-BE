@@ -27,7 +27,6 @@ public class MemberBalance extends BaseEntity {
     @Column(name = "member_id", nullable = false, columnDefinition = "BINARY(16)")
     private UUID memberId;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "balance_type_code", nullable = false)
     private BalanceTypeCode balanceTypeCode;
 

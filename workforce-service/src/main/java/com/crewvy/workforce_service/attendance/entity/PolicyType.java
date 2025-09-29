@@ -27,7 +27,6 @@ public class PolicyType extends BaseEntity {
     @Column(name = "company_id", nullable = false)
     private UUID companyId;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "type_code", nullable = false)
     private PolicyTypeCode typeCode;
 
@@ -37,7 +36,6 @@ public class PolicyType extends BaseEntity {
     @Column(name = "balance_deductible", nullable = false)
     private boolean balanceDeductible;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "category_code", nullable = false)
     private PolicyCategory categoryCode;
 }

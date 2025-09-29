@@ -35,7 +35,6 @@ public class Request extends BaseEntity {
     @Column(name = "document_id", nullable = false, columnDefinition = "BINARY(16)")
     private UUID documentId;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "request_unit", nullable = false)
     private RequestUnit requestUnit;
 
@@ -51,7 +50,6 @@ public class Request extends BaseEntity {
     @Column(name = "reason", nullable = false)
     private String reason;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private RequestStatus status;
 
