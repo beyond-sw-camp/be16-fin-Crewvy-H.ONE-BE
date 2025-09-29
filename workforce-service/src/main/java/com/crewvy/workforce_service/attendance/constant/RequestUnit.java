@@ -1,4 +1,4 @@
-package com.crewvy.workforce_service.attendance.enums;
+package com.crewvy.workforce_service.attendance.constant;
 
 public enum RequestUnit {
     DAY,

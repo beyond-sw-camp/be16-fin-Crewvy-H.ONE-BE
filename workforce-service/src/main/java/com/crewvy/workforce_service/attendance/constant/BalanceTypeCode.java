@@ -1,4 +1,4 @@
-package com.crewvy.workforce_service.attendance.enums;
+package com.crewvy.workforce_service.attendance.constant;
 
 public enum BalanceTypeCode {
     ANNUAL_LEAVE,        // 연차유급휴가 (근로기준법 제60조)

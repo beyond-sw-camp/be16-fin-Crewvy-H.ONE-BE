@@ -1,8 +1,8 @@
 package com.crewvy.workforce_service.attendance.entity;
 
 import com.crewvy.common.entity.BaseEntity;
-import com.crewvy.workforce_service.attendance.enums.PolicyCategory;
-import com.crewvy.workforce_service.attendance.enums.PolicyTypeCode;
+import com.crewvy.workforce_service.attendance.constant.PolicyCategory;
+import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

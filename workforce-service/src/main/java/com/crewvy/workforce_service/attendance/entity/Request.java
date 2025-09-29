@@ -1,8 +1,8 @@
 package com.crewvy.workforce_service.attendance.entity;
 
 import com.crewvy.common.entity.BaseEntity;
-import com.crewvy.workforce_service.attendance.enums.RequestStatus;
-import com.crewvy.workforce_service.attendance.enums.RequestUnit;
+import com.crewvy.workforce_service.attendance.constant.RequestStatus;
+import com.crewvy.workforce_service.attendance.constant.RequestUnit;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
