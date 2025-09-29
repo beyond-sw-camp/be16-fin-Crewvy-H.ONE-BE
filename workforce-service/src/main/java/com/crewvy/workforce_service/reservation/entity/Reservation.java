@@ -31,7 +31,8 @@ public class Reservation extends BaseEntity {
     @Column(name = "company_id", nullable = false)
     private UUID companyId;
 
-    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Convert(converter = ReservationStatus.class)
     private ReservationStatus status;
 
     private LocalDateTime startDateTime;
