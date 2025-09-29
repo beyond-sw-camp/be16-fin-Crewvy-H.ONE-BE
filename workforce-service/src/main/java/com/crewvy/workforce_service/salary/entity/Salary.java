@@ -4,12 +4,21 @@ import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.workforce_service.salary.constant.SalaryStatus;
 import com.crewvy.workforce_service.salary.converter.SalaryStatusConverter;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
+import java.math.BigInteger;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@Getter
 @Entity
 public class Salary extends BaseEntity {
 
@@ -23,9 +32,9 @@ public class Salary extends BaseEntity {
     @Column(nullable = false)
     private UUID memberId;
 
-    private int amount;
+    private BigInteger amount;
 
-    private int netPay;
+    private BigInteger netPay;
 
     private LocalDate paymentDate;
 
