@@ -2,6 +2,7 @@ package com.crewvy.workspace_service.meeting.entity;
 
 import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.workspace_service.meeting.constant.MinuteStatus;
+import com.crewvy.workspace_service.meeting.converter.MinuteStatusConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -35,5 +36,6 @@ public class Minute extends BaseEntity {
 
     @Builder.Default
     @Column(name = "status", nullable = false)
+    @Convert(converter = MinuteStatusConverter.class)
     private MinuteStatus status = MinuteStatus.PENDING;
 }

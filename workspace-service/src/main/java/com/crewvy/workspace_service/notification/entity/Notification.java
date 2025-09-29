@@ -3,6 +3,7 @@ package com.crewvy.workspace_service.notification.entity;
 import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.common.entity.Bool;
 import com.crewvy.workspace_service.notification.constant.NotificationType;
+import com.crewvy.workspace_service.notification.converter.NotificationTypeConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,6 +29,7 @@ public class Notification extends BaseEntity {
     private String content;
 
     @Column(name = "notification_type", nullable = false)
+    @Convert(converter = NotificationTypeConverter.class)
     private NotificationType notificationType;
 
     @Column(name = "target_id", nullable = false)
