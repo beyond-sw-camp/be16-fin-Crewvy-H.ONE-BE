@@ -30,6 +30,6 @@ public class Salary extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private SalaryStatus salaryStatus;
 
-    @OneToMany(mappedBy = "ordering", fetch = FetchType.LAZY, cascade = CascadeType.PERSIST)
+    @OneToMany(mappedBy = "ordering", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SalaryDetail> salaryDetailList = new ArrayList<>();
 }
