@@ -33,6 +33,6 @@ public class Approval extends BaseEntity {
     @Convert(converter = JsonToMapConverter.class)
     private Map<String, Object> contents;
 
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = ApprovalStateConverter.class)
     private ApprovalState state;
 }

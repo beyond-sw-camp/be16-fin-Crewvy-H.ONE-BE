@@ -27,7 +27,7 @@ public class ApprovalLine{
     @Column(nullable = false)
     private String memberId;
 
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = LineStatusConverter.class)
     private LineStatus lineStatus;
 
     @Column(nullable = false)
