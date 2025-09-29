@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.reservation.entity;
 
 import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.workforce_service.reservation.constant.ReservationStatus;
+import com.crewvy.workforce_service.reservation.converter.ReservationStatusConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -32,7 +33,7 @@ public class Reservation extends BaseEntity {
     private UUID companyId;
 
     @Column(nullable = false)
-    @Convert(converter = ReservationStatus.class)
+    @Convert(converter = ReservationStatusConverter.class)
     private ReservationStatus status;
 
     private LocalDateTime startDateTime;
