@@ -1,0 +1,32 @@
+package com.crewvy.workforce_service.reservation.entity;
+
+import com.crewvy.common.entity.BaseEntity;
+import jakarta.persistence.*;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+@Entity
+public class Reservation extends BaseEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(name = "type_id", nullable = false)
+    private ReservationType reservationType;
+
+    @Column(name = "member_id", nullable = false)
+    private UUID memberId;
+
+    @Column(name = "company_id", nullable = false)
+    private UUID companyId;
+
+    @Enumerated(EnumType.STRING)
+    private ReservationStatus status;
+
+    private LocalDateTime startDateTime;
+
+    private LocalDateTime endDateTime;
+
+}
