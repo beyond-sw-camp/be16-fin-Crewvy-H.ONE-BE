@@ -23,8 +23,9 @@ public class WorkSchedule extends BaseEntity {
     @Column(name = "work_schedule_id", nullable = false, columnDefinition = "BINARY(16)")
     private UUID workScheduleId;
 
-    @Column(name = "policy_id", nullable = false, columnDefinition = "BINARY(16)")
-    private UUID policyId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "policy_id")
+    private Policy policy;
 
     @Column(name = "member_id", nullable = false, columnDefinition = "BINARY(16)")
     private UUID memberId;
