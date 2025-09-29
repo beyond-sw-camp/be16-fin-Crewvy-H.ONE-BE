@@ -42,6 +42,6 @@ public class Salary extends BaseEntity {
     @Convert(converter = SalaryStatusConverter.class)
     private SalaryStatus salaryStatus;
 
-    @OneToMany(mappedBy = "ordering", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "salary", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SalaryDetail> salaryDetailList = new ArrayList<>();
 }
