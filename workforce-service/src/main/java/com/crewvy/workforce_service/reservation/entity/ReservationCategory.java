@@ -1,5 +1,6 @@
 package com.crewvy.workforce_service.reservation.entity;
 
+import com.crewvy.common.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,7 +14,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Getter
 @Entity
-public class ReservationCategory {
+public class ReservationCategory extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
