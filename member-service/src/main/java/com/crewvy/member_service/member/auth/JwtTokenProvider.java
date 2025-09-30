@@ -1,6 +1,8 @@
 package com.crewvy.member_service.member.auth;
 
 import com.crewvy.member_service.member.entity.Member;
+import com.crewvy.member_service.member.entity.MemberPosition;
+import com.crewvy.member_service.member.repository.MemberPositionRepository;
 import com.crewvy.member_service.member.repository.MemberRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -34,7 +36,7 @@ public class JwtTokenProvider {
     private Key rtKey;
 
     @Autowired
-    public JwtTokenProvider(MemberRepository memberRepository) {
+    public JwtTokenProvider(MemberRepository memberRepository, MemberPositionRepository memberPositionRepository) {
         this.memberRepository = memberRepository;
     }
 
@@ -46,10 +48,14 @@ public class JwtTokenProvider {
         this.rtKey = Keys.hmacShaKeyFor(rtByte);
     }
 
-    public String createAtToken(Member member) {
-        String email = member.getEmail();
+    public String createAtToken(Member member, MemberPosition memberPosition) {
+        String memberId = member.getId().toString();
+        String memberPositionId = memberPosition.getId().toString();
+        String role = memberPosition.getRole().getName();
 
-        Claims claims = Jwts.claims().setSubject(email);
+        Claims claims = Jwts.claims().setSubject(memberId);
+        claims.put("MemberPositionId", memberPositionId);
+        claims.put("role", role);
 
         Date now = new Date();
         String accessToken = Jwts.builder()

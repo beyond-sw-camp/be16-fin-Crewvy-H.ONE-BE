@@ -8,6 +8,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDate;
+import java.util.UUID;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -19,26 +22,31 @@ public class CreateMemberReq {
     private String password;
     @NotEmpty(message = "성함을 입력해 주세요.")
     private String name;
-    private String telNumber;
+    private LocalDate localDate;
     private String phoneNumber;
+    private String emergencyContact;
     private String address;
-    private String sabun;
     private String bank;
     private String bankAccount;
     private String profileUrl;
+    private String sabun;
+    private String extensionNumber;
+    private String telNumber;
+    private UUID organizationId;
 
     public Member toEntity(String encodePassword, Company company){
         return Member.builder()
                 .email(this.email)
                 .password(encodePassword)
                 .name(this.name)
-                .telNumber(this.telNumber)
                 .phoneNumber(this.phoneNumber)
                 .address(this.address)
-                .sabun(this.sabun)
                 .bank(this.bank)
                 .bankAccount(this.bankAccount)
                 .profileUrl(this.profileUrl)
+                .sabun(this.sabun)
+                .extensionNumber(this.extensionNumber)
+                .telNumber(this.telNumber)
                 .company(company)
                 .build();
     }

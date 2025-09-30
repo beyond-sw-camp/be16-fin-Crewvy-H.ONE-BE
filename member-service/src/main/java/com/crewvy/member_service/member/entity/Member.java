@@ -3,12 +3,15 @@ package com.crewvy.member_service.member.entity;
 import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.common.entity.Bool;
 import com.crewvy.member_service.member.constant.MemberStatus;
+import com.crewvy.member_service.member.converter.MemberStatusConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -28,8 +31,6 @@ public class Member extends BaseEntity {
 
     private String name;
 
-    private String telNumber;
-
     private String phoneNumber;
 
     @Column(nullable = false)
@@ -44,15 +45,20 @@ public class Member extends BaseEntity {
     @Builder.Default
     private Bool isAddressDisclosure = Bool.TRUE;
 
-    private String sabun;
-
     private String bank;
 
     private String bankAccount;
 
     private String profileUrl;
 
+    private String sabun;
+
+    private String extensionNumber; // 내선번호
+
+    private String telNumber;       // 일반전화
+
     @Column(nullable = false)
+    @Convert(converter = MemberStatusConverter.class)
     @Builder.Default
     private MemberStatus memberStatus = MemberStatus.WORKING;
 
@@ -64,4 +70,20 @@ public class Member extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private Company company;
+
+    @Builder.Default
+    @OneToMany(mappedBy = "member", cascade = {CascadeType.PERSIST, CascadeType.REMOVE}, orphanRemoval = true)
+    private List<MemberPosition> memberPositionList = new ArrayList<>();
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "default_member_position_id")
+    private MemberPosition defaultMemberPosition;
+
+    @Builder.Default
+    @OneToMany(mappedBy = "member", cascade = {CascadeType.PERSIST, CascadeType.REMOVE}, orphanRemoval = true)
+    private List<GradeHistory> gradeHistoryList = new ArrayList<>();
+
+    public void updateDefaultMemberPosition(MemberPosition memberPosition){
+        this.defaultMemberPosition = memberPosition;
+    }
 }

@@ -1,6 +1,7 @@
 package com.crewvy.member_service.member.entity;
 
 import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.common.entity.Bool;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,7 +16,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class MemberOrgTitle extends BaseEntity {
+public class MemberPosition extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -32,11 +33,17 @@ public class MemberOrgTitle extends BaseEntity {
     @JoinColumn(name = "title_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private Title title;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "role_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
+    private Role role;
+
     @Column(nullable = false)
     private LocalDateTime startDate;
 
     private LocalDateTime endDate;
 
     @Column(nullable = false)
-    private boolean isActive;
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private Bool isActive = Bool.TRUE;
 }

@@ -1,6 +1,7 @@
 package com.crewvy.member_service.member.entity;
 
 import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.member_service.member.constant.Action;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,5 +21,14 @@ public class Permission extends BaseEntity {
     private UUID id;
 
     @Column(nullable = false)
-    private String permissionName;
+    private String name;
+
+    @Column(nullable = false)
+    private String resource;
+
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private Action action;
+
+    private String description;
 }
