@@ -3,9 +3,7 @@ package com.crewvy.member_service.member.service;
 import com.crewvy.common.entity.Bool;
 import com.crewvy.member_service.member.auth.JwtTokenProvider;
 import com.crewvy.member_service.member.constant.Action;
-import com.crewvy.member_service.member.dto.request.CreateAdminReq;
-import com.crewvy.member_service.member.dto.request.CreateMemberReq;
-import com.crewvy.member_service.member.dto.request.LoginReq;
+import com.crewvy.member_service.member.dto.request.*;
 import com.crewvy.member_service.member.dto.response.LoginRes;
 import com.crewvy.member_service.member.entity.*;
 import com.crewvy.member_service.member.repository.*;
@@ -67,6 +65,7 @@ public class MemberService {
         Company company = createCompany(createAdminReq.getCompanyName());
         Organization organization = createDefaultOrganization(company);
         Role adminRole = createAdminRole(company);
+        createBaseRole(company);
         Grade grade = createDefaultGrade(company);
         Title adminTitle = createDefaultTitle(company);
 
@@ -81,7 +80,7 @@ public class MemberService {
     }
 
     // 사용자 계정 생성
-    public UUID createMember(UUID uuid, UUID memberPositionId, CreateMemberReq createMemberReq) {
+    public UUID createMember(UUID memberId, UUID memberPositionId, CreateMemberReq createMemberReq) {
         if (checkPermission(memberPositionId, "member", Action.CREATE).equals(Bool.FALSE)) {
             throw new ForbiddenException("권한이 없습니다.");
         }
@@ -90,11 +89,23 @@ public class MemberService {
             throw new IllegalArgumentException("사용할 수 없는 이메일입니다.");
         }
 
+        Member admin = memberRepository.findById(memberId).orElseThrow(()
+                -> new IllegalArgumentException("존재하지 않는 계정입니다."));
+        Company company = admin.getCompany();
         String encodePassword = passwordEncoder.encode(createMemberReq.getPassword());
-        Company company = companyRepository.findById(memberRepository.findById(uuid)
-                        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다.")).getCompany().getId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회사명입니다."));
-        Member savedMember = memberRepository.save(createMemberReq.toEntity(encodePassword, company));
+        Member savedMember = memberRepository.save(createMemberReq.memberToEntity(encodePassword, company));
+
+        Organization organization = organizationRepository.findById(createMemberReq.getOrganizationId()).orElseThrow(()
+                -> new IllegalArgumentException("존재하지 않는 조직입니다."));
+
+        Title title = titleRepository.findById(createMemberReq.getTitleId()).orElseThrow(()
+                -> new IllegalArgumentException("존재하지 않는 직책입니다."));
+
+        Role role = roleRepository.findById(createMemberReq.getRoleId()).orElseThrow(()
+                -> new IllegalArgumentException("존재하지 않는 역할입니다."));
+
+        MemberPosition memberPosition = createMemberPosition(savedMember, organization, title, role, LocalDateTime.now());
+        savedMember.updateDefaultMemberPosition(memberPosition);
         return savedMember.getId();
     }
 
@@ -119,12 +130,47 @@ public class MemberService {
                 .build();
     }
 
+    // 조직 생성
+    public UUID createOrganization(UUID memberId, UUID memberPositionId, CreateOrganizationReq createOrganizationReq) {
+        if (checkPermission(memberPositionId, "member", Action.CREATE).equals(Bool.FALSE)) {
+            throw new ForbiddenException("권한이 없습니다.");
+        }
+
+        Member member = memberRepository.findById(memberId).orElseThrow(()
+                -> new IllegalArgumentException("존재하지 않는 계정입니다."));
+        Organization parent = organizationRepository.findById(createOrganizationReq.getParentId()).orElseThrow(()
+                -> new IllegalArgumentException("존재하지 않는 상위 조직입니다."));
+        return organizationRepository.save(createOrganizationReq.toEntity(parent, member.getCompany())).getId();
+    }
+
+    // 직책 생성
+    public UUID createTitle(UUID memberId, UUID memberPositionId, CreateTitleReq createTitleReq) {
+        if (checkPermission(memberPositionId, "member", Action.CREATE).equals(Bool.FALSE)) {
+            throw new ForbiddenException("권한이 없습니다.");
+        }
+
+        Member member = memberRepository.findById(memberId).orElseThrow(()
+                -> new IllegalArgumentException("존재하지 않는 계정입니다."));
+        return titleRepository.save(createTitleReq.toEntity(member.getCompany())).getId();
+    }
+
+    // 직급 생성
+    public UUID createGrade(UUID memberId, UUID memberPositionId, CreateGradeReq createGradeReq) {
+        if (checkPermission(memberPositionId, "member", Action.CREATE).equals(Bool.FALSE)) {
+            throw new ForbiddenException("권한이 없습니다.");
+        }
+
+        Member member = memberRepository.findById(memberId).orElseThrow(()
+                -> new IllegalArgumentException("존재하지 않는 계정입니다."));
+        return gradeRepository.save(createGradeReq.toEntity(member.getCompany())).getId();
+    }
+
     // 권한 확인
     public Bool checkPermission(UUID memberPositionId, String resource, Action action) {
         if (!permissionRepository.hasPermission(memberPositionId, resource, action)) {
             return Bool.FALSE;
         } else {
-            return Bool.TRUE;
+            return Bool.TRUE    ;
         }
     }
 
@@ -148,7 +194,7 @@ public class MemberService {
         return companyRepository.save(company);
     }
 
-    // 조직 생성
+    // 최초 조직 생성
     private Organization createDefaultOrganization(Company company) {
         Organization organization = Organization.builder()
                 .parent(null)
@@ -159,7 +205,7 @@ public class MemberService {
         return organizationRepository.save(organization);
     }
 
-    // 관리자 역할 생성
+    // 관리자
     private Role createAdminRole(Company company) {
         Role adminRole = Role.builder()
                 .name(company.getCompanyName() + " 관리자")
@@ -180,6 +226,15 @@ public class MemberService {
 
         adminRole.updatePermission(permissions);
         return adminRole;
+    }
+
+    // 일반 사용자 역할 생성
+    private Role createBaseRole(Company company) {
+        Role generalRole = Role.builder()
+                .name("일반 사용자")
+                .company(company)
+                .build();
+        return roleRepository.save(generalRole);
     }
 
     // 관리자 직급 생성

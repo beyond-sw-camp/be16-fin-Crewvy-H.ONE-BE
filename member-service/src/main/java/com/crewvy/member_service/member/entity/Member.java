@@ -2,7 +2,10 @@ package com.crewvy.member_service.member.entity;
 
 import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.common.entity.Bool;
+import com.crewvy.member_service.member.constant.AccountStatus;
+import com.crewvy.member_service.member.constant.EmploymentType;
 import com.crewvy.member_service.member.constant.MemberStatus;
+import com.crewvy.member_service.member.converter.AccountStatusConverter;
 import com.crewvy.member_service.member.converter.MemberStatusConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -38,6 +41,8 @@ public class Member extends BaseEntity {
     @Builder.Default
     private Bool isPhoneNumberPublic = Bool.TRUE;
 
+    private String emergencyContact;
+
     private String address;
 
     @Column(nullable = false)
@@ -61,6 +66,15 @@ public class Member extends BaseEntity {
     @Convert(converter = MemberStatusConverter.class)
     @Builder.Default
     private MemberStatus memberStatus = MemberStatus.WORKING;
+
+    @Column(nullable = false)
+    @Convert(converter = AccountStatusConverter.class)
+    @Builder.Default
+    private AccountStatus accountStatus = AccountStatus.ACTIVE;
+
+    @Column(nullable = false)
+    @Convert(converter = EmploymentType.class)
+    private EmploymentType employmentType;
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
