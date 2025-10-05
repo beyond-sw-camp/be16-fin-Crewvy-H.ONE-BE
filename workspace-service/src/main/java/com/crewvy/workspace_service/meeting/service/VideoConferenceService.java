@@ -1,7 +1,9 @@
 package com.crewvy.workspace_service.meeting.service;
 
+import com.crewvy.common.exception.UserNotHostException;
 import com.crewvy.common.exception.UserNotInvitedException;
 import com.crewvy.common.exception.VideoConferenceNotInProgressException;
+import com.crewvy.common.exception.VideoConferenceNotWaitingException;
 import com.crewvy.workspace_service.meeting.constant.VideoConferenceStatus;
 import com.crewvy.workspace_service.meeting.dto.OpenViduSessionRes;
 import com.crewvy.workspace_service.meeting.dto.VideoConferenceBookRes;
@@ -97,6 +99,31 @@ public class VideoConferenceService {
         } catch (OpenViduJavaClientException | OpenViduHttpException e) {
             throw new RuntimeException(e);
         }
+
+        return OpenViduSessionRes.builder().sessionId(sessionId).token(token).build();
+    }
+
+    public OpenViduSessionRes startVideoConference(UUID videoConferenceId) {
+        VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 화상회의 입니다."));
+
+        if (videoConference.getStatus() != VideoConferenceStatus.WAITING)
+            throw new VideoConferenceNotWaitingException("대기 중인 화상회의가 아닙니다.");
+
+        if (!videoConference.getHostId().equals(new UUID(123, 123)))
+            throw new UserNotHostException("화상회의의 호스트가 아닙니다.");
+
+        String token;
+        String sessionId;
+        try {
+            Session session = openVidu.createSession();
+
+            sessionId = session.getSessionId();
+            token = session.createConnection(connectionProperties).getToken();
+        } catch (OpenViduJavaClientException | OpenViduHttpException e) {
+            throw new RuntimeException(e);
+        }
+
+        videoConference.startVideoConference(sessionId);
 
         return OpenViduSessionRes.builder().sessionId(sessionId).token(token).build();
     }

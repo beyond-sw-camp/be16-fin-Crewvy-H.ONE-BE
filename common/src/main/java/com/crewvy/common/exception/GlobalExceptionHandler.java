@@ -56,6 +56,14 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(e.getMessage()));
     }
 
+    @ExceptionHandler(UserNotHostException.class)
+    protected ResponseEntity<ApiResponse<?>> handleUserNotHostException(UserNotHostException e) {
+        log.warn("UserNotHostException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     protected ResponseEntity<ApiResponse<?>> handleMethodArgumentTypeMismatchException(MethodArgumentTypeMismatchException e) {
         log.warn("MethodArgumentTypeMismatchException: {}", e.getMessage());
@@ -67,6 +75,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(VideoConferenceNotInProgressException.class)
     protected ResponseEntity<ApiResponse<?>> handleVideoConferenceNotInProgressException(VideoConferenceNotInProgressException e) {
         log.warn("VideoConferenceNotInProgressException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
+    @ExceptionHandler(VideoConferenceNotWaitingException.class)
+    protected ResponseEntity<ApiResponse<?>> handleVideoConferenceNotWaitingException(VideoConferenceNotWaitingException e) {
+        log.warn("VideoConferenceNotWaitingException: {}", e.getMessage());
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
                 .body(ApiResponse.error(e.getMessage()));

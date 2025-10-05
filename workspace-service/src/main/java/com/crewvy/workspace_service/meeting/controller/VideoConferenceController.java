@@ -29,6 +29,7 @@ public class VideoConferenceController {
 
     @PostMapping("")
     public ResponseEntity<?> createVideoConference(@RequestParam(name = "immediate", required = false, defaultValue = "false") boolean immediate,
+            /*@RequestHeader("X-Member-Id") UUID memberId,*/
                                                    @RequestBody VideoConferenceCreateReq videoConferenceCreateReq) {
         if (immediate) {
             OpenViduSessionRes res = videoConferenceService.createVideoConference(videoConferenceCreateReq);
@@ -39,16 +40,22 @@ public class VideoConferenceController {
         }
     }
 
-    @PostMapping("/{videoConferenceId}/participants")
-    public ResponseEntity<?> joinVideoConference(@PathVariable("videoConferenceId") UUID videoConferenceId) {
+    @PostMapping("/{videoConferenceId}/join")
+    public ResponseEntity<?> joinVideoConference(/*@RequestHeader("X-Member-Id") UUID memberId,*/@PathVariable("videoConferenceId") UUID videoConferenceId) {
         OpenViduSessionRes res = videoConferenceService.joinVideoConference(videoConferenceId);
         return new ResponseEntity<>(ApiResponse.success(res, "화상회의 참여 성공"), HttpStatus.OK);
     }
 
+    @PostMapping("/{videoConferenceId}/start")
+    public ResponseEntity<?> startVideoConference(/*@RequestHeader("X-Member-Id") UUID memberId,*/@PathVariable("videoConferenceId") UUID videoConferenceId) {
+        OpenViduSessionRes res = videoConferenceService.startVideoConference(videoConferenceId);
+        return new ResponseEntity<>(ApiResponse.success(res, "화상회의 시작 성공"), HttpStatus.OK);
+    }
+
     @GetMapping("")
     public ResponseEntity<?> findAllMyVideoConferences(/*@RequestHeader("X-Member-Id") UUID memberId,*/
-                                                       @RequestParam("status") VideoConferenceStatus status,
-                                                       @PageableDefault(value = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+            @RequestParam("status") VideoConferenceStatus status,
+            @PageableDefault(value = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         Page<VideoConferenceListRes> res = videoConferenceService.findAllMyVideoConference(null, status, pageable);
         return new ResponseEntity<>(ApiResponse.success(res, "나의 화상회의 조회 성공"), HttpStatus.OK);
     }
