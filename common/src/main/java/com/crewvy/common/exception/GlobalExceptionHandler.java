@@ -60,7 +60,7 @@ public class GlobalExceptionHandler {
     protected ResponseEntity<ApiResponse<?>> handleMethodArgumentTypeMismatchException(MethodArgumentTypeMismatchException e) {
         log.warn("MethodArgumentTypeMismatchException: {}", e.getMessage());
         return ResponseEntity
-                .status(HttpStatus.FORBIDDEN)
+                .status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error("파라미터 형식이 올바르지 않습니다."));
     }
 
@@ -76,7 +76,7 @@ public class GlobalExceptionHandler {
     protected ResponseEntity<ApiResponse<?>> handleEntityNotFoundException(EntityNotFoundException e) {
         log.warn("EntityNotFoundException: {}", e.getMessage());
         return ResponseEntity
-                .status(HttpStatus.CONFLICT)
+                .status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error(e.getMessage()));
     }
 }
