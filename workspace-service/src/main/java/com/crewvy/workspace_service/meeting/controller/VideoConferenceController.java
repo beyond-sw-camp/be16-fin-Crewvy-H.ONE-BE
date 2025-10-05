@@ -2,9 +2,9 @@ package com.crewvy.workspace_service.meeting.controller;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workspace_service.meeting.constant.VideoConferenceStatus;
+import com.crewvy.workspace_service.meeting.dto.OpenViduSessionRes;
 import com.crewvy.workspace_service.meeting.dto.VideoConferenceBookRes;
 import com.crewvy.workspace_service.meeting.dto.VideoConferenceCreateReq;
-import com.crewvy.workspace_service.meeting.dto.VideoConferenceCreateRes;
 import com.crewvy.workspace_service.meeting.dto.VideoConferenceListRes;
 import com.crewvy.workspace_service.meeting.service.VideoConferenceService;
 import org.springframework.data.domain.Page;
@@ -31,12 +31,18 @@ public class VideoConferenceController {
     public ResponseEntity<?> createVideoConference(@RequestParam(name = "immediate", required = false, defaultValue = "false") boolean immediate,
                                                    @RequestBody VideoConferenceCreateReq videoConferenceCreateReq) {
         if (immediate) {
-            VideoConferenceCreateRes res = videoConferenceService.createVideoConference(videoConferenceCreateReq);
+            OpenViduSessionRes res = videoConferenceService.createVideoConference(videoConferenceCreateReq);
             return new ResponseEntity<>(ApiResponse.success(res, "화상회의 생성 성공"), HttpStatus.CREATED);
         } else {
             VideoConferenceBookRes res = videoConferenceService.bookVideoConference(videoConferenceCreateReq);
             return new ResponseEntity<>(ApiResponse.success(res, "화상회의 등록 성공"), HttpStatus.CREATED);
         }
+    }
+
+    @PostMapping("/{videoConferenceId}/participants")
+    public ResponseEntity<?> joinVideoConference(@PathVariable("videoConferenceId") UUID videoConferenceId) {
+        OpenViduSessionRes res = videoConferenceService.joinVideoConference(videoConferenceId);
+        return new ResponseEntity<>(ApiResponse.success(res, "화상회의 참여 성공"), HttpStatus.OK);
     }
 
     @GetMapping("")

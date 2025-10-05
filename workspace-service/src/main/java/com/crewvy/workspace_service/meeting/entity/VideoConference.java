@@ -79,6 +79,6 @@ public class VideoConference extends BaseEntity {
 
     public void startVideoConference(String sessionId) {
         this.sessionId = sessionId;
-        this.status = VideoConferenceStatus.ONGOING;
+        this.status = VideoConferenceStatus.IN_PROGRESS;
     }
 }

@@ -1,5 +1,7 @@
 package com.crewvy.workspace_service.meeting.config;
 
+import io.openvidu.java.client.ConnectionProperties;
+import io.openvidu.java.client.ConnectionType;
 import io.openvidu.java.client.OpenVidu;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -17,5 +19,12 @@ public class OpenViduConfig {
     @Bean
     public OpenVidu openVidu() {
         return new OpenVidu(OPENVIDU_URL, OPENVIDU_SECRET);
+    }
+
+    @Bean
+    public ConnectionProperties connectionProperties() {
+        return new ConnectionProperties.Builder()
+                .type(ConnectionType.WEBRTC)
+                .build();
     }
 }

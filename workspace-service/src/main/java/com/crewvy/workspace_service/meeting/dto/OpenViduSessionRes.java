@@ -6,7 +6,7 @@ import lombok.*;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor(access = AccessLevel.PROTECTED)
-public class VideoConferenceCreateRes {
+public class OpenViduSessionRes {
     private String sessionId;
     private String token;
 }
