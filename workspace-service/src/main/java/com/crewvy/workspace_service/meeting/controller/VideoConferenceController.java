@@ -2,10 +2,7 @@ package com.crewvy.workspace_service.meeting.controller;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workspace_service.meeting.constant.VideoConferenceStatus;
-import com.crewvy.workspace_service.meeting.dto.OpenViduSessionRes;
-import com.crewvy.workspace_service.meeting.dto.VideoConferenceBookRes;
-import com.crewvy.workspace_service.meeting.dto.VideoConferenceCreateReq;
-import com.crewvy.workspace_service.meeting.dto.VideoConferenceListRes;
+import com.crewvy.workspace_service.meeting.dto.*;
 import com.crewvy.workspace_service.meeting.service.VideoConferenceService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -58,5 +55,13 @@ public class VideoConferenceController {
             @PageableDefault(value = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         Page<VideoConferenceListRes> res = videoConferenceService.findAllMyVideoConference(null, status, pageable);
         return new ResponseEntity<>(ApiResponse.success(res, "나의 화상회의 조회 성공"), HttpStatus.OK);
+    }
+
+    @PutMapping("/{videoConferenceId}")
+    public ResponseEntity<?> updateVideoConference(/*@RequestHeader("X-Member-Id") UUID memberId,*/
+            @PathVariable("videoConferenceId") UUID videoConferenceId,
+            @RequestBody VideoConferenceUpdateReq videoConferenceUpdateReq) {
+        VideoConferenceUpdateRes res = videoConferenceService.updateVideoConference(videoConferenceId, videoConferenceUpdateReq);
+        return new ResponseEntity<>(ApiResponse.success(res, "화상회의 수정 성공"), HttpStatus.OK);
     }
 }

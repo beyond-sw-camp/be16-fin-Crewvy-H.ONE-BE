@@ -1,14 +1,12 @@
 package com.crewvy.workspace_service.meeting.service;
 
+import com.crewvy.common.entity.Bool;
 import com.crewvy.common.exception.UserNotHostException;
 import com.crewvy.common.exception.UserNotInvitedException;
 import com.crewvy.common.exception.VideoConferenceNotInProgressException;
 import com.crewvy.common.exception.VideoConferenceNotWaitingException;
 import com.crewvy.workspace_service.meeting.constant.VideoConferenceStatus;
-import com.crewvy.workspace_service.meeting.dto.OpenViduSessionRes;
-import com.crewvy.workspace_service.meeting.dto.VideoConferenceBookRes;
-import com.crewvy.workspace_service.meeting.dto.VideoConferenceCreateReq;
-import com.crewvy.workspace_service.meeting.dto.VideoConferenceListRes;
+import com.crewvy.workspace_service.meeting.dto.*;
 import com.crewvy.workspace_service.meeting.entity.VideoConference;
 import com.crewvy.workspace_service.meeting.entity.VideoConferenceInvitee;
 import com.crewvy.workspace_service.meeting.repository.VideoConferenceRepository;
@@ -19,6 +17,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 
@@ -68,12 +68,6 @@ public class VideoConferenceService {
         videoConferenceRepository.save(videoConference);
 
         return VideoConferenceBookRes.fromEntity(videoConference);
-    }
-
-    private void addInvitee(VideoConference videoConference, List<UUID> inviteeIdList) {
-        inviteeIdList.stream()
-                .map(id -> VideoConferenceInvitee.builder().memberId(id).videoConference(videoConference).build())
-                .forEach(videoConference.getVideoConferenceInviteeList()::add);
     }
 
     @Transactional(readOnly = true)
@@ -126,5 +120,37 @@ public class VideoConferenceService {
         videoConference.startVideoConference(sessionId);
 
         return OpenViduSessionRes.builder().sessionId(sessionId).token(token).build();
+    }
+
+    public VideoConferenceUpdateRes updateVideoConference(UUID videoConferenceId, VideoConferenceUpdateReq videoConferenceUpdateReq) {
+        VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 화상회의 입니다."));
+
+        if (!videoConference.getHostId().equals(new UUID(123, 123)))
+            throw new UserNotHostException("화상회의의 호스트가 아닙니다.");
+
+        if (videoConferenceUpdateReq.getName() != null)
+            videoConference.updateName(videoConferenceUpdateReq.getName());
+
+        if (videoConferenceUpdateReq.getDescription() != null)
+            videoConference.updateDescription(videoConferenceUpdateReq.getDescription());
+
+        if (videoConferenceUpdateReq.getIsRecording() != null)
+            videoConference.updateIsRecording(videoConferenceUpdateReq.getIsRecording() ? Bool.TRUE : Bool.FALSE);
+
+        if (videoConferenceUpdateReq.getScheduledStartTime() != null)
+            videoConference.updateScheduledStartTime(LocalDateTime.parse(videoConferenceUpdateReq.getScheduledStartTime(), DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")));
+
+        videoConference.getVideoConferenceInviteeList().clear();
+        videoConferenceUpdateReq.getInviteeIdList().add(new UUID(123, 123));
+        addInvitee(videoConference, videoConferenceUpdateReq.getInviteeIdList());
+
+        return VideoConferenceUpdateRes.fromEntity(videoConference);
+    }
+
+
+    private void addInvitee(VideoConference videoConference, List<UUID> inviteeIdList) {
+        inviteeIdList.stream()
+                .map(id -> VideoConferenceInvitee.builder().memberId(id).videoConference(videoConference).build())
+                .forEach(videoConference.getVideoConferenceInviteeList()::add);
     }
 }

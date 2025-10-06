@@ -1,14 +1,15 @@
 package com.crewvy.workspace_service.meeting.dto;
 
 import com.crewvy.workspace_service.meeting.entity.VideoConference;
-import lombok.Builder;
-import lombok.Getter;
+import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PROTECTED)
 public class VideoConferenceListRes {
     private UUID id;
     private String name;

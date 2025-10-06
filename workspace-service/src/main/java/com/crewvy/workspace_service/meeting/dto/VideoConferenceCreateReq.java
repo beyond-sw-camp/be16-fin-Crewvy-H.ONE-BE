@@ -6,6 +6,7 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -16,7 +17,7 @@ import java.util.UUID;
 public class VideoConferenceCreateReq {
     private String name;
     private String description;
-    private List<UUID> inviteeIdList;
+    private List<UUID> inviteeIdList = new ArrayList<>();
     private Boolean isRecording;
     private String scheduledStartTime;
 

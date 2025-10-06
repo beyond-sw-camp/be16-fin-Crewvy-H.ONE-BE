@@ -81,4 +81,24 @@ public class VideoConference extends BaseEntity {
         this.sessionId = sessionId;
         this.status = VideoConferenceStatus.IN_PROGRESS;
     }
+
+    public void endVideoConference() {
+        this.status = VideoConferenceStatus.ENDED;
+    }
+
+    public void updateName(String name) {
+        this.name = name;
+    }
+
+    public void updateDescription(String description) {
+        this.description = description;
+    }
+
+    public void updateIsRecording(Bool isRecording) {
+        this.isRecording = isRecording;
+    }
+
+    public void updateScheduledStartTime(LocalDateTime scheduledStartTime) {
+        this.scheduledStartTime = scheduledStartTime;
+    }
 }
