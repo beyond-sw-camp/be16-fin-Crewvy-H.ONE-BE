@@ -147,6 +147,18 @@ public class VideoConferenceService {
         return VideoConferenceUpdateRes.fromEntity(videoConference);
     }
 
+    public void deleteVideoConference(UUID videoConferenceId) {
+        VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 화상회의 입니다."));
+
+        if (videoConference.getStatus() != VideoConferenceStatus.WAITING)
+            throw new VideoConferenceNotWaitingException("이미 회의가 진행 중이거나 종료되었습니다.");
+
+        if (!videoConference.getHostId().equals(new UUID(123, 123)))
+            throw new UserNotHostException("화상회의의 호스트가 아닙니다.");
+
+        // TODO : soft-delete?
+        videoConferenceRepository.delete(videoConference);
+    }
 
     private void addInvitee(VideoConference videoConference, List<UUID> inviteeIdList) {
         inviteeIdList.stream()
