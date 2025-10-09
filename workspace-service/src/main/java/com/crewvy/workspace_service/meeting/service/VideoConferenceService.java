@@ -12,6 +12,7 @@ import com.crewvy.workspace_service.meeting.entity.VideoConferenceInvitee;
 import com.crewvy.workspace_service.meeting.repository.VideoConferenceRepository;
 import io.openvidu.java.client.*;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,7 @@ import java.util.UUID;
 // TODO : jwt가 이메일에서 UUID으로 변경되면 더미가 아니라 진짜 요청한 유저의 UUID를 넣어야 함
 //  new UUID(123, 123) -> 진짜 UUID
 
+@Slf4j
 @Service
 @Transactional
 public class VideoConferenceService {
@@ -70,8 +72,21 @@ public class VideoConferenceService {
         return VideoConferenceBookRes.fromEntity(videoConference);
     }
 
-    @Transactional(readOnly = true)
     public Page<VideoConferenceListRes> findAllMyVideoConference(UUID memberId, VideoConferenceStatus videoConferenceStatus, Pageable pageable) {
+
+        // 회의 시작 후 시작 안 하고 1시간 정도 흘러서 OpenVidu GC가 세션 정리한 경우가 있어서 일단 만들었는 데 필요한지 고민 해봐야할 듯
+        if (videoConferenceStatus == VideoConferenceStatus.IN_PROGRESS) {
+            try {
+                openVidu.fetch();
+            } catch (OpenViduJavaClientException | OpenViduHttpException e) {
+                throw new RuntimeException(e);
+            }
+            videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatus(new UUID(123, 123), videoConferenceStatus)
+                    .forEach(videoConference -> {
+                        if (openVidu.getActiveSession(videoConference.getSessionId()) == null) videoConference.endVideoConference();
+                    });
+        }
+
         return videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatus(new UUID(123, 123), videoConferenceStatus, pageable)
                 .map(VideoConferenceListRes::fromEntity);
     }
@@ -89,6 +104,7 @@ public class VideoConferenceService {
         String token;
 
         try {
+            openVidu.fetch();
             token = openVidu.getActiveSession(sessionId).createConnection(connectionProperties).getToken();
         } catch (OpenViduJavaClientException | OpenViduHttpException e) {
             throw new RuntimeException(e);

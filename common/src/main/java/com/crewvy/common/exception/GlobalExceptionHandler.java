@@ -95,4 +95,12 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error(e.getMessage()));
     }
+
+    @ExceptionHandler(RuntimeException.class)
+    protected ResponseEntity<ApiResponse<?>> handleRuntimeException(RuntimeException e) {
+        log.warn("RuntimeException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(e.getMessage()));
+    }
 }
