@@ -1,12 +1,14 @@
 package com.crewvy.member_service.member.repository;
 
 import com.crewvy.member_service.member.constant.Action;
+import com.crewvy.member_service.member.constant.PermissionRange;
 import com.crewvy.member_service.member.entity.Permission;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -21,4 +23,6 @@ public interface PermissionRepository extends JpaRepository<Permission, UUID> {
     boolean hasPermission(@Param("memberPositionId") UUID memberPositionId,
                           @Param("resource") String resource,
                           @Param("action") Action action);
+
+    List<Permission> findByPermissionRange(PermissionRange permissionRange);
 }

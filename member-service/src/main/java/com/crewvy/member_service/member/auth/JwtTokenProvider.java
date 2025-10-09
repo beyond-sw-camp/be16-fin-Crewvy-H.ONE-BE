@@ -52,10 +52,12 @@ public class JwtTokenProvider {
         String memberId = member.getId().toString();
         String memberPositionId = memberPosition.getId().toString();
         String role = memberPosition.getRole().getName();
+        String name = memberRepository.findById(member.getId()).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 계정입니다.")).getName();
 
         Claims claims = Jwts.claims().setSubject(memberId);
         claims.put("MemberPositionId", memberPositionId);
         claims.put("role", role);
+        claims.put("name", name);
 
         Date now = new Date();
         String accessToken = Jwts.builder()

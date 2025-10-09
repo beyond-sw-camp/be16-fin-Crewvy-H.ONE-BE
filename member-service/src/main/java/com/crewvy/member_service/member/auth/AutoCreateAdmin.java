@@ -1,10 +1,13 @@
 package com.crewvy.member_service.member.auth;
 
 import com.crewvy.member_service.member.constant.Action;
+import com.crewvy.member_service.member.constant.EmploymentType;
+import com.crewvy.member_service.member.constant.PermissionRange;
 import com.crewvy.member_service.member.entity.*;
 import com.crewvy.member_service.member.repository.*;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,131 +18,166 @@ import java.util.List;
 
 @Component
 @RequiredArgsConstructor
-@Transactional
-public class AutoCreateAdmin implements CommandLineRunner {
+public class AutoCreateAdmin implements ApplicationRunner {
+
     private final CompanyRepository companyRepository;
-    private final OrganizationRepository organizationRepository;
     private final MemberRepository memberRepository;
+    private final MemberPositionRepository memberPositionRepository;
+    private final OrganizationRepository organizationRepository;
+    private final RoleRepository roleRepository;
     private final GradeRepository gradeRepository;
     private final TitleRepository titleRepository;
-    private final MemberPositionRepository memberPositionRepository;
-    private final RoleRepository roleRepository;
-    private final PermissionRepository permissionRepository;
     private final PasswordEncoder passwordEncoder;
+    private final PermissionRepository permissionRepository;
+    private final RolePermissionRepository rolePermissionRepository;
 
     @Override
-    public void run(String... args) throws Exception {
-        if (memberRepository.findByEmail("system_admin@naver.com").isPresent()) {
+    @Transactional
+    public void run(ApplicationArguments args) {
+        if (memberRepository.count() > 0) {
             return;
         }
-        // 회사 및 조직 생성
-        Company crewvy = Company.builder()
-                .companyName("Crewvy")
-                .build();
-        companyRepository.save(crewvy);
 
-        Organization organization = Organization.builder()
-                .parent(null)
-                .name("maintenance team")
-                .company(crewvy)
-                .children(null)
-                .build();
-        organizationRepository.save(organization);
+        createBasePermissions();
+        createSystemAdmin();
+        createCompanyWithEmployees();
+    }
 
-        // 권한 및 역할 생성
-        Role systemAdminRole = Role.builder()
-                .name("시스템 관리자")
-                .company(crewvy)
-                .build();
-        roleRepository.save(systemAdminRole);
-        List<RolePermission> systemAdminPermission = new ArrayList<>();
+    private void createBasePermissions() {
+        if (permissionRepository.count() > 0) {
+            return;
+        }
 
-        Permission createMemberPermission = Permission.builder()
-                .name("계정 생성")
-                .resource("member")
-                .action(Action.CREATE)
-                .description("계정 생성 권한")
-                .build();
-        systemAdminPermission.add(RolePermission.builder()
-                        .role(systemAdminRole)
-                        .permission(permissionRepository.save(createMemberPermission))
-                .build());
+        List<Permission> permissions = new ArrayList<>();
+        String resource = "member";
 
-        Permission readMemberPermission = Permission.builder()
-                .name("계정 조회")
-                .resource("member")
-                .action(Action.READ)
-                .description("계정 조회 권한")
-                .build();
-        systemAdminPermission.add(RolePermission.builder()
-                .role(systemAdminRole)
-                .permission(permissionRepository.save(readMemberPermission))
-                .build());
+        for (Action action : Action.values()) {
+            for (PermissionRange range : PermissionRange.values()) {
+                String name = String.format("%s:%s:%s", resource, action, range);
+                Permission permission = Permission.builder()
+                        .name(name)
+                        .resource(resource)
+                        .action(action)
+                        .permissionRange(range)
+                        .description(String.format("%s에 대한 %s(%s) 권한", resource, action.name(), range.getCodeName()))
+                        .build();
+                permissions.add(permission);
+            }
+        }
+        permissionRepository.saveAll(permissions);
+    }
 
-        Permission updateMemberPermission = Permission.builder()
-                .name("계정 수정")
-                .resource("member")
-                .action(Action.UPDATE)
-                .description("계정 수정 권한")
-                .build();
-        systemAdminPermission.add(RolePermission.builder()
-                .role(systemAdminRole)
-                .permission(permissionRepository.save(updateMemberPermission))
-                .build());
+    private void createSystemAdmin() {
+        Company sysCompany = createCompany("SYSTEM", "000-00-00000");
+        Organization sysOrg = createDefaultOrganization(sysCompany);
+        Title sysTitle = createDefaultTitle(sysCompany, "시스템 관리자");
 
-        Permission deleteMemberPermission = Permission.builder()
-                .name("계정 삭제")
-                .resource("member")
-                .action(Action.DELETE)
-                .description("계정 삭제 권한")
-                .build();
-        systemAdminPermission.add(RolePermission.builder()
-                .role(systemAdminRole)
-                .permission(permissionRepository.save(deleteMemberPermission))
-                .build());
+        List<Permission> allPermissions = permissionRepository.findAll();
+        Role sysAdminRole = createRoleAndAssignPermissions(sysCompany, "시스템 관리자", allPermissions);
 
-        systemAdminRole.updatePermission(systemAdminPermission);
-
-        // 직급 생성
-        Grade grade = Grade.builder()
-                .name("시스템 관리자")
-                .company(crewvy)
-                .build();
-        gradeRepository.save(grade);
-
-        // 직책 생성
-        Title title = Title.builder()
-                .name("유지보수 담당")
-                .company(crewvy)
-                .build();
-        titleRepository.save(title);
-
-        // member 생성
-        Member systemAdmin = Member.builder()
-                .email("system_admin@naver.com")
-                .password(passwordEncoder.encode("12341234"))
-                .name("SystemAdmin")
-                .extensionNumber("0000")
-                .telNumber("02-000-0000")
-                .phoneNumber("010-0000-0000")
-                .address("서울시 보라매로 87")
-                .sabun("1234")
-                .bank("국민")
-                .bankAccount("12345-12-12345")
-                .company(crewvy)
-                .build();
+        Member systemAdmin = createMember(sysCompany, "sysadmin@h.one", "12341234", "시스템관리자");
         memberRepository.save(systemAdmin);
 
-        // memberPosition 생성
-        MemberPosition memberPosition = MemberPosition.builder()
-                .member(systemAdmin)
-                .organization(organization)
-                .title(title)
-                .role(systemAdminRole)
-                .startDate(LocalDateTime.now())
-                .endDate(null)
+        MemberPosition sysAdminPos = createMemberPosition(systemAdmin, sysOrg, sysTitle, sysAdminRole);
+        systemAdmin.updateDefaultMemberPosition(sysAdminPos);
+        memberRepository.save(systemAdmin);
+    }
+
+    private void createCompanyWithEmployees() {
+        Company company = createCompany("H.ONE Company", "123-45-67890");
+        Organization topLevelOrg = createDefaultOrganization(company);
+        Grade defaultGrade = createDefaultGrade(company, "사원");
+        Title adminTitle = createDefaultTitle(company, "대표");
+        Title defaultTitle = createDefaultTitle(company, "팀원");
+
+        List<Permission> companyAdminPermissions = permissionRepository.findByPermissionRange(PermissionRange.COMPANY);
+        Role companyAdminRole = createRoleAndAssignPermissions(company, "회사 관리자", companyAdminPermissions);
+
+        List<Permission> userPermissions = permissionRepository.findByPermissionRange(PermissionRange.INDIVIDUAL);
+        Role userRole = createRoleAndAssignPermissions(company, "일반 사용자", userPermissions);
+
+        Member companyAdmin = createMember(company, "admin@h.one", "12341234", "김대표");
+        memberRepository.save(companyAdmin);
+
+        MemberPosition adminPosition = createMemberPosition(companyAdmin, topLevelOrg, adminTitle, companyAdminRole);
+        companyAdmin.updateDefaultMemberPosition(adminPosition);
+        memberRepository.save(companyAdmin);
+
+        List<Member> employeesToSave = new ArrayList<>();
+        for (int i = 1; i <= 10; i++) {
+            String email = "employee" + i + "@h.one";
+            String name = "직원" + i;
+            Member employee = createMember(company, email, "12341234", name);
+            memberRepository.save(employee);
+
+            MemberPosition employeePosition = createMemberPosition(employee, topLevelOrg, defaultTitle, userRole);
+            employee.updateDefaultMemberPosition(employeePosition);
+            employeesToSave.add(employee);
+        }
+        memberRepository.saveAll(employeesToSave);
+    }
+
+    private Role createRoleAndAssignPermissions(Company company, String roleName, List<Permission> permissions) {
+        Role role = Role.builder().name(roleName).company(company).build();
+        roleRepository.save(role);
+
+        List<RolePermission> rolePermissions = new ArrayList<>();
+        for (Permission permission : permissions) {
+            RolePermission rolePermission = RolePermission.builder()
+                    .role(role)
+                    .permission(permission)
+                    .build();
+            rolePermissions.add(rolePermission);
+        }
+        if (!rolePermissions.isEmpty()) {
+            rolePermissionRepository.saveAll(rolePermissions);
+        }
+        role.updatePermission(rolePermissions);
+        return role;
+    }
+
+    private Company createCompany(String companyName, String businessNumber) {
+        Company company = Company.builder().companyName(companyName).businessNumber(businessNumber).build();
+        return companyRepository.save(company);
+    }
+
+    private Organization createDefaultOrganization(Company company) {
+        Organization organization = Organization.builder()
+                .parent(null)
+                .name(company.getCompanyName())
+                .company(company)
+                .children(null)
                 .build();
-        memberPositionRepository.save(memberPosition);
-        systemAdmin.updateDefaultMemberPosition(memberPosition);
+        return organizationRepository.save(organization);
+    }
+
+    private Grade createDefaultGrade(Company company, String gradeName) {
+        Grade grade = Grade.builder()
+                .name(gradeName)
+                .company(company)
+                .build();
+        return gradeRepository.save(grade);
+    }
+
+    private Title createDefaultTitle(Company company, String titleName) {
+        Title title = Title.builder()
+                .name(titleName)
+                .company(company)
+                .build();
+        return titleRepository.save(title);
+    }
+
+    private Member createMember(Company company, String email, String password, String name) {
+        return Member.builder()
+                .email(email)
+                .password(passwordEncoder.encode(password))
+                .name(name)
+                .employmentType(EmploymentType.FULL)
+                .company(company).build();
+    }
+
+    private MemberPosition createMemberPosition(Member member, Organization organization, Title title, Role role) {
+        MemberPosition memberPosition = MemberPosition.builder().member(member).organization(organization).title(title).role(role).startDate(LocalDateTime.now()).build();
+        return memberPositionRepository.save(memberPosition);
     }
 }

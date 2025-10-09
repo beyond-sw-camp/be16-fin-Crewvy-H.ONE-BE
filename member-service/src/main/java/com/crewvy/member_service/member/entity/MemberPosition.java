@@ -46,4 +46,8 @@ public class MemberPosition extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Builder.Default
     private Bool isActive = Bool.TRUE;
+
+    public void updateRole(Role newRole){
+        this.role = newRole;
+    }
 }

@@ -3,6 +3,7 @@ package com.crewvy.member_service.member.controller;
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.member_service.member.constant.Action;
 import com.crewvy.member_service.member.dto.request.*;
+import com.crewvy.member_service.member.dto.response.MemberListRes;
 import com.crewvy.member_service.member.service.MemberService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -37,6 +38,13 @@ public class MemberController {
                 memberService.createMember(uuid, memberPositionId, createMemberRequest), "계정 생성 성공"), HttpStatus.CREATED);
     }
 
+    // 이메일 중복 확인
+    @GetMapping("/check-email")
+    public ResponseEntity<?> checkEmail(@RequestParam String email) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.emailExists(email), "이메일 중복 확인 완료"), HttpStatus.OK);
+    }
+
     // 로그인
     @PostMapping("/login")
     public ResponseEntity<?> memberDoLogin(@RequestBody @Valid LoginReq loginReq) {
@@ -51,6 +59,7 @@ public class MemberController {
 //                true, memberService.generateNewAt(generateNewAtReq), "Access token 재발급 성공"), HttpStatus.OK);
 //    }
 
+    // 직책 생성
     @PostMapping("/create-title")
     public ResponseEntity<?> createTitle(@RequestHeader("X-User-UUID") UUID uuid,
                                          @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
@@ -59,6 +68,7 @@ public class MemberController {
                 memberService.createTitle(uuid, memberPositionId, createTitleReq), "직책 생성 성공"), HttpStatus.OK);
     }
 
+    // 직급 생성
     @PostMapping("/create-grade")
     public ResponseEntity<?> createGrade(@RequestHeader("X-User-UUID") UUID uuid,
                                          @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
@@ -67,16 +77,55 @@ public class MemberController {
                 memberService.createGrade(uuid, memberPositionId, createGradeReq), "직급 생성 성공"), HttpStatus.OK);
     }
 
+    // 조직 생성
     @PostMapping("/create-organization")
     public ResponseEntity<?> createOrganization(@RequestHeader("X-User-UUID") UUID uuid,
-                                         @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                         @RequestBody CreateOrganizationReq createOrganizationReq) {
+                                                @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                                @RequestBody CreateOrganizationReq createOrganizationReq) {
         return new ResponseEntity<>(ApiResponse.success(
                 memberService.createOrganization(uuid, memberPositionId, createOrganizationReq), "조직 생성 성공"), HttpStatus.OK);
     }
 
-    @PostMapping("/check-permission")
-    public ResponseEntity<?> checkPermission(UUID memberPositionId, String resource, Action action) {
+    // 역할의 권한 목록 수정
+    @PutMapping("/roles/{roleId}/permissions")
+    public ResponseEntity<?> updateRolePermissions(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                                   @PathVariable UUID roleId,
+                                                   @RequestBody @Valid UpdateRolePermissionsReq req) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.updateRolePermissions(memberPositionId, roleId, req), "역할별 권한 수정 성공"), HttpStatus.OK);
+    }
+
+    // 멤버의 역할 변경
+    @PutMapping("/positions/{targetMemberPositionId}/role")
+    public ResponseEntity<?> updateMemberRole(@RequestHeader("X-User-MemberPositionId") UUID adminMemberPositionId,
+                                              @PathVariable UUID targetMemberPositionId,
+                                              @RequestBody @Valid UpdateMemberRoleReq req) {
+        memberService.updateMemberRole(adminMemberPositionId, targetMemberPositionId, req);
+        return new ResponseEntity<>(ApiResponse.success(null, "멤버 역할 변경 성공"), HttpStatus.OK);
+    }
+
+    // 직원 리스트 조회
+    @GetMapping("/list")
+    public ResponseEntity<?> memberList(@RequestHeader("X-User-UUID") UUID uuid,
+                                        @RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.getMemberList(uuid, memberPositionId), "직원 목록 조회 성공"), HttpStatus.OK);
+    }
+
+    // 직원 상세 조회
+    @GetMapping("/detail/{memberId}")
+    public ResponseEntity<?> memberList(@RequestHeader("X-User-UUID") UUID uuid,
+                                        @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                        @PathVariable UUID memberId) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.getMemberDetail(uuid, memberPositionId, memberId), "직원 상세 조회 성공"), HttpStatus.OK);
+    }
+
+    // 권한 확인
+    @GetMapping("/check-permission")
+    public ResponseEntity<?> checkPermission(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                             @RequestParam String resource,
+                                             @RequestParam Action action) {
         return new ResponseEntity<>(ApiResponse.success(
                 memberService.checkPermission(memberPositionId, resource, action), "권한 확인 성공"), HttpStatus.OK);
     }

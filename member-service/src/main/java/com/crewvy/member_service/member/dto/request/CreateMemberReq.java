@@ -1,5 +1,6 @@
 package com.crewvy.member_service.member.dto.request;
 
+import com.crewvy.member_service.member.constant.EmploymentType;
 import com.crewvy.member_service.member.entity.Company;
 import com.crewvy.member_service.member.entity.Member;
 import jakarta.validation.constraints.NotEmpty;
@@ -31,8 +32,11 @@ public class CreateMemberReq {
     private String bankAccount;
     private String profileUrl;
     private String sabun;
+    private LocalDate joinDate;
     private String extensionNumber;
     private String telNumber;
+    @NotNull(message = "고용형태를 선택해 주세요.")
+    private String employmentType;
     @NotNull(message = "조직을 선택해 주세요.")
     private UUID organizationId;
     @NotNull(message = "직책을 선택해 주세요.")
@@ -53,8 +57,10 @@ public class CreateMemberReq {
                 .bankAccount(this.bankAccount)
                 .profileUrl(this.profileUrl)
                 .sabun(this.sabun)
+                .joinDate(this.joinDate)
                 .extensionNumber(this.extensionNumber)
                 .telNumber(this.telNumber)
+                .employmentType(EmploymentType.fromCode(this.employmentType))
                 .company(company)
                 .build();
     }

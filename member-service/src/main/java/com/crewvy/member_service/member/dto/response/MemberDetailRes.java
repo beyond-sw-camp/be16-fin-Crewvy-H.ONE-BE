@@ -5,14 +5,14 @@ import com.crewvy.member_service.member.constant.EmploymentType;
 import com.crewvy.member_service.member.constant.MemberStatus;
 import com.crewvy.member_service.member.entity.GradeHistory;
 import com.crewvy.member_service.member.entity.MemberPosition;
-import com.crewvy.member_service.member.entity.Organization;
-import com.crewvy.member_service.member.entity.Title;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
 @Getter
 @NoArgsConstructor
@@ -20,8 +20,8 @@ import java.util.List;
 @Builder
 public class MemberDetailRes {
     private String name;
-    private List<Title> titleList;
-    private List<Organization> organizationList;
+    private List<TitleRes> titleList;
+    private List<OrganizationRes> organizationList;
     private MemberStatus memberStatus;
     private AccountStatus accountStatus;
     private EmploymentType employmentType;
@@ -33,8 +33,11 @@ public class MemberDetailRes {
     private String bankAccount;
     private String profileUrl;
     private String sabun;
+    private LocalDate joinDate;
     private String extensionNumber;
     private String telNumber;
     private List<MemberPositionRes> memberPositionResList;
-    private List<GradeHistory> gradeHistoryList;
+    private Set<GradeHistory> gradeHistorySet;
+
+
 }

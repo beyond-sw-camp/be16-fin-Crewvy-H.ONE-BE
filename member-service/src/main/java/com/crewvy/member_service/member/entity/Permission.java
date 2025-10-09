@@ -2,6 +2,7 @@ package com.crewvy.member_service.member.entity;
 
 import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.member_service.member.constant.Action;
+import com.crewvy.member_service.member.constant.PermissionRange;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -29,6 +30,10 @@ public class Permission extends BaseEntity {
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     private Action action;
+
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private PermissionRange permissionRange;
 
     private String description;
 }

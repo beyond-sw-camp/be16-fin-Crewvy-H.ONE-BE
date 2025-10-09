@@ -6,6 +6,7 @@ import com.crewvy.member_service.member.constant.AccountStatus;
 import com.crewvy.member_service.member.constant.EmploymentType;
 import com.crewvy.member_service.member.constant.MemberStatus;
 import com.crewvy.member_service.member.converter.AccountStatusConverter;
+import com.crewvy.member_service.member.converter.EmploymentTypeConverter;
 import com.crewvy.member_service.member.converter.MemberStatusConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -13,8 +14,10 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -58,6 +61,8 @@ public class Member extends BaseEntity {
 
     private String sabun;
 
+    private LocalDate joinDate;
+
     private String extensionNumber; // 내선번호
 
     private String telNumber;       // 일반전화
@@ -73,7 +78,7 @@ public class Member extends BaseEntity {
     private AccountStatus accountStatus = AccountStatus.ACTIVE;
 
     @Column(nullable = false)
-    @Convert(converter = EmploymentType.class)
+    @Convert(converter = EmploymentTypeConverter.class)
     private EmploymentType employmentType;
 
     @Column(nullable = false)
@@ -87,7 +92,7 @@ public class Member extends BaseEntity {
 
     @Builder.Default
     @OneToMany(mappedBy = "member", cascade = {CascadeType.PERSIST, CascadeType.REMOVE}, orphanRemoval = true)
-    private List<MemberPosition> memberPositionList = new ArrayList<>();
+    private Set<MemberPosition> memberPositionList = new LinkedHashSet<>();
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "default_member_position_id")
@@ -95,9 +100,9 @@ public class Member extends BaseEntity {
 
     @Builder.Default
     @OneToMany(mappedBy = "member", cascade = {CascadeType.PERSIST, CascadeType.REMOVE}, orphanRemoval = true)
-    private List<GradeHistory> gradeHistoryList = new ArrayList<>();
+    private Set<GradeHistory> gradeHistorySet = new LinkedHashSet<>();
 
-    public void updateDefaultMemberPosition(MemberPosition memberPosition){
-        this.defaultMemberPosition = memberPosition;
+    public void updateDefaultMemberPosition(MemberPosition newMemberPosition){
+        this.defaultMemberPosition = newMemberPosition;
     }
 }
