@@ -1,5 +1,9 @@
 package com.crewvy.workforce_service.performance.entity;
 
+import com.crewvy.workforce_service.performance.constant.EvaluationType;
+import com.crewvy.workforce_service.performance.constant.Grade;
+import com.crewvy.workforce_service.performance.converter.EvaluationTypeConverter;
+import com.crewvy.workforce_service.performance.converter.GradeConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
