@@ -103,4 +103,12 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error(e.getMessage()));
     }
+
+    @ExceptionHandler(UserAlreadyJoinedException.class)
+    protected ResponseEntity<ApiResponse<?>> handleUserAlreadyJoinedException(UserAlreadyJoinedException e) {
+        log.warn("UserAlreadyJoinedException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(e.getMessage()));
+    }
 }

@@ -1,10 +1,7 @@
 package com.crewvy.workspace_service.meeting.service;
 
 import com.crewvy.common.entity.Bool;
-import com.crewvy.common.exception.UserNotHostException;
-import com.crewvy.common.exception.UserNotInvitedException;
-import com.crewvy.common.exception.VideoConferenceNotInProgressException;
-import com.crewvy.common.exception.VideoConferenceNotWaitingException;
+import com.crewvy.common.exception.*;
 import com.crewvy.workspace_service.meeting.constant.VideoConferenceStatus;
 import com.crewvy.workspace_service.meeting.dto.*;
 import com.crewvy.workspace_service.meeting.entity.VideoConference;
@@ -74,7 +71,7 @@ public class VideoConferenceService {
 
     public Page<VideoConferenceListRes> findAllMyVideoConference(UUID memberId, VideoConferenceStatus videoConferenceStatus, Pageable pageable) {
 
-        // 회의 시작 후 시작 안 하고 1시간 정도 흘러서 OpenVidu GC가 세션 정리한 경우가 있어서 일단 만들었는 데 필요한지 고민 해봐야할 듯
+        // 회의 시작 후 아무도 참여 안 하고 1시간 정도 흘러서 OpenVidu GC가 세션 정리한 경우가 있어서 일단 만들었는 데 필요한지 고민 해봐야할 듯
         if (videoConferenceStatus == VideoConferenceStatus.IN_PROGRESS) {
             try {
                 openVidu.fetch();
@@ -100,17 +97,28 @@ public class VideoConferenceService {
         if (videoConference.getVideoConferenceInviteeList().stream().noneMatch(invitee -> invitee.getMemberId().equals(new UUID(123, 123))))
             throw new UserNotInvitedException("초대 받지 않은 화상회의입니다.");
 
-        String sessionId = videoConference.getSessionId();
-        String token;
-
         try {
             openVidu.fetch();
-            token = openVidu.getActiveSession(sessionId).createConnection(connectionProperties).getToken();
         } catch (OpenViduJavaClientException | OpenViduHttpException e) {
             throw new RuntimeException(e);
         }
 
-        return OpenViduSessionRes.builder().sessionId(sessionId).token(token).build();
+        Session session = openVidu.getActiveSession(videoConference.getSessionId());
+
+        // 이미 접속 중인 유저 재 참여 방지
+        boolean isAlreadyJoined = session
+                .getActiveConnections().stream()
+                .anyMatch(c -> c.getClientData().split(":")[0].equals(new UUID(123, 123).toString()));
+        if (isAlreadyJoined) throw new UserAlreadyJoinedException("이미 참여 중인 화상회의입니다.");
+
+        String token;
+        try {
+            token = session.createConnection(connectionProperties).getToken();
+        } catch (OpenViduJavaClientException | OpenViduHttpException e) {
+            throw new RuntimeException(e);
+        }
+
+        return OpenViduSessionRes.builder().sessionId(session.getSessionId()).token(token).build();
     }
 
     public OpenViduSessionRes startVideoConference(UUID videoConferenceId) {
