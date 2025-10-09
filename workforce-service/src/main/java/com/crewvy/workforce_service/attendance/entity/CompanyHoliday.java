@@ -20,10 +20,10 @@ public class CompanyHoliday extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "company_holiday_id", nullable = false, columnDefinition = "BINARY(16)")
+    @Column(name = "company_holiday_id", nullable = false)
     private UUID companyHolidayId;
 
-    @Column(name = "company_id", nullable = false, columnDefinition = "BINARY(16)")
+    @Column(name = "company_id", nullable = false)
     private UUID companyId;
 
     @Column(name = "holiday_date", nullable = false)

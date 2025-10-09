@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -24,7 +25,7 @@ public class DailyAttendance extends BaseEntity {
     @Column(name = "daily_attendance_id", nullable = false, columnDefinition = "BINARY(16)")
     private UUID dailyAttendanceId;
 
-    @Column(name = "member_id", nullable = false, columnDefinition = "BINARY(16)")
+    @JoinColumn(name = "member_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private UUID memberId;
 
     @Column(name = "attendance_date", nullable = false)
@@ -33,31 +34,38 @@ public class DailyAttendance extends BaseEntity {
     @Column(name = "first_clock_in", nullable = false)
     private LocalDateTime firstClockIn;
 
-    @Column(name = "last_clock_out", nullable = false)
+    @Column(name = "last_clock_out")
     private LocalDateTime lastClockOut;
 
-    /**
-     * 계산된 근무 시간(분)
-     * - AttendanceLog 기반으로 산출
-     * - 빠른 조회를 위해 캐싱해둔 값
-     * - 정책 변경 시 재계산 필요 가능
-     */
-    @Column(name = "worked_minutes", nullable = false)
+    @Column(name = "worked_minutes")
     private Integer workedMinutes;
 
-    /**
-     * 계산된 연장근무 시간(분)
-     * - 회사 정책 (예: 9시간 이상 근무) 기준으로 산출
-     * - 파생값 (캐싱)
-     */
-    @Column(name = "overtime_minutes", nullable = false)
+    @Column(name = "overtime_minutes")
     private Integer overtimeMinutes;
 
-    /**
-     * 계산된 총 휴게 시간(분)
-     * - AttendanceLog의 휴게 이벤트 기반
-     * - 파생값 (캐싱)
-     */
-    @Column(name = "total_break_minutes", nullable = false)
+    @Column(name = "total_break_minutes")
     private Integer totalBreakMinutes;
+
+    @Column(name = "total_go_out_minutes")
+    private Integer totalGoOutMinutes = 0;
+
+    public void updateClockOut(LocalDateTime clockOutTime) {
+        this.lastClockOut = clockOutTime;
+        if (this.firstClockIn != null) {
+            Duration duration = Duration.between(this.firstClockIn, this.lastClockOut);
+            long grossMinutes = duration.toMinutes();
+            // 총 근무시간 = (퇴근-출근) - 총 휴게시간 - 총 외출시간
+            long netWorkMinutes = grossMinutes - (this.totalBreakMinutes != null ? this.totalBreakMinutes : 0) - (this.totalGoOutMinutes != null ? this.totalGoOutMinutes : 0);
+            this.workedMinutes = (int) Math.max(0, netWorkMinutes);
+
+            // TODO: 초과근무 계산 로직 (이제 netWorkMinutes를 기준으로 계산)
+        }
+    }
+
+    public void addGoOutMinutes(int minutes) {
+        if (this.totalGoOutMinutes == null) {
+            this.totalGoOutMinutes = 0;
+        }
+        this.totalGoOutMinutes += minutes;
+    }
 }
