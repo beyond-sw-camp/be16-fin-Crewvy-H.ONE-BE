@@ -78,13 +78,16 @@ public class VideoConferenceService {
             } catch (OpenViduJavaClientException | OpenViduHttpException e) {
                 throw new RuntimeException(e);
             }
-            videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatus(new UUID(123, 123), videoConferenceStatus)
+            videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatusFetchInvitees(new UUID(123, 123), videoConferenceStatus)
                     .forEach(videoConference -> {
                         if (openVidu.getActiveSession(videoConference.getSessionId()) == null) videoConference.endVideoConference();
                     });
         }
 
-        return videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatus(new UUID(123, 123), videoConferenceStatus, pageable)
+//        return videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatus(new UUID(123, 123), videoConferenceStatus, pageable)
+//                .map(VideoConferenceListRes::fromEntity);
+
+        return videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatusFetchInvitees(new UUID(123, 123), videoConferenceStatus, pageable)
                 .map(VideoConferenceListRes::fromEntity);
     }
 

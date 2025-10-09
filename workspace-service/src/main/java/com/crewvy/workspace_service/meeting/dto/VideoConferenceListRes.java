@@ -18,6 +18,7 @@ public class VideoConferenceListRes {
     private String name;
     private String description;
     private LocalDateTime scheduledStartTime;
+    private LocalDateTime actualStartTime;
     private String status;
     private Boolean isRecording;
     private List<UUID> inviteeIdList;
@@ -28,6 +29,7 @@ public class VideoConferenceListRes {
                 .name(videoConference.getName())
                 .description(videoConference.getDescription())
                 .scheduledStartTime(videoConference.getScheduledStartTime())
+                .actualStartTime(videoConference.getActualStartTime())
                 .status(videoConference.getStatus().getCodeName())
                 .isRecording(videoConference.getIsRecording() == Bool.TRUE)
                 .inviteeIdList(videoConference.getVideoConferenceInviteeList().stream().map(VideoConferenceInvitee::getMemberId).toList())

@@ -80,10 +80,12 @@ public class VideoConference extends BaseEntity {
     public void startVideoConference(String sessionId) {
         this.sessionId = sessionId;
         this.status = VideoConferenceStatus.IN_PROGRESS;
+        this.actualStartTime = LocalDateTime.now();
     }
 
     public void endVideoConference() {
         this.status = VideoConferenceStatus.ENDED;
+        this.endTime = LocalDateTime.now();
     }
 
     public void updateName(String name) {
