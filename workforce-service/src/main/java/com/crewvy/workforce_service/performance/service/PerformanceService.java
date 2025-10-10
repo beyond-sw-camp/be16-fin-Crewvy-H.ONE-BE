@@ -1,10 +1,9 @@
 package com.crewvy.workforce_service.performance.service;
 
 import com.crewvy.common.S3.S3Uploader;
-import com.crewvy.workforce_service.performance.dto.CreateTeamGoalDto;
-import com.crewvy.workforce_service.performance.dto.GoalResponseDto;
-import com.crewvy.workforce_service.performance.dto.TeamGoalDetailResponseDto;
-import com.crewvy.workforce_service.performance.dto.TeamGoalResponseDto;
+import com.crewvy.workforce_service.performance.constant.GoalStatus;
+import com.crewvy.workforce_service.performance.dto.*;
+import com.crewvy.workforce_service.performance.entity.Evidence;
 import com.crewvy.workforce_service.performance.entity.Goal;
 import com.crewvy.workforce_service.performance.entity.TeamGoal;
 import com.crewvy.workforce_service.performance.repository.EvaluationRepository;
@@ -79,5 +78,77 @@ public class PerformanceService {
                 .endDate(dto.getEndDate())
                 .build();
         teamGoalRepository.save(newTeamGoal);
+    }
+
+    //    하위목표 상세조회
+    public GoalResponseDto getGoalDetail(UUID id) {
+        Goal goal = performanceRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 목표입니다."));
+
+//        증적 조회
+        List<EvidenceResponseDto> evidenceList = new ArrayList<>();
+        for(Evidence e : goal.getEvidenceList()) {
+            EvidenceResponseDto dto = EvidenceResponseDto.builder()
+                    .evidenceId(e.getId())
+                    .evidenceUrl(e.getEvidenceUrl())
+                    .build();
+            evidenceList.add(dto);
+        }
+
+        return GoalResponseDto.builder()
+                .goalId(goal.getId())
+                .title(goal.getTitle())
+                .contents(goal.getContents())
+                .startDate(goal.getStartDate())
+                .endDate(goal.getEndDate())
+                .status(goal.getStatus())
+                .teamGoalTitle(goal.getTeamGoal().getTitle())
+                .teamGoalContents(goal.getTeamGoal().getContents())
+                .gradingSystem(goal.getGradingSystem())
+                .evidenceList(evidenceList)
+                .build();
+    }
+
+    //    내 목표 조회
+    public List<GoalResponseDto> getMyGoal() {
+//        List<Goal> goalList = performanceRepository.findByMemberId();
+        List<Goal> goalList = performanceRepository.findAll();
+        List<GoalResponseDto> dtoList = new ArrayList<>();
+        for(Goal g : goalList) {
+            GoalResponseDto dto = GoalResponseDto.builder()
+                    .goalId(g.getId())
+                    .title(g.getTitle())
+                    .contents(g.getContents())
+                    .status(g.getStatus())
+                    .startDate(g.getStartDate())
+                    .endDate(g.getEndDate())
+                    .build();
+            dtoList.add(dto);
+        }
+
+        return dtoList;
+    }
+
+    //    내 목표 생성
+    public void createMyGoal(CreateMyGoalDto dto) {
+        TeamGoal teamGoal = teamGoalRepository.findById(dto.getTeamGoalId()).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 팀목표 입니다."));
+
+        Goal newGoal = Goal.builder()
+                .title(dto.getTitle())
+                .contents(dto.getContents())
+                .startDate(dto.getStartDate())
+                .endDate(dto.getEndDate())
+                .status(GoalStatus.REQUESTED)
+                .teamGoal(teamGoal)
+                .gradingSystem(dto.getGradingSystem())
+                .build();
+
+        performanceRepository.save(newGoal);
+    }
+
+    //    목표 상태변경(승인, 반려 등)
+    public void updateGoalStatus(UpdateStatusDto dto) {
+        Goal goal = performanceRepository.findById(dto.getGoalId()).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 목표입니다."));
+
+        goal.updateStatus(dto.getStatus(), dto.getComment());
     }
 }

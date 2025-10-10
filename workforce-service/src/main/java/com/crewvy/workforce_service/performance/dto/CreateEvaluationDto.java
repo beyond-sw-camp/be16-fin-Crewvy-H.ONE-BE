@@ -1,7 +1,7 @@
 package com.crewvy.workforce_service.performance.dto;
 
-import com.example.approval.performance.domain.EvaluationType;
-import com.example.approval.performance.domain.Grade;
+import com.crewvy.workforce_service.performance.constant.EvaluationType;
+import com.crewvy.workforce_service.performance.constant.Grade;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

@@ -1,6 +1,6 @@
 package com.crewvy.workforce_service.performance.dto;
 
-import com.example.approval.performance.domain.EvaluationType;
+import com.crewvy.workforce_service.performance.constant.EvaluationType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
