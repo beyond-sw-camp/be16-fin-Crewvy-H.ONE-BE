@@ -3,6 +3,7 @@ package com.crewvy.member_service.member.service;
 import com.crewvy.common.entity.Bool;
 import com.crewvy.member_service.member.constant.Action;
 import com.crewvy.member_service.member.dto.request.CreateOrganizationReq;
+import com.crewvy.member_service.member.dto.request.UpdateOrganizationReq;
 import com.crewvy.member_service.member.entity.Company;
 import com.crewvy.member_service.member.entity.Member;
 import com.crewvy.member_service.member.entity.Organization;
@@ -83,5 +84,40 @@ public class OrganizationService {
         Company company = member.getCompany();
 
         return organizationRepository.findByCompany(company);
+    }
+
+    // 조직 수정
+    public UUID updateOrganization(UUID memberId, UUID memberPositionId, UUID organizationId, UpdateOrganizationReq updateOrganizationReq) {
+        if (memberService.checkPermission(memberPositionId, "organization", Action.UPDATE).equals(Bool.FALSE)) {
+            throw new PermissionDeniedException("조직을 수정할 권한이 없습니다.");
+        }
+
+        Organization organization = organizationRepository.findById(organizationId).orElseThrow(()
+                -> new IllegalArgumentException("존재하지 않는 조직입니다."));
+
+        organization.updateName(updateOrganizationReq.getName());
+        return organizationRepository.save(organization).getId();
+    }
+
+    // 조직 삭제
+    public void deleteOrganization(UUID memberId, UUID memberPositionId, UUID organizationId) {
+        if (memberService.checkPermission(memberPositionId, "organization", Action.DELETE).equals(Bool.FALSE)) {
+            throw new PermissionDeniedException("조직을 삭제할 권한이 없습니다.");
+        }
+
+        Organization organization = organizationRepository.findById(organizationId).orElseThrow(()
+                -> new IllegalArgumentException("존재하지 않는 조직입니다."));
+
+        // 하위 조직이 있는지 확인
+        if (!organizationRepository.findByParentId(organizationId).isEmpty()) {
+            throw new IllegalArgumentException("하위 조직이 존재하여 삭제할 수 없습니다.");
+        }
+
+        // 해당 조직에 속한 멤버가 있는지 확인
+        if (memberRepository.countByOrganizationId(organizationId) > 0) {
+            throw new IllegalArgumentException("해당 조직에 속한 멤버가 존재하여 삭제할 수 없습니다.");
+        }
+
+        organizationRepository.delete(organization);
     }
 }

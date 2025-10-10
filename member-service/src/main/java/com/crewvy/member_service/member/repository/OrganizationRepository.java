@@ -9,4 +9,5 @@ import java.util.UUID;
 
 public interface OrganizationRepository extends JpaRepository<Organization, UUID> {
     List<Organization> findByCompany(Company company);
+    List<Organization> findByParentId(UUID parentId);
 }

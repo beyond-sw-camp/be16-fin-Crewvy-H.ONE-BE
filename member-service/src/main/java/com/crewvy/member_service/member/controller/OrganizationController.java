@@ -3,6 +3,7 @@ package com.crewvy.member_service.member.controller;
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.member_service.member.dto.request.CreateOrganizationReq;
 import com.crewvy.member_service.member.service.OrganizationService;
+import com.crewvy.member_service.member.dto.request.UpdateOrganizationReq;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -34,5 +35,24 @@ public class OrganizationController {
                                                  @RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
         return new ResponseEntity<>(ApiResponse.success(
                 organizationService.getOrganizationList(uuid, memberPositionId), "조직 목록 조회 성공"), HttpStatus.OK);
+    }
+
+    // 조직 이름 수정
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateOrganization(@RequestHeader("X-User-UUID") UUID uuid,
+                                                @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                                @PathVariable UUID id,
+                                                @RequestBody UpdateOrganizationReq updateOrganizationReq) {
+        return new ResponseEntity<>(ApiResponse.success(
+                organizationService.updateOrganization(uuid, memberPositionId, id, updateOrganizationReq), "조직 수정 성공"), HttpStatus.OK);
+    }
+
+    // 조직 삭제
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteOrganization(@RequestHeader("X-User-UUID") UUID uuid,
+                                                @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                                @PathVariable UUID id) {
+        organizationService.deleteOrganization(uuid, memberPositionId, id);
+        return new ResponseEntity<>(ApiResponse.success(null, "조직 삭제 성공"), HttpStatus.OK);
     }
 }

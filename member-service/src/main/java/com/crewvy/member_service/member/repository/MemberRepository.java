@@ -29,4 +29,7 @@ public interface MemberRepository extends JpaRepository<Member, UUID> {
            "LEFT JOIN FETCH m.gradeHistorySet " +
            "WHERE m.id = :id")
     Optional<Member> findByIdWithDetail(@Param("id") UUID id);
+
+    @Query("SELECT COUNT(DISTINCT mp.member) FROM MemberPosition mp WHERE mp.organization.id = :organizationId")
+    long countByOrganizationId(@Param("organizationId") UUID organizationId);
 }
