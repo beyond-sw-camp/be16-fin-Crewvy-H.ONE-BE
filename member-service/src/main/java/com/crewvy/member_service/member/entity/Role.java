@@ -33,7 +33,10 @@ public class Role extends BaseEntity {
     @OneToMany(mappedBy = "role", cascade = {CascadeType.PERSIST, CascadeType.REMOVE}, orphanRemoval = true)
     private List<RolePermission> rolePermissionList = new ArrayList<>();
 
-    public void updatePermission(List<RolePermission> rolePermissionList){
-        this.rolePermissionList = rolePermissionList;
+    public void updatePermission(List<RolePermission> newRolePermissions){
+        this.rolePermissionList.clear();
+        if (newRolePermissions != null) {
+            this.rolePermissionList.addAll(newRolePermissions);
+        }
     }
 }

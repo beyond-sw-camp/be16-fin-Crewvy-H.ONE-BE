@@ -1,6 +1,5 @@
 package com.crewvy.member_service.member.converter;
 
-import com.crewvy.member_service.member.constant.AccountStatus;
 import com.crewvy.member_service.member.constant.EmploymentType;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;

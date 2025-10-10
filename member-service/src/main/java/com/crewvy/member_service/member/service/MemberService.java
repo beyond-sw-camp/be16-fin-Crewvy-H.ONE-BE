@@ -3,13 +3,14 @@ package com.crewvy.member_service.member.service;
 import com.crewvy.common.entity.Bool;
 import com.crewvy.member_service.member.auth.JwtTokenProvider;
 import com.crewvy.member_service.member.constant.Action;
+import com.crewvy.member_service.member.constant.PermissionRange;
 import com.crewvy.member_service.member.dto.request.*;
 import com.crewvy.member_service.member.dto.response.*;
 import com.crewvy.member_service.member.entity.*;
 import com.crewvy.member_service.member.repository.*;
-import jakarta.ws.rs.ForbiddenException;
-import org.springframework.cache.annotation.Cacheable;
+import com.crewvy.common.exception.PermissionDeniedException;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,69 +25,105 @@ import java.util.stream.Collectors;
 @Transactional
 public class MemberService {
 
-    private final CompanyRepository companyRepository;
     private final MemberRepository memberRepository;
     private final MemberPositionRepository memberPositionRepository;
     private final RoleRepository roleRepository;
     private final RolePermissionRepository rolePermissionRepository;
     private final PermissionRepository permissionRepository;
-    private final OrganizationRepository organizationRepository;
     private final GradeRepository gradeRepository;
     private final TitleRepository titleRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final OrganizationRepository organizationRepository; // createMember에서 필요
 
-    public MemberService(CompanyRepository companyRepository, MemberRepository memberRepository,
+    public MemberService(MemberRepository memberRepository,
                          MemberPositionRepository memberPositionRepository, RoleRepository roleRepository,
-                         RolePermissionRepository rolePermissionRepository, PermissionRepository permissionRepository, OrganizationRepository organizationRepository,
+                         RolePermissionRepository rolePermissionRepository, PermissionRepository permissionRepository,
                          GradeRepository gradeRepository, TitleRepository titleRepository,
-                         PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider) {
-        this.companyRepository = companyRepository;
+                         PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider,
+                         OrganizationRepository organizationRepository) {
         this.memberRepository = memberRepository;
         this.memberPositionRepository = memberPositionRepository;
         this.roleRepository = roleRepository;
         this.rolePermissionRepository = rolePermissionRepository;
         this.permissionRepository = permissionRepository;
-        this.organizationRepository = organizationRepository;
         this.gradeRepository = gradeRepository;
         this.titleRepository = titleRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.organizationRepository = organizationRepository;
     }
 
-    // 관리자 계정 생성
-    public UUID createAdmin(CreateAdminReq createAdminReq) {
+    // 회원가입
+    public Member createAdminMember(CreateAdminReq createAdminReq, Company company) {
         if (memberRepository.findByEmail(createAdminReq.getEmail()).isPresent()) {
             throw new IllegalArgumentException("사용할 수 없는 이메일입니다.");
         }
-
         if (!createAdminReq.getPassword().equals(createAdminReq.getCheckPw())) {
             throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
         }
-
         String encodePassword = passwordEncoder.encode(createAdminReq.getPassword());
-
-        Company company = createCompany(createAdminReq.getCompanyName(), createAdminReq.getBusinessNumber());
-        Organization organization = createDefaultOrganization(company);
-        Role adminRole = createAdminRole(company);
-        createBaseRole(company);
-        Grade grade = createDefaultGrade(company);
-        Title adminTitle = createDefaultTitle(company);
-
         Member adminMember = createAdminReq.toEntity(encodePassword, company);
-        memberRepository.save(adminMember);
-
-        MemberPosition adminPosition = createMemberPosition(adminMember, organization, adminTitle, adminRole, LocalDateTime.now());
-        adminMember.updateDefaultMemberPosition(adminPosition);
-        memberRepository.save(adminMember);
-
-        return adminMember.getId();
+        return memberRepository.save(adminMember);
     }
 
-    // 사용자 계정 생성
+    // member_position 생성
+    public void createAndAssignDefaultPosition(Member member, Organization organization, Title title, Role role) {
+        MemberPosition memberPosition = createMemberPosition(member, organization, title, role, LocalDateTime.now());
+        member.updateDefaultMemberPosition(memberPosition);
+        memberRepository.save(member);
+    }
+
+    // 관리자 역할 생성
+    public Role createAdminRole(Company company) {
+        Role adminRole = Role.builder()
+                .name(company.getCompanyName() + " 관리자")
+                .company(company)
+                .build();
+        roleRepository.save(adminRole);
+
+        List<String> resources = Arrays.asList("member", "organization", "attendance", "payroll");
+        List<Action> actions = Arrays.asList(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE);
+
+        List<RolePermission> permissions = resources.stream()
+                .flatMap(resource -> actions.stream().map(action -> {
+                    Permission permission = permissionRepository.findByResourceAndActionAndPermissionRange(resource, action, PermissionRange.COMPANY)
+                            .orElseThrow(() -> new IllegalStateException("존재하지 않는 권한입니다. (자원: " + resource + ", 작업: " + action + ")"));
+                    return RolePermission.builder()
+                            .role(adminRole)
+                            .permission(permission)
+                            .build();
+                })).collect(Collectors.toList());
+
+        adminRole.updatePermission(permissions);
+        return adminRole;
+    }
+
+    // 기본 역할 생성
+    public Role createBaseRole(Company company) {
+        Role generalRole = Role.builder()
+                .name("일반 사용자")
+                .company(company)
+                .build();
+        return roleRepository.save(generalRole);
+    }
+
+    // 관리자 직급 생성
+    public Grade createDefaultGrade(Company company) {
+        Grade grade = Grade.builder().name(company.getCompanyName() + " 관리자").company(company).build();
+        return gradeRepository.save(grade);
+    }
+
+    // 관리자 직책 생성
+    public Title createDefaultTitle(Company company) {
+        Title title = Title.builder().name(company.getCompanyName() + " 관리자").company(company).build();
+        return titleRepository.save(title);
+    }
+
+    // 계정 생성
     public UUID createMember(UUID memberId, UUID memberPositionId, CreateMemberReq createMemberReq) {
         if (checkPermission(memberPositionId, "member", Action.CREATE).equals(Bool.FALSE)) {
-            throw new ForbiddenException("권한이 없습니다.");
+            throw new PermissionDeniedException("권한이 없습니다.");
         }
 
         if (memberRepository.findByEmail(createMemberReq.getEmail()).isPresent()) {
@@ -127,30 +164,13 @@ public class MemberService {
         }
 
         String accessToken = jwtTokenProvider.createAtToken(member, member.getDefaultMemberPosition());
-//        String refreshToken = jwtTokenProvider.createRtToken(member);
-        return LoginRes.builder()
-                .accessToken(accessToken)
-//                .refreshToken(refreshToken)
-                .build();
-    }
-
-    // 조직 생성
-    public UUID createOrganization(UUID memberId, UUID memberPositionId, CreateOrganizationReq createOrganizationReq) {
-        if (checkPermission(memberPositionId, "member", Action.CREATE).equals(Bool.FALSE)) {
-            throw new ForbiddenException("권한이 없습니다.");
-        }
-
-        Member member = memberRepository.findById(memberId).orElseThrow(()
-                -> new IllegalArgumentException("존재하지 않는 계정입니다."));
-        Organization parent = organizationRepository.findById(createOrganizationReq.getParentId()).orElseThrow(()
-                -> new IllegalArgumentException("존재하지 않는 상위 조직입니다."));
-        return organizationRepository.save(createOrganizationReq.toEntity(parent, member.getCompany())).getId();
+        return LoginRes.builder().accessToken(accessToken).build();
     }
 
     // 직책 생성
     public UUID createTitle(UUID memberId, UUID memberPositionId, CreateTitleReq createTitleReq) {
         if (checkPermission(memberPositionId, "member", Action.CREATE).equals(Bool.FALSE)) {
-            throw new ForbiddenException("권한이 없습니다.");
+            throw new PermissionDeniedException("권한이 없습니다.");
         }
 
         Member member = memberRepository.findById(memberId).orElseThrow(()
@@ -161,7 +181,7 @@ public class MemberService {
     // 직급 생성
     public UUID createGrade(UUID memberId, UUID memberPositionId, CreateGradeReq createGradeReq) {
         if (checkPermission(memberPositionId, "member", Action.CREATE).equals(Bool.FALSE)) {
-            throw new ForbiddenException("권한이 없습니다.");
+            throw new PermissionDeniedException("권한이 없습니다.");
         }
 
         Member member = memberRepository.findById(memberId).orElseThrow(()
@@ -169,11 +189,11 @@ public class MemberService {
         return gradeRepository.save(createGradeReq.toEntity(member.getCompany())).getId();
     }
 
-    // 직원 리스트 조회
+    // 직원 목록 조회
     @Transactional(readOnly = true)
     public List<MemberListRes> getMemberList(UUID memberId, UUID memberPositionId) {
         if (checkPermission(memberPositionId, "member", Action.READ).equals(Bool.FALSE)) {
-            throw new ForbiddenException("권한이 없습니다.");
+            throw new PermissionDeniedException("권한이 없습니다.");
         }
 
         Member member = memberRepository.findById(memberId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 계정입니다."));
@@ -192,7 +212,7 @@ public class MemberService {
     @Transactional(readOnly = true)
     public MemberDetailRes getMemberDetail(UUID uuid, UUID memberPositionId, UUID memberId) {
         if (checkPermission(memberPositionId, "member", Action.READ).equals(Bool.FALSE)) {
-            throw new ForbiddenException("권한이 없습니다.");
+            throw new PermissionDeniedException("권한이 없습니다.");
         }
         Member member = memberRepository.findByIdWithDetail(memberId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 계정입니다."));
@@ -229,8 +249,8 @@ public class MemberService {
                 .build();
     }
 
+    // 권한 확인
     @Transactional(readOnly = true)
-    @Cacheable(value = "permissions", key = "#memberPositionId.toString() + ':' + #resource + ':' + #action.name()")
     public Bool checkPermission(UUID memberPositionId, String resource, Action action) {
         if (!permissionRepository.hasPermission(memberPositionId, resource, action)) {
             return Bool.FALSE;
@@ -239,15 +259,17 @@ public class MemberService {
         }
     }
 
+    // 계정 존재여부 확인
     @Transactional(readOnly = true)
     public boolean emailExists(String email) {
         return memberRepository.findByEmail(email).isPresent();
     }
 
+    // 역할별 권한 수정
     @CacheEvict(value = "permissions", allEntries = true)
     public UUID updateRolePermissions(UUID memberPositionId, UUID roleId, UpdateRolePermissionsReq req) {
         if (checkPermission(memberPositionId, "member", Action.UPDATE).equals(Bool.FALSE)) {
-            throw new ForbiddenException("권한이 없습니다.");
+            throw new PermissionDeniedException("권한이 없습니다.");
         }
 
         Role role = roleRepository.findById(roleId)
@@ -272,28 +294,24 @@ public class MemberService {
         return role.getId();
     }
 
+    // 역할 수정
     @CacheEvict(value = "permissions", allEntries = true)
     public void updateMemberRole(UUID adminMemberPositionId, UUID targetMemberPositionId, UpdateMemberRoleReq req) {
-        // 1. Check if the admin has permission to UPDATE members
         if (checkPermission(adminMemberPositionId, "member", Action.UPDATE).equals(Bool.FALSE)) {
-            throw new ForbiddenException("권한이 없습니다.");
+            throw new PermissionDeniedException("권한이 없습니다.");
         }
 
-        // 2. Find the target member's position
         MemberPosition targetMemberPosition = memberPositionRepository.findById(targetMemberPositionId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 직책입니다."));
 
-        // 3. Find the new role
         Role newRole = roleRepository.findById(req.getNewRoleId())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 역할입니다."));
 
-        // 4. Update the role in the member's position
         targetMemberPosition.updateRole(newRole);
         memberPositionRepository.save(targetMemberPosition);
     }
 
-
-    // MemberPosition 생성
+    // member_position 생성
     private MemberPosition createMemberPosition(Member member, Organization organization,
                                                 Title title, Role role, LocalDateTime startDate) {
         MemberPosition memberPosition = MemberPosition.builder()
@@ -305,69 +323,5 @@ public class MemberService {
                 .endDate(null)
                 .build();
         return memberPositionRepository.save(memberPosition);
-    }
-
-    // 회사 생성
-    private Company createCompany(String companyName, String businessNumber) {
-        Company company = Company.builder()
-                .companyName(companyName)
-                .businessNumber(businessNumber)
-                .build();
-        return companyRepository.save(company);
-    }
-
-    // 최초 조직 생성
-    private Organization createDefaultOrganization(Company company) {
-        Organization organization = Organization.builder()
-                .parent(null)
-                .name(company.getCompanyName())
-                .company(company)
-                .children(null)
-                .build();
-        return organizationRepository.save(organization);
-    }
-
-    // 관리자 권한 생성
-    private Role createAdminRole(Company company) {
-        Role adminRole = Role.builder()
-                .name(company.getCompanyName() + " 관리자")
-                .company(company)
-                .build();
-        roleRepository.save(adminRole);
-
-        List<Action> actions = Arrays.asList(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE);
-        List<RolePermission> permissions = actions.stream()
-                .map(action -> {
-                    Permission permission = permissionRepository.findByResourceAndAction("member", action)
-                            .orElseThrow(() -> new IllegalStateException("존재하지 않는 권한입니다. (자원: member, 작업: " + action + ")"));
-                    return RolePermission.builder()
-                            .role(adminRole)
-                            .permission(permission)
-                            .build();
-                }).collect(Collectors.toList());
-
-        adminRole.updatePermission(permissions);
-        return adminRole;
-    }
-
-    // 일반 사용자 역할 생성
-    private Role createBaseRole(Company company) {
-        Role generalRole = Role.builder()
-                .name("일반 사용자")
-                .company(company)
-                .build();
-        return roleRepository.save(generalRole);
-    }
-
-    // 관리자 직급 생성
-    private Grade createDefaultGrade(Company company) {
-        Grade grade = Grade.builder().name(company.getCompanyName() + " 관리자").company(company).build();
-        return gradeRepository.save(grade);
-    }
-
-    // 관리자 직책 생성
-    private Title createDefaultTitle(Company company) {
-        Title title = Title.builder().name(company.getCompanyName() + " 관리자").company(company).build();
-        return titleRepository.save(title);
     }
 }

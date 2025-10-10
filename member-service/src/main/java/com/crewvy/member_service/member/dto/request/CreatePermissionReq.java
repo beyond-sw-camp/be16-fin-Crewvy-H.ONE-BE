@@ -1,6 +1,7 @@
 package com.crewvy.member_service.member.dto.request;
 
 import com.crewvy.member_service.member.constant.Action;
+import com.crewvy.member_service.member.constant.PermissionRange;
 import com.crewvy.member_service.member.entity.Permission;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.AllArgsConstructor;
@@ -19,6 +20,8 @@ public class CreatePermissionReq {
     private String resource;
     @NotEmpty(message = "작업을 선택해 주세요.")
     private String action;
+    @NotEmpty(message = "권한 범위를 선택해 주세요.")
+    private String permissionRange;
     private String description;
 
     public Permission toEntity(){
@@ -26,6 +29,7 @@ public class CreatePermissionReq {
                 .name(this.name)
                 .resource(this.resource)
                 .action(Action.fromCode(this.action))
+                .permissionRange(PermissionRange.fromCode(this.permissionRange))
                 .description(this.description)
                 .build();
     }

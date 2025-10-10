@@ -1,6 +1,7 @@
 package com.crewvy.member_service.member.service;
 
 import com.crewvy.member_service.member.constant.Action;
+import com.crewvy.member_service.member.constant.PermissionRange;
 import com.crewvy.member_service.member.dto.request.CreatePermissionReq;
 import com.crewvy.member_service.member.repository.MemberRepository;
 import com.crewvy.member_service.member.repository.PermissionRepository;
@@ -22,10 +23,9 @@ public class SystemAdminService {
     }
 
     public UUID createPermission(UUID uuid, CreatePermissionReq createPermissionReq){
-
-
-        if (permissionRepository.findByResourceAndAction(createPermissionReq.getResource(),
-                Action.fromCode(createPermissionReq.getAction())).isPresent()){
+        if (permissionRepository.findByResourceAndActionAndPermissionRange(createPermissionReq.getResource(),
+                Action.fromCode(createPermissionReq.getAction()),
+                PermissionRange.fromCode(createPermissionReq.getPermissionRange())).isPresent()){
             throw new DataIntegrityViolationException("이미 존재하는 권한입니다.");
         }
 

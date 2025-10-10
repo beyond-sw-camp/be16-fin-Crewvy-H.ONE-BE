@@ -4,7 +4,6 @@ import com.crewvy.member_service.member.constant.AccountStatus;
 import com.crewvy.member_service.member.constant.EmploymentType;
 import com.crewvy.member_service.member.constant.MemberStatus;
 import com.crewvy.member_service.member.entity.GradeHistory;
-import com.crewvy.member_service.member.entity.MemberPosition;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;

@@ -3,8 +3,8 @@ package com.crewvy.member_service.member.controller;
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.member_service.member.constant.Action;
 import com.crewvy.member_service.member.dto.request.*;
-import com.crewvy.member_service.member.dto.response.MemberListRes;
 import com.crewvy.member_service.member.service.MemberService;
+import com.crewvy.member_service.member.service.OnboardingService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,16 +17,18 @@ import java.util.UUID;
 public class MemberController {
 
     private final MemberService memberService;
+    private final OnboardingService onboardingService;
 
-    public MemberController(MemberService memberService) {
+    public MemberController(MemberService memberService, OnboardingService onboardingService) {
         this.memberService = memberService;
+        this.onboardingService = onboardingService;
     }
 
     // 관리자 계정 생성
     @PostMapping("/create-admin")
     public ResponseEntity<?> createAdmin(@ModelAttribute @Valid CreateAdminReq createAdminReq) {
         return new ResponseEntity<>(ApiResponse.success(
-                memberService.createAdmin(createAdminReq), "계정 생성 성공"), HttpStatus.CREATED);
+                onboardingService.createAdminAndInitialSetup(createAdminReq), "계정 생성 성공"), HttpStatus.CREATED);
     }
 
     // 사용자 계정 생성
@@ -75,15 +77,6 @@ public class MemberController {
                                          @RequestBody CreateGradeReq createGradeReq) {
         return new ResponseEntity<>(ApiResponse.success(
                 memberService.createGrade(uuid, memberPositionId, createGradeReq), "직급 생성 성공"), HttpStatus.OK);
-    }
-
-    // 조직 생성
-    @PostMapping("/create-organization")
-    public ResponseEntity<?> createOrganization(@RequestHeader("X-User-UUID") UUID uuid,
-                                                @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                                @RequestBody CreateOrganizationReq createOrganizationReq) {
-        return new ResponseEntity<>(ApiResponse.success(
-                memberService.createOrganization(uuid, memberPositionId, createOrganizationReq), "조직 생성 성공"), HttpStatus.OK);
     }
 
     // 역할의 권한 목록 수정
