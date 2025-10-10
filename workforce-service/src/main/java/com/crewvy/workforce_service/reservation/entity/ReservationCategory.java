@@ -1,6 +1,7 @@
 package com.crewvy.workforce_service.reservation.entity;
 
 import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.workforce_service.reservation.dto.request.ReservationCategoryUpdateReq;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,5 +26,12 @@ public class ReservationCategory extends BaseEntity {
 
     @Column(nullable = false)
     private UUID companyId;
+
+
+    public void update(ReservationCategoryUpdateReq req) {
+        if (req.getName() != null) {
+            this.name = req.getName();
+        }
+    }
 
 }
