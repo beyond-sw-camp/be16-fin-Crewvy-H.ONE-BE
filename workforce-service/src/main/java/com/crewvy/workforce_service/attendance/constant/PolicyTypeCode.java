@@ -1,5 +1,6 @@
 package com.crewvy.workforce_service.attendance.constant;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -17,15 +18,17 @@ public enum PolicyTypeCode {
     MENSTRUAL_LEAVE("PTC006", "생리휴가", true),
 
     // 근로시간 관련
-    BUSINESS_TRIP("PTC101", "출장", false),
-    OVERTIME("PTC102", "연장근무", false),
-    NIGHT_WORK("PTC103", "야간근무", false),
-    HOLIDAY_WORK("PTC104", "휴일근무", false);
+    STANDARD_WORK("PTC101", "기본근무", false),
+    BUSINESS_TRIP("PTC102", "출장", false),
+    OVERTIME("PTC103", "연장근무", false),
+    NIGHT_WORK("PTC104", "야간근무", false),
+    HOLIDAY_WORK("PTC105", "휴일근무", false);
 
     private final String codeValue;
     private final String codeName;
     private final boolean isBalanceDeductible;
 
+    @JsonCreator
     public static PolicyTypeCode fromCode(String code) {
         return Arrays.stream(values())
                 .filter(v -> v.codeValue.equals(code))

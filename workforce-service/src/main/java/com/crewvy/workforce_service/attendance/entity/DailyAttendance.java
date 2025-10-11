@@ -22,7 +22,7 @@ public class DailyAttendance extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "daily_attendance_id", nullable = false, columnDefinition = "BINARY(16)")
+    @Column(name = "daily_attendance_id", nullable = false)
     private UUID dailyAttendanceId;
 
     @JoinColumn(name = "member_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
