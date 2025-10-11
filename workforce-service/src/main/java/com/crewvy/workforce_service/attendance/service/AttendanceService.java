@@ -1,5 +1,6 @@
 package com.crewvy.workforce_service.attendance.service;
 
+import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.exception.BusinessException;
 import com.crewvy.workforce_service.attendance.constant.DeviceType;
 import com.crewvy.workforce_service.attendance.constant.EventType;
@@ -41,23 +42,25 @@ public class AttendanceService {
     private final RequestRepository requestRepository;
     private final PolicyRepository policyRepository;
 
-        public Object recordEvent(UUID memberId, UUID companyId, EventRequest request, String clientIp) {
+    public ApiResponse<?> recordEvent(UUID memberId, UUID companyId, EventRequest request, String clientIp) {
+        // 인증/검증이 필요한 이벤트 그룹
+        List<EventType> validationRequiredEvents = List.of(EventType.CLOCK_IN, EventType.CLOCK_OUT);
 
-            // 인증/검증이 필요한 이벤트 그룹
-            List<EventType> validationRequiredEvents = List.of(EventType.CLOCK_IN, EventType.CLOCK_OUT, EventType.GO_OUT, EventType.COME_BACK);
-
-            if (validationRequiredEvents.contains(request.getEventType())) {
-                validate(memberId, companyId, request.getDeviceId(), request.getDeviceType(), request.getLatitude(), request.getLongitude(), clientIp);
-            }
-            switch (request.getEventType()) {
-                case CLOCK_IN:
-                    return clockIn(memberId, request);
-                case CLOCK_OUT:
-                    return clockOut(memberId, request);
-                default:
-                    throw new BusinessException("지원하지 않는 이벤트 타입입니다.");
-            }
+        if (validationRequiredEvents.contains(request.getEventType())) {
+            validate(memberId, companyId, request.getDeviceId(), request.getDeviceType(), request.getLatitude(), request.getLongitude(), clientIp);
         }
+
+        switch (request.getEventType()) {
+            case CLOCK_IN:
+                ClockInResponse clockInResponse = clockIn(memberId, request);
+                return ApiResponse.success(clockInResponse, "출근 등록 완료.");
+            case CLOCK_OUT:
+                ClockOutResponse clockOutResponse = clockOut(memberId, request);
+                return ApiResponse.success(clockOutResponse, "퇴근 등록 완료.");
+            default:
+                throw new BusinessException("지원하지 않는 이벤트 타입입니다.");
+        }
+    }
 
     private ClockInResponse clockIn(UUID memberId, EventRequest request) {
         LocalDate today = LocalDate.now();

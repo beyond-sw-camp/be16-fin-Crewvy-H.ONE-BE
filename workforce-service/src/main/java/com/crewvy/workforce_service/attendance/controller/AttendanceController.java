@@ -28,8 +28,8 @@ public class AttendanceController {
 
         String clientIp = getClientIp(httpServletRequest);
 
-        Object response = attendanceService.recordEvent(memberId, companyId, request, clientIp);
-        return ApiResponse.success(response);
+        // 서비스가 반환한 ApiResponse를 그대로 return
+        return attendanceService.recordEvent(memberId, companyId, request, clientIp);
     }
 
     private String getClientIp(HttpServletRequest request) {
