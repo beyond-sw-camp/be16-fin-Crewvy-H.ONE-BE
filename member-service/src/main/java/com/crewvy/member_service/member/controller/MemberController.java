@@ -2,6 +2,7 @@ package com.crewvy.member_service.member.controller;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.member_service.member.constant.Action;
+import com.crewvy.member_service.member.constant.PermissionRange;
 import com.crewvy.member_service.member.dto.request.*;
 import com.crewvy.member_service.member.service.MemberService;
 import com.crewvy.member_service.member.service.OnboardingService;
@@ -118,8 +119,9 @@ public class MemberController {
     @GetMapping("/check-permission")
     public ResponseEntity<?> checkPermission(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                              @RequestParam String resource,
-                                             @RequestParam Action action) {
+                                             @RequestParam Action action,
+                                             @RequestParam(required = false, defaultValue = "COMPANY") PermissionRange range) {
         return new ResponseEntity<>(ApiResponse.success(
-                memberService.checkPermission(memberPositionId, resource, action), "권한 확인 성공"), HttpStatus.OK);
+                memberService.checkPermission(memberPositionId, resource, action, range), "권한 확인 성공"), HttpStatus.OK);
     }
 }

@@ -1,25 +1,20 @@
 package com.crewvy.member_service.member.auth;
 
 import com.crewvy.member_service.member.constant.Action;
+import com.crewvy.member_service.member.constant.EmploymentType;
 import com.crewvy.member_service.member.constant.PermissionRange;
 import com.crewvy.member_service.member.dto.request.CreateAdminReq;
 import com.crewvy.member_service.member.dto.request.CreateMemberReq;
 import com.crewvy.member_service.member.dto.request.CreateOrganizationReq;
 import com.crewvy.member_service.member.entity.*;
-import com.crewvy.member_service.member.repository.MemberRepository;
-import com.crewvy.member_service.member.repository.PermissionRepository;
-import com.crewvy.member_service.member.repository.RoleRepository;
-import com.crewvy.member_service.member.constant.EmploymentType;
-import com.crewvy.member_service.member.repository.PermissionRepository;
-import com.crewvy.member_service.member.repository.RoleRepository;
-import com.crewvy.member_service.member.repository.TitleRepository;
-import com.crewvy.member_service.member.repository.GradeRepository;
+import com.crewvy.member_service.member.repository.*;
 import com.crewvy.member_service.member.service.MemberService;
 import com.crewvy.member_service.member.service.OnboardingService;
 import com.crewvy.member_service.member.service.OrganizationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +26,7 @@ import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
+@DependsOn("permissionCacheManager")
 public class AutoCreateAdmin implements ApplicationRunner {
 
     private final MemberRepository memberRepository;

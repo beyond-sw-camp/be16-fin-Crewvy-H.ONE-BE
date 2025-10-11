@@ -2,7 +2,6 @@ package com.crewvy.workspace_service.meeting.entity;
 
 import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.workspace_service.meeting.constant.VideoConferenceStatus;
-import com.crewvy.workspace_service.meeting.converter.MinuteStatusConverter;
 import com.crewvy.workspace_service.meeting.converter.VideoConferenceStatusConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;

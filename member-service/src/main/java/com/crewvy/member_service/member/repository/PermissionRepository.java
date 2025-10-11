@@ -18,10 +18,12 @@ public interface PermissionRepository extends JpaRepository<Permission, UUID> {
            "FROM RolePermission rp " +
            "WHERE rp.role = (SELECT mp.role FROM MemberPosition mp WHERE mp.id = :memberPositionId) " +
            "AND rp.permission.resource = :resource " +
-           "AND rp.permission.action = :action")
+           "AND rp.permission.action = :action " +
+           "AND rp.permission.permissionRange = :permissionRange")
     boolean hasPermission(@Param("memberPositionId") UUID memberPositionId,
                           @Param("resource") String resource,
-                          @Param("action") Action action);
+                          @Param("action") Action action,
+                          @Param("permissionRange") PermissionRange permissionRange);
 
     List<Permission> findByPermissionRange(PermissionRange permissionRange);
 }

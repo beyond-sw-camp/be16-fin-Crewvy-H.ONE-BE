@@ -1,13 +1,14 @@
 package com.crewvy.member_service.member.service;
 
 import com.crewvy.common.entity.Bool;
+import com.crewvy.common.exception.PermissionDeniedException;
 import com.crewvy.member_service.member.constant.Action;
+import com.crewvy.member_service.member.constant.PermissionRange;
 import com.crewvy.member_service.member.dto.request.CreateOrganizationReq;
 import com.crewvy.member_service.member.dto.request.UpdateOrganizationReq;
 import com.crewvy.member_service.member.entity.Company;
 import com.crewvy.member_service.member.entity.Member;
 import com.crewvy.member_service.member.entity.Organization;
-import com.crewvy.common.exception.PermissionDeniedException;
 import com.crewvy.member_service.member.repository.CompanyRepository;
 import com.crewvy.member_service.member.repository.MemberRepository;
 import com.crewvy.member_service.member.repository.OrganizationRepository;
@@ -46,7 +47,7 @@ public class OrganizationService {
 
     // 조직 생성
     public UUID createOrganization(UUID memberId, UUID memberPositionId, CreateOrganizationReq createOrganizationReq) {
-        if (memberService.checkPermission(memberPositionId, "organization", Action.CREATE).equals(Bool.FALSE)) {
+        if (memberService.checkPermissionWithoutCache(memberPositionId, "organization", Action.CREATE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
             throw new PermissionDeniedException("조직을 생성할 권한이 없습니다.");
         }
 
@@ -75,11 +76,7 @@ public class OrganizationService {
 
     // 조직 목록 조회
     @Transactional(readOnly = true)
-    public List<Organization> getOrganizationList(UUID memberId, UUID memberPositionId) {
-        if (memberService.checkPermission(memberPositionId, "organization", Action.READ).equals(Bool.FALSE)) {
-            throw new PermissionDeniedException("조직을 조회할 권한이 없습니다.");
-        }
-
+    public List<Organization> getOrganizationList(UUID memberId) {
         Member member = memberRepository.findById(memberId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 계정입니다."));
         Company company = member.getCompany();
 
@@ -88,7 +85,7 @@ public class OrganizationService {
 
     // 조직 수정
     public UUID updateOrganization(UUID memberId, UUID memberPositionId, UUID organizationId, UpdateOrganizationReq updateOrganizationReq) {
-        if (memberService.checkPermission(memberPositionId, "organization", Action.UPDATE).equals(Bool.FALSE)) {
+        if (memberService.checkPermission(memberPositionId, "organization", Action.UPDATE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
             throw new PermissionDeniedException("조직을 수정할 권한이 없습니다.");
         }
 
@@ -101,7 +98,7 @@ public class OrganizationService {
 
     // 조직 삭제
     public void deleteOrganization(UUID memberId, UUID memberPositionId, UUID organizationId) {
-        if (memberService.checkPermission(memberPositionId, "organization", Action.DELETE).equals(Bool.FALSE)) {
+        if (memberService.checkPermission(memberPositionId, "organization", Action.DELETE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
             throw new PermissionDeniedException("조직을 삭제할 권한이 없습니다.");
         }
 

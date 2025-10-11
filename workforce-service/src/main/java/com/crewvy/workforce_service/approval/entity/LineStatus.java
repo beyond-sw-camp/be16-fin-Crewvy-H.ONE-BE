@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.approval.entity;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+
 import java.util.Arrays;
 
 @Getter

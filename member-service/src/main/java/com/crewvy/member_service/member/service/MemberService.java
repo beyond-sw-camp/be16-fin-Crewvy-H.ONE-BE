@@ -1,6 +1,7 @@
 package com.crewvy.member_service.member.service;
 
 import com.crewvy.common.entity.Bool;
+import com.crewvy.common.exception.PermissionDeniedException;
 import com.crewvy.member_service.member.auth.JwtTokenProvider;
 import com.crewvy.member_service.member.constant.Action;
 import com.crewvy.member_service.member.constant.PermissionRange;
@@ -8,7 +9,6 @@ import com.crewvy.member_service.member.dto.request.*;
 import com.crewvy.member_service.member.dto.response.*;
 import com.crewvy.member_service.member.entity.*;
 import com.crewvy.member_service.member.repository.*;
-import com.crewvy.common.exception.PermissionDeniedException;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -122,7 +122,7 @@ public class MemberService {
 
     // 계정 생성
     public UUID createMember(UUID memberId, UUID memberPositionId, CreateMemberReq createMemberReq) {
-        if (checkPermission(memberPositionId, "member", Action.CREATE).equals(Bool.FALSE)) {
+        if (checkPermission(memberPositionId, "member", Action.CREATE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
@@ -164,12 +164,17 @@ public class MemberService {
         }
 
         String accessToken = jwtTokenProvider.createAtToken(member, member.getDefaultMemberPosition());
-        return LoginRes.builder().accessToken(accessToken).build();
+        String refreshToken = jwtTokenProvider.createRtToken(member);
+
+        return LoginRes.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .build();
     }
 
     // 직책 생성
     public UUID createTitle(UUID memberId, UUID memberPositionId, CreateTitleReq createTitleReq) {
-        if (checkPermission(memberPositionId, "member", Action.CREATE).equals(Bool.FALSE)) {
+        if (checkPermission(memberPositionId, "member", Action.CREATE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
@@ -180,7 +185,7 @@ public class MemberService {
 
     // 직급 생성
     public UUID createGrade(UUID memberId, UUID memberPositionId, CreateGradeReq createGradeReq) {
-        if (checkPermission(memberPositionId, "member", Action.CREATE).equals(Bool.FALSE)) {
+        if (checkPermission(memberPositionId, "member", Action.CREATE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
@@ -192,67 +197,118 @@ public class MemberService {
     // 직원 목록 조회
     @Transactional(readOnly = true)
     public List<MemberListRes> getMemberList(UUID memberId, UUID memberPositionId) {
-        if (checkPermission(memberPositionId, "member", Action.READ).equals(Bool.FALSE)) {
-            throw new PermissionDeniedException("권한이 없습니다.");
-        }
+        PermissionRange permissionRange = getHighestPermissionRangeForRead(memberPositionId);
 
         Member member = memberRepository.findById(memberId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 계정입니다."));
-        Company company = member.getCompany();
 
-        List<Member> members = memberRepository.findByCompanyWithDetail(company);
-
-        return members.stream()
-                .map(Member::getDefaultMemberPosition)
-                .filter(java.util.Objects::nonNull)
-                .map(MemberListRes::fromEntity)
-                .collect(Collectors.toList());
+        if (permissionRange == PermissionRange.COMPANY) {
+            Company company = member.getCompany();
+            List<Member> members = memberRepository.findByCompanyWithDetail(company);
+            return members.stream()
+                    .map(Member::getDefaultMemberPosition)
+                    .filter(java.util.Objects::nonNull)
+                    .map(MemberListRes::fromEntity)
+                    .collect(Collectors.toList());
+        } else if (permissionRange == PermissionRange.DEPARTMENT) {
+            MemberPosition memberPosition = memberPositionRepository.findById(memberPositionId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 직책입니다."));
+            Organization organization = memberPosition.getOrganization();
+            List<MemberPosition> positionsInDepartment = memberPositionRepository.findAllByOrganization(organization);
+            return positionsInDepartment.stream()
+                    .map(MemberPosition::getMember)
+                    .distinct()
+                    .map(Member::getDefaultMemberPosition)
+                    .filter(java.util.Objects::nonNull)
+                    .map(MemberListRes::fromEntity)
+                    .collect(Collectors.toList());
+        } else {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
     }
 
     // 직원 상세 조회
     @Transactional(readOnly = true)
     public MemberDetailRes getMemberDetail(UUID uuid, UUID memberPositionId, UUID memberId) {
-        if (checkPermission(memberPositionId, "member", Action.READ).equals(Bool.FALSE)) {
+        PermissionRange permissionRange = getHighestPermissionRangeForRead(memberPositionId);
+
+        if (permissionRange == null) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
-        Member member = memberRepository.findByIdWithDetail(memberId)
+
+        Member targetMember = memberRepository.findByIdWithDetail(memberId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 계정입니다."));
 
-        List<TitleRes> titleList = member.getMemberPositionList().stream()
+        if (permissionRange == PermissionRange.DEPARTMENT) {
+            MemberPosition requestingPosition = memberPositionRepository.findById(memberPositionId)
+                    .orElseThrow(() -> new IllegalArgumentException("요청자의 직책 정보를 찾을 수 없습니다."));
+            Organization requestingDepartment = requestingPosition.getOrganization();
+
+            boolean isInSameDepartment = targetMember.getMemberPositionList().stream()
+                    .anyMatch(pos -> pos.getOrganization().equals(requestingDepartment));
+
+            if (!isInSameDepartment) {
+                throw new PermissionDeniedException("부서 권한으로는 다른 부서의 직원을 조회할 수 없습니다.");
+            }
+        }
+
+        // COMPANY 권한이거나, DEPARTMENT 권한 검사를 통과한 경우
+        List<TitleRes> titleList = targetMember.getMemberPositionList().stream()
                 .map(mp -> TitleRes.fromEntity(mp.getTitle())).distinct().collect(Collectors.toList());
 
-        List<OrganizationRes> organizationList = member.getMemberPositionList().stream()
+        List<OrganizationRes> organizationList = targetMember.getMemberPositionList().stream()
                 .map(mp -> OrganizationRes.fromEntity(mp.getOrganization())).distinct().collect(Collectors.toList());
 
-        List<MemberPositionRes> memberPositionResList = member.getMemberPositionList().stream()
+        List<MemberPositionRes> memberPositionResList = targetMember.getMemberPositionList().stream()
                 .map(MemberPositionRes::fromEntity).collect(Collectors.toList());
 
         return MemberDetailRes.builder()
-                .name(member.getName())
+                .name(targetMember.getName())
                 .titleList(titleList)
                 .organizationList(organizationList)
-                .memberStatus(member.getMemberStatus())
-                .accountStatus(member.getAccountStatus())
-                .employmentType(member.getEmploymentType())
-                .email(member.getEmail())
-                .phoneNumber(member.getPhoneNumber())
-                .emergencyContact(member.getEmergencyContact())
-                .address(member.getAddress())
-                .bank(member.getBank())
-                .bankAccount(member.getBankAccount())
-                .profileUrl(member.getProfileUrl())
-                .sabun(member.getSabun())
-                .joinDate(member.getJoinDate())
-                .extensionNumber(member.getExtensionNumber())
-                .telNumber(member.getTelNumber())
+                .memberStatus(targetMember.getMemberStatus())
+                .accountStatus(targetMember.getAccountStatus())
+                .employmentType(targetMember.getEmploymentType())
+                .email(targetMember.getEmail())
+                .phoneNumber(targetMember.getPhoneNumber())
+                .emergencyContact(targetMember.getEmergencyContact())
+                .address(targetMember.getAddress())
+                .bank(targetMember.getBank())
+                .bankAccount(targetMember.getBankAccount())
+                .profileUrl(targetMember.getProfileUrl())
+                .sabun(targetMember.getSabun())
+                .joinDate(targetMember.getJoinDate())
+                .extensionNumber(targetMember.getExtensionNumber())
+                .telNumber(targetMember.getTelNumber())
                 .memberPositionResList(memberPositionResList)
-                .gradeHistorySet(member.getGradeHistorySet())
+                .gradeHistorySet(targetMember.getGradeHistorySet())
                 .build();
     }
 
+    private PermissionRange getHighestPermissionRangeForRead(UUID memberPositionId) {
+        if (checkPermission(memberPositionId, "member", Action.READ, PermissionRange.COMPANY).equals(Bool.TRUE)) {
+            return PermissionRange.COMPANY;
+        }
+        if (checkPermission(memberPositionId, "member", Action.READ, PermissionRange.DEPARTMENT).equals(Bool.TRUE)) {
+            return PermissionRange.DEPARTMENT;
+        }
+        return null;
+    }
+
     // 권한 확인
+    @Cacheable(cacheManager = "permissionCacheManager", value = "permissions", key = "#memberPositionId.toString() + ':' + #resource + ':' + #action.name() + ':' + #range.name()")
     @Transactional(readOnly = true)
-    public Bool checkPermission(UUID memberPositionId, String resource, Action action) {
-        if (!permissionRepository.hasPermission(memberPositionId, resource, action)) {
+    public Bool checkPermission(UUID memberPositionId, String resource, Action action, PermissionRange range) {
+        if (!permissionRepository.hasPermission(memberPositionId, resource, action, range)) {
+            return Bool.FALSE;
+        } else {
+            return Bool.TRUE;
+        }
+    }
+
+    // 권한 확인 (캐시 없음)
+    @Transactional(readOnly = true)
+    public Bool checkPermissionWithoutCache(UUID memberPositionId, String resource, Action action, PermissionRange range) {
+        if (!permissionRepository.hasPermission(memberPositionId, resource, action, range)) {
             return Bool.FALSE;
         } else {
             return Bool.TRUE;
@@ -266,9 +322,9 @@ public class MemberService {
     }
 
     // 역할별 권한 수정
-    @CacheEvict(value = "permissions", allEntries = true)
+    @CacheEvict(cacheManager = "permissionCacheManager", value = "permissions", allEntries = true)
     public UUID updateRolePermissions(UUID memberPositionId, UUID roleId, UpdateRolePermissionsReq req) {
-        if (checkPermission(memberPositionId, "member", Action.UPDATE).equals(Bool.FALSE)) {
+        if (checkPermission(memberPositionId, "member", Action.UPDATE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
@@ -295,9 +351,9 @@ public class MemberService {
     }
 
     // 역할 수정
-    @CacheEvict(value = "permissions", allEntries = true)
+    @CacheEvict(cacheManager = "permissionCacheManager", value = "permissions", allEntries = true)
     public void updateMemberRole(UUID adminMemberPositionId, UUID targetMemberPositionId, UpdateMemberRoleReq req) {
-        if (checkPermission(adminMemberPositionId, "member", Action.UPDATE).equals(Bool.FALSE)) {
+        if (checkPermission(adminMemberPositionId, "member", Action.UPDATE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
