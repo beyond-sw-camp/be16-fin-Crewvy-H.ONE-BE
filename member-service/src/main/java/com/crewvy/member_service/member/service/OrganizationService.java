@@ -6,6 +6,7 @@ import com.crewvy.member_service.member.constant.Action;
 import com.crewvy.member_service.member.constant.PermissionRange;
 import com.crewvy.member_service.member.dto.request.CreateOrganizationReq;
 import com.crewvy.member_service.member.dto.request.UpdateOrganizationReq;
+import com.crewvy.member_service.member.dto.response.OrganizationTreeRes;
 import com.crewvy.member_service.member.entity.Company;
 import com.crewvy.member_service.member.entity.Member;
 import com.crewvy.member_service.member.entity.Organization;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -76,11 +78,15 @@ public class OrganizationService {
 
     // 조직 목록 조회
     @Transactional(readOnly = true)
-    public List<Organization> getOrganizationList(UUID memberId) {
+    public List<OrganizationTreeRes> getOrganizationList(UUID memberId) {
         Member member = memberRepository.findById(memberId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 계정입니다."));
         Company company = member.getCompany();
 
-        return organizationRepository.findByCompany(company);
+        List<Organization> organizations = organizationRepository.findByCompany(company);
+        return organizations.stream()
+                .filter(o -> o.getParent() == null)
+                .map(OrganizationTreeRes::new)
+                .collect(Collectors.toList());
     }
 
     // 조직 수정

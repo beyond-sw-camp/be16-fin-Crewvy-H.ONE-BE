@@ -1,17 +1,36 @@
 package com.crewvy.common.redis;
 
+import com.crewvy.common.entity.Bool;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
+import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.data.redis.cache.RedisCacheConfiguration;
+import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
+import java.io.IOException;
+import java.time.Duration;
+
 @Configuration
+@EnableCaching
 public class RedisConfig {
     @Value("${spring.redis.host}")
     private String host;
@@ -20,7 +39,7 @@ public class RedisConfig {
 
     @Bean
     @Qualifier("rtInventory")
-    public RedisConnectionFactory redisConnectionFactory() {
+    public RedisConnectionFactory rtConnectionFactory() {
         RedisStandaloneConfiguration configuration = new RedisStandaloneConfiguration();
         configuration.setHostName(host);
         configuration.setPort(port);
@@ -29,23 +48,79 @@ public class RedisConfig {
     }
 
     @Bean
-    @Primary
     @Qualifier("rtInventory")
-    public RedisTemplate<String, String> redisTemplate(@Qualifier("rtInventory") RedisConnectionFactory redisConnectionFactory) {
-        RedisTemplate<String, String> redisTemplate = new RedisTemplate<>();
-        redisTemplate.setKeySerializer(new StringRedisSerializer());
-        redisTemplate.setValueSerializer(new StringRedisSerializer());
-        redisTemplate.setConnectionFactory(redisConnectionFactory);
-        return redisTemplate;
+    public StringRedisTemplate rtRedisTemplate(@Qualifier("rtInventory") RedisConnectionFactory redisConnectionFactory) {
+        StringRedisTemplate stringRedisTemplate = new StringRedisTemplate();
+        stringRedisTemplate.setConnectionFactory(redisConnectionFactory);
+        return stringRedisTemplate;
     }
 
     @Bean
-    @Qualifier("permissionCache")
-    public RedisConnectionFactory countConnectionFactory() {
+    @Qualifier("cacheConnectionFactory")
+    public RedisConnectionFactory cacheConnectionFactory() {
         RedisStandaloneConfiguration configuration = new RedisStandaloneConfiguration();
         configuration.setHostName(host);
         configuration.setPort(port);
         configuration.setDatabase(1);
         return new LettuceConnectionFactory(configuration);
+    }
+
+    private ObjectMapper redisObjectMapper() {
+        PolymorphicTypeValidator typeValidator = BasicPolymorphicTypeValidator
+                .builder()
+                .allowIfBaseType(Object.class)
+                .build();
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+        objectMapper.activateDefaultTyping(typeValidator, ObjectMapper.DefaultTyping.NON_FINAL);
+
+        SimpleModule boolModule = new SimpleModule();
+        boolModule.addSerializer(Bool.class, new JsonSerializer<Bool>() {
+            @Override
+            public void serialize(Bool value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+                gen.writeString(value.name());
+            }
+        });
+        boolModule.addDeserializer(Bool.class, new JsonDeserializer<Bool>() {
+            @Override
+            public Bool deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+                return Bool.valueOf(p.getText());
+            }
+        });
+        objectMapper.registerModule(boolModule);
+
+        return objectMapper;
+    }
+
+    @Bean
+    @Primary
+    public RedisTemplate<String, Object> redisTemplate(@Qualifier("cacheConnectionFactory") RedisConnectionFactory redisConnectionFactory) {
+        RedisTemplate<String, Object> redisTemplate = new RedisTemplate<>();
+        redisTemplate.setConnectionFactory(redisConnectionFactory);
+        redisTemplate.setKeySerializer(new StringRedisSerializer());
+        redisTemplate.setValueSerializer(new GenericJackson2JsonRedisSerializer(redisObjectMapper()));
+        return redisTemplate;
+    }
+
+    @Bean
+    public RedisCacheConfiguration redisCacheConfiguration() {
+        GenericJackson2JsonRedisSerializer jsonRedisSerializer = new GenericJackson2JsonRedisSerializer(redisObjectMapper());
+
+        return RedisCacheConfiguration.defaultCacheConfig()
+                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
+                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(jsonRedisSerializer))
+                .entryTtl(Duration.ofHours(24));
+    }
+
+    @Bean(name = "permissionCacheManager")
+    @Primary
+    public CacheManager permissionCacheManager(
+            @Qualifier("cacheConnectionFactory") RedisConnectionFactory connectionFactory,
+            RedisCacheConfiguration redisCacheConfiguration) {
+        return RedisCacheManager.RedisCacheManagerBuilder
+                .fromConnectionFactory(connectionFactory)
+                .cacheDefaults(redisCacheConfiguration)
+                .build();
     }
 }

@@ -169,6 +169,9 @@ public class MemberService {
         return LoginRes.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
+                .userName(member.getName())
+                .memberId(member.getId())
+                .memberPositionId(member.getDefaultMemberPosition().getId())
                 .build();
     }
 
@@ -192,6 +195,75 @@ public class MemberService {
         Member member = memberRepository.findById(memberId).orElseThrow(()
                 -> new IllegalArgumentException("존재하지 않는 계정입니다."));
         return gradeRepository.save(createGradeReq.toEntity(member.getCompany())).getId();
+    }
+
+    // 직책 목록 조회
+    @Transactional(readOnly = true)
+    public List<TitleRes> getTitles(UUID memberId) {
+        Member member = memberRepository.findById(memberId).orElseThrow(()
+                -> new IllegalArgumentException("존재하지 않는 계정입니다."));
+        Company company = member.getCompany();
+        return titleRepository.findAllByCompany(company).stream()
+                .map(TitleRes::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    // 직책 수정
+    public void updateTitle(UUID memberPositionId, UUID titleId, UpdateTitleReq updateTitleReq) {
+        if (checkPermission(memberPositionId, "member", Action.UPDATE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+
+        Title title = titleRepository.findById(titleId).orElseThrow(()
+                -> new IllegalArgumentException("존재하지 않는 직책입니다."));
+
+        title.updateName(updateTitleReq.getName());
+        titleRepository.save(title);
+    }
+
+    // 직책 삭제
+    public void deleteTitle(UUID memberPositionId, UUID titleId) {
+        if (checkPermission(memberPositionId, "member", Action.DELETE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+
+        titleRepository.deleteById(titleId);
+    }
+
+    // 직급 목록 조회
+    @Transactional(readOnly = true)
+    public List<GradeRes> getGrades(UUID memberId, UUID memberPositionId) {
+        if (checkPermission(memberPositionId, "member", Action.READ, PermissionRange.COMPANY).equals(Bool.FALSE)) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+        Member member = memberRepository.findById(memberId).orElseThrow(()
+                -> new IllegalArgumentException("존재하지 않는 계정입니다."));
+        Company company = member.getCompany();
+        return gradeRepository.findAllByCompany(company).stream()
+                .map(GradeRes::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    // 직급 수정
+    public void updateGrade(UUID memberPositionId, UUID gradeId, UpdateGradeReq updateGradeReq) {
+        if (checkPermission(memberPositionId, "member", Action.UPDATE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+
+        Grade grade = gradeRepository.findById(gradeId).orElseThrow(()
+                -> new IllegalArgumentException("존재하지 않는 직급입니다."));
+
+        grade.updateName(updateGradeReq.getName());
+        gradeRepository.save(grade);
+    }
+
+    // 직급 삭제
+    public void deleteGrade(UUID memberPositionId, UUID gradeId) {
+        if (checkPermission(memberPositionId, "member", Action.DELETE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+
+        gradeRepository.deleteById(gradeId);
     }
 
     // 직원 목록 조회

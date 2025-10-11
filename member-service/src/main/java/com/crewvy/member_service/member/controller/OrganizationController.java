@@ -4,6 +4,7 @@ import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.member_service.member.dto.request.CreateOrganizationReq;
 import com.crewvy.member_service.member.dto.request.UpdateOrganizationReq;
 import com.crewvy.member_service.member.service.OrganizationService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,11 +21,12 @@ public class OrganizationController {
         this.organizationService = organizationService;
     }
 
+
     // 조직 생성
     @PostMapping("/create")
     public ResponseEntity<?> createOrganization(@RequestHeader("X-User-UUID") UUID uuid,
                                                 @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                                @RequestBody CreateOrganizationReq createOrganizationReq) {
+                                                @Valid @RequestBody CreateOrganizationReq createOrganizationReq) {
         return new ResponseEntity<>(ApiResponse.success(
                 organizationService.createOrganization(uuid, memberPositionId, createOrganizationReq), "조직 생성 성공"), HttpStatus.CREATED);
     }
@@ -41,7 +43,7 @@ public class OrganizationController {
     public ResponseEntity<?> updateOrganization(@RequestHeader("X-User-UUID") UUID uuid,
                                                 @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                                 @PathVariable UUID id,
-                                                @RequestBody UpdateOrganizationReq updateOrganizationReq) {
+                                                @Valid @RequestBody UpdateOrganizationReq updateOrganizationReq) {
         return new ResponseEntity<>(ApiResponse.success(
                 organizationService.updateOrganization(uuid, memberPositionId, id, updateOrganizationReq), "조직 수정 성공"), HttpStatus.OK);
     }

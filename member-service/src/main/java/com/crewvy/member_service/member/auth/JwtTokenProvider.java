@@ -2,7 +2,6 @@ package com.crewvy.member_service.member.auth;
 
 import com.crewvy.member_service.member.entity.Member;
 import com.crewvy.member_service.member.entity.MemberPosition;
-import com.crewvy.member_service.member.repository.MemberPositionRepository;
 import com.crewvy.member_service.member.repository.MemberRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -10,8 +9,9 @@ import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class JwtTokenProvider {
     private final MemberRepository memberRepository;
-    private final RedisTemplate<String, String> redisTemplate;
+    private final StringRedisTemplate redisTemplate;
 
     @Value("${jwt.expirationAt}")
     private int expirationAt;
@@ -39,9 +39,9 @@ public class JwtTokenProvider {
     private Key rtKey;
 
     @Autowired
-    public JwtTokenProvider(MemberRepository memberRepository, MemberPositionRepository memberPositionRepository, RedisTemplate<String, String> redisTemplate) {
+    public JwtTokenProvider(MemberRepository memberRepository, @Qualifier("rtInventory") StringRedisTemplate rtRedisTemplate) {
         this.memberRepository = memberRepository;
-        this.redisTemplate = redisTemplate;
+        this.redisTemplate = rtRedisTemplate;
     }
 
     @PostConstruct
@@ -109,5 +109,4 @@ public class JwtTokenProvider {
 
         return member;
     }
-
 }
