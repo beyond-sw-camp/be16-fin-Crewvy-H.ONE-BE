@@ -3,6 +3,7 @@ package com.crewvy.workforce_service.performance.service;
 import com.crewvy.common.S3.S3Uploader;
 import com.crewvy.workforce_service.performance.constant.GoalStatus;
 import com.crewvy.workforce_service.performance.dto.*;
+import com.crewvy.workforce_service.performance.entity.Evaluation;
 import com.crewvy.workforce_service.performance.entity.Evidence;
 import com.crewvy.workforce_service.performance.entity.Goal;
 import com.crewvy.workforce_service.performance.entity.TeamGoal;
@@ -13,6 +14,7 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -151,4 +153,75 @@ public class PerformanceService {
 
         goal.updateStatus(dto.getStatus(), dto.getComment());
     }
+
+    //    평가 생성
+    public void createEvaluation(CreateEvaluationDto dto) {
+        Goal goal = performanceRepository.findById(dto.getGoalId()).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 목표입니다."));
+
+        Evaluation evaluation = Evaluation.builder()
+                .goal(goal)
+                .grade(dto.getGrade())
+                .type(dto.getType())
+                .comment(dto.getComment())
+                .build();
+
+        evaluationRepository.save(evaluation);
+    }
+
+    //    평가 조회
+    public EvaluationResponseDto findEvaluation(FindEvaluationDto dto) {
+        Goal goal = performanceRepository.findById(dto.getGoalId()).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 목표입니다."));
+        Evaluation evaluation = evaluationRepository.findByGoalAndType(goal, dto.getType()).orElseThrow(() -> new EntityNotFoundException("평가가 존재하지 않습니다."));
+        return EvaluationResponseDto.builder()
+                .evaluationId(evaluation.getId())
+                .grade(evaluation.getGrade())
+                .comment(evaluation.getComment())
+                .build();
+    }
+
+    //    내 목표 업데이트
+    public void updateMyGoal(UpdateMyGoalDto dto) {
+        Goal goal = performanceRepository.findById(dto.getGoalId()).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 목표입니다."));
+        goal.updateGoal(dto);
+    }
+
+    //    증적 제출 및 수정
+    public void patchEvidence(UUID id, EvidenceRequestDto dto, List<MultipartFile> newFiles) {
+        Goal goal = performanceRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 목표입니다."));
+
+        processDeletions(goal, dto.getExistingFileIds());
+
+        processAdditions(goal, newFiles);
+    }
+
+    private void processDeletions(Goal goal, List<UUID> idsToKeep) {
+        List<Evidence> currentFiles = goal.getEvidenceList();
+
+        List<Evidence> filesToDelete = currentFiles.stream()
+                .filter(file -> !idsToKeep.contains(file.getId()))
+                .toList();
+
+        if(!filesToDelete.isEmpty()) {
+            filesToDelete.forEach(file -> s3Uploader.delete(file.getEvidenceUrl()));
+
+            currentFiles.removeAll(filesToDelete);
+        }
+    }
+
+    private void processAdditions(Goal goal, List<MultipartFile> newFiles) {
+        if(newFiles != null && !newFiles.isEmpty()) {
+            newFiles.forEach(file -> {
+                String uploadUrl = s3Uploader.upload(file, "evidence");
+                Evidence newEvidence = Evidence.builder()
+                        .evidenceUrl(uploadUrl)
+                        .goal(goal)
+                        .build();
+
+                goal.getEvidenceList().add(newEvidence);
+            });
+        }
+    }
+
+//    member쪽 데이터가 전혀 들어가지 않았기에 추후 수정 예정
+//    평가쪽 API의 경우 추가적으로 수정 예정
 }

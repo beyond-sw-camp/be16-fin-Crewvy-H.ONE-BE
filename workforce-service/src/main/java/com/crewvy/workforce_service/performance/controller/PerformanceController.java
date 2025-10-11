@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -55,6 +56,33 @@ public class PerformanceController {
     @PatchMapping("/update-status")
     public ResponseEntity<?> updateGoalStatus(UpdateStatusDto dto) {
         performanceService.updateGoalStatus(dto);
+        return new ResponseEntity<>(HttpStatus.OK);
+    }
+
+    @PostMapping("/create-evaluation")
+    public ResponseEntity<?> createEvaluation(CreateEvaluationDto dto) {
+        performanceService.createEvaluation(dto);
+        return new ResponseEntity<>(HttpStatus.CREATED);
+    }
+
+    @GetMapping("/find-evaluation")
+    public ResponseEntity<?> findEvaluation(FindEvaluationDto dto) {
+        EvaluationResponseDto responseDto = performanceService.findEvaluation(dto);
+        return new ResponseEntity<>(responseDto, HttpStatus.OK);
+    }
+
+    @PatchMapping("/update-my-goal")
+    public ResponseEntity<?> updateMyGoal(@RequestBody UpdateMyGoalDto dto) {
+        performanceService.updateMyGoal(dto);
+        return new ResponseEntity<>(HttpStatus.OK);
+    }
+
+    @PatchMapping("/evidence/{id}")
+    public ResponseEntity<?> patchEvidence(@PathVariable UUID id,
+                                           @RequestPart("evidenceInfo") EvidenceRequestDto dto,
+                                           @RequestPart(value = "newFiles", required = false) List<MultipartFile> newFiles)
+    {
+        performanceService.patchEvidence(id, dto, newFiles);
         return new ResponseEntity<>(HttpStatus.OK);
     }
 }
