@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -27,4 +28,6 @@ public interface VideoConferenceRepository extends JpaRepository<VideoConference
     List<VideoConference> findByVideoConferenceInviteeList_MemberIdAndStatusFetchInvitees(
             @Param("memberId") UUID memberId,
             @Param("status") VideoConferenceStatus status);
+
+    Optional<VideoConference> findBySessionId(String sessionId);
 }

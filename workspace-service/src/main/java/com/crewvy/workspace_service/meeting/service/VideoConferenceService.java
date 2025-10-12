@@ -71,18 +71,18 @@ public class VideoConferenceService {
 
     public Page<VideoConferenceListRes> findAllMyVideoConference(UUID memberId, VideoConferenceStatus videoConferenceStatus, Pageable pageable) {
 
-        // 회의 시작 후 아무도 참여 안 하고 1시간 정도 흘러서 OpenVidu GC가 세션 정리한 경우가 있어서 일단 만들었는 데 필요한지 고민 해봐야할 듯
-        if (videoConferenceStatus == VideoConferenceStatus.IN_PROGRESS) {
-            try {
-                openVidu.fetch();
-            } catch (OpenViduJavaClientException | OpenViduHttpException e) {
-                throw new RuntimeException(e);
-            }
-            videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatusFetchInvitees(new UUID(123, 123), videoConferenceStatus)
-                    .forEach(videoConference -> {
-                        if (openVidu.getActiveSession(videoConference.getSessionId()) == null) videoConference.endVideoConference();
-                    });
-        }
+//        // TODO : 회의 시작 후 아무도 참여 안 하고 1시간 정도 흘러서 OpenVidu GC가 세션 정리한 경우가 있어서 일단 만들었는 데 필요한지 고민 해봐야할 듯
+//        if (videoConferenceStatus == VideoConferenceStatus.IN_PROGRESS) {
+//            try {
+//                openVidu.fetch();
+//            } catch (OpenViduJavaClientException | OpenViduHttpException e) {
+//                throw new RuntimeException(e);
+//            }
+//            videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatusFetchInvitees(new UUID(123, 123), videoConferenceStatus)
+//                    .forEach(videoConference -> {
+//                        if (openVidu.getActiveSession(videoConference.getSessionId()) == null) videoConference.endVideoConference();
+//                    });
+//        }
 
 //        return videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatus(new UUID(123, 123), videoConferenceStatus, pageable)
 //                .map(VideoConferenceListRes::fromEntity);

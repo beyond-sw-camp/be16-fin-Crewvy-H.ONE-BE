@@ -1,19 +1,24 @@
 package com.crewvy.workspace_service.meeting.service;
 
 import com.crewvy.workspace_service.meeting.dto.openvidu.webhook.*;
+import com.crewvy.workspace_service.meeting.repository.VideoConferenceRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
+@Transactional
 @RequiredArgsConstructor
 public class OpenViduWebhookService {
 
     private final ObjectMapper objectMapper;
+    private final VideoConferenceRepository videoConferenceRepository;
 
     public void handleOpenViduWebhook(JsonNode body) {
         String event = body.get("event").asText();
@@ -36,38 +41,40 @@ public class OpenViduWebhookService {
     }
 
     private void handleSessionCreated(SessionCreatedReq req) {
-        log.info("Session created: {}", req);
+        log.info("OpenViduWebhook - Session created: {}", req);
     }
 
     private void handleSessionDestroyed(SessionDestroyedReq req) {
-        log.info("Session destroyed: {}", req);
+        log.info("OpenViduWebhook - Session destroyed: {}", req);
+        videoConferenceRepository.findBySessionId(req.getSessionId()).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 화상회의 입니다."))
+                .endVideoConference();
     }
 
     private void handleParticipantJoined(ParticipantJoinedReq req) {
-        log.info("Participant joined: {}", req);
+        log.info("OpenViduWebhook - Participant joined: {}", req);
     }
 
     private void handleParticipantLeft(ParticipantLeftReq req) {
-        log.info("Participant left: {}", req);
+        log.info("OpenViduWebhook - Participant left: {}", req);
     }
 
     private void handleWebrtcConnectionCreated(WebrtcConnectionCreatedReq req) {
-        log.info("Webrtc connection created: {}", req);
+        log.info("OpenViduWebhook - Webrtc connection created: {}", req);
     }
 
     private void handleWebrtcConnectionDestroyed(WebrtcConnectionDestroyedReq req) {
-        log.info("Webrtc connection destroyed: {}", req);
+        log.info("OpenViduWebhook - Webrtc connection destroyed: {}", req);
     }
 
     private void handleRecordingStatusChanged(RecordingStatusChangedReq req) {
-        log.info("Recording status changed: {}", req);
+        log.info("OpenViduWebhook - Recording status changed: {}", req);
     }
 
     private void handleFilterEventDispatched(FilterEventDispatchedReq req) {
-        log.info("Filter event dispatched: {}", req);
+        log.info("OpenViduWebhook - Filter event dispatched: {}", req);
     }
 
     private void handleSignalSent(SignalSentReq req) {
-        log.info("Signal sent: {}", req);
+        log.info("OpenViduWebhook - Signal sent: {}", req);
     }
 }

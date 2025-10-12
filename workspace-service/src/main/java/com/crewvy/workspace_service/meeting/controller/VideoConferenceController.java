@@ -49,11 +49,11 @@ public class VideoConferenceController {
         return new ResponseEntity<>(ApiResponse.success(res, "화상회의 시작 성공"), HttpStatus.OK);
     }
 
-    @DeleteMapping("/{videoConferenceId}/leave")
-    public ResponseEntity<?> leaveVideoConference(@PathVariable("videoConferenceId") UUID videoConferenceId) {
-        videoConferenceService.leaveVideoConference(videoConferenceId);
-        return null; // TODO : 실제 응답으로 교체
-    }
+//    @DeleteMapping("/{videoConferenceId}/leave")
+//    public ResponseEntity<?> leaveVideoConference(@PathVariable("videoConferenceId") UUID videoConferenceId) {
+//        videoConferenceService.leaveVideoConference(videoConferenceId);
+//        return null; // TODO : 실제 응답으로 교체
+//    }
 
     @GetMapping("")
     public ResponseEntity<?> findAllMyVideoConferences(/*@RequestHeader("X-Member-Id") UUID memberId,*/
