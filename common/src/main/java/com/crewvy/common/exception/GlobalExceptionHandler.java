@@ -111,4 +111,12 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.CONFLICT)
                 .body(ApiResponse.error(e.getMessage()));
     }
+
+    @ExceptionHandler(InvalidSenderException.class)
+    protected ResponseEntity<ApiResponse<?>> handleInvalidSenderException(InvalidSenderException e) {
+        log.warn("InvalidSenderException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(e.getMessage()));
+    }
 }

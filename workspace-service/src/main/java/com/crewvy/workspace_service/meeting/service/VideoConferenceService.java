@@ -8,6 +8,7 @@ import com.crewvy.workspace_service.meeting.dto.openvidu.SignalReq;
 import com.crewvy.workspace_service.meeting.entity.Message;
 import com.crewvy.workspace_service.meeting.entity.VideoConference;
 import com.crewvy.workspace_service.meeting.entity.VideoConferenceInvitee;
+import com.crewvy.workspace_service.meeting.repository.MessageRepository;
 import com.crewvy.workspace_service.meeting.repository.VideoConferenceRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,13 +44,14 @@ public class VideoConferenceService {
     private final String openviduUrl;
     private final String openviduSecret;
     private final ObjectMapper objectMapper;
+    private final MessageRepository messageRepository;
 
     public VideoConferenceService(VideoConferenceRepository videoConferenceRepository,
                                   OpenVidu openVidu,
                                   ConnectionProperties connectionProperties,
                                   WebClient.Builder webClientBuilder,
                                   @Value("${openvidu.url}") String openviduUrl,
-                                  @Value("${openvidu.secret}") String openviduSecret, ObjectMapper objectMapper) {
+                                  @Value("${openvidu.secret}") String openviduSecret, ObjectMapper objectMapper, MessageRepository messageRepository) {
         this.videoConferenceRepository = videoConferenceRepository;
         this.openVidu = openVidu;
         this.connectionProperties = connectionProperties;
@@ -57,6 +59,7 @@ public class VideoConferenceService {
         this.openviduUrl = openviduUrl;
         this.openviduSecret = openviduSecret;
         this.objectMapper = objectMapper;
+        this.messageRepository = messageRepository;
     }
 
     public OpenViduSessionRes createVideoConference(VideoConferenceCreateReq videoConferenceCreateReq) {
@@ -169,9 +172,19 @@ public class VideoConferenceService {
         VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId)
                 .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 화상회의 입니다."));
 
-        if (videoConference.getStatus() != VideoConferenceStatus.IN_PROGRESS) {
+        if (videoConference.getStatus() != VideoConferenceStatus.IN_PROGRESS)
             throw new VideoConferenceNotInProgressException("진행 중인 화상회의가 아닙니다.");
-        }
+
+        if (!new UUID(123, 123).equals(chatMessageReq.getSenderId()))
+            throw new InvalidSenderException("보내는 사람 ID가 올바르지 않습니다");
+
+        Message message = Message.builder()
+                .videoConference(videoConference)
+                .senderId(chatMessageReq.getSenderId())
+                .content(chatMessageReq.getContent())
+                .build();
+
+        messageRepository.save(message);
 
         Session session = fetchAndGetActiveSession(videoConference);
 
