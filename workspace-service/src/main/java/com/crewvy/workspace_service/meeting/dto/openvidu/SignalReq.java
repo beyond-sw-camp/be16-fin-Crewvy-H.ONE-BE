@@ -1,4 +1,4 @@
-package com.crewvy.workspace_service.meeting.dto;
+package com.crewvy.workspace_service.meeting.dto.openvidu;
 
 import io.openvidu.java.client.Connection;
 import lombok.*;
