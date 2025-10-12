@@ -228,23 +228,23 @@ public class VideoConferenceService {
         videoConferenceRepository.delete(videoConference);
     }
 
-    public void leaveVideoConference(UUID videoConferenceId) {
-        VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 화상회의 입니다."));
-
-        if (videoConference.getStatus() != VideoConferenceStatus.IN_PROGRESS)
-            throw new VideoConferenceNotInProgressException("진행 중인 회의가 아닙니다.");
-
-        Session session = fetchAndGetActiveSession(videoConference);
-        Connection connection = session.getActiveConnections().stream()
-                .filter(c -> c.getClientData().startsWith(new UUID(123, 123).toString())).findFirst()
-                .orElseThrow(() -> new EntityNotFoundException("참여 중인 회의가 아닙니다."));
-
-        try {
-            session.forceDisconnect(connection);
-        } catch (OpenViduJavaClientException | OpenViduHttpException e) {
-            throw new RuntimeException(e);
-        }
-    }
+//    public void leaveVideoConference(UUID videoConferenceId) {
+//        VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 화상회의 입니다."));
+//
+//        if (videoConference.getStatus() != VideoConferenceStatus.IN_PROGRESS)
+//            throw new VideoConferenceNotInProgressException("진행 중인 회의가 아닙니다.");
+//
+//        Session session = fetchAndGetActiveSession(videoConference);
+//        Connection connection = session.getActiveConnections().stream()
+//                .filter(c -> c.getClientData().startsWith(new UUID(123, 123).toString())).findFirst()
+//                .orElseThrow(() -> new EntityNotFoundException("참여 중인 회의가 아닙니다."));
+//
+//        try {
+//            session.forceDisconnect(connection);
+//        } catch (OpenViduJavaClientException | OpenViduHttpException e) {
+//            throw new RuntimeException(e);
+//        }
+//    }
 
     private Session fetchAndGetActiveSession(VideoConference videoConference) {
         try {
