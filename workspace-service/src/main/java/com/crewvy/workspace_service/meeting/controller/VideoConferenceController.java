@@ -78,4 +78,10 @@ public class VideoConferenceController {
         videoConferenceService.deleteVideoConference(videoConferenceId);
         return new ResponseEntity<>(ApiResponse.success(null, "화상회의 취소 성공"), HttpStatus.OK);
     }
+
+    @PostMapping("/{videoConferenceId}/messages")
+    public ResponseEntity<?> sendMessage(@PathVariable UUID videoConferenceId, @RequestBody ChatMessageReq chatMessageReq) {
+        videoConferenceService.sendMessage(videoConferenceId, chatMessageReq);
+        return ResponseEntity.ok().build();
+    }
 }

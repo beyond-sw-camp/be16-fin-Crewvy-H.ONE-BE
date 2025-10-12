@@ -7,18 +7,25 @@ import com.crewvy.workspace_service.meeting.dto.*;
 import com.crewvy.workspace_service.meeting.entity.VideoConference;
 import com.crewvy.workspace_service.meeting.entity.VideoConferenceInvitee;
 import com.crewvy.workspace_service.meeting.repository.VideoConferenceRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.openvidu.java.client.*;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 // TODO : jwt가 이메일에서 UUID으로 변경되면 더미가 아니라 진짜 요청한 유저의 UUID를 넣어야 함
 //  new UUID(123, 123) -> 진짜 UUID
@@ -30,11 +37,24 @@ public class VideoConferenceService {
     private final VideoConferenceRepository videoConferenceRepository;
     private final OpenVidu openVidu;
     private final ConnectionProperties connectionProperties;
+    private final WebClient webClient;
+    private final String openviduUrl;
+    private final String openviduSecret;
+    private final ObjectMapper objectMapper;
 
-    public VideoConferenceService(VideoConferenceRepository videoConferenceRepository, OpenVidu openVidu, ConnectionProperties connectionProperties) {
+    public VideoConferenceService(VideoConferenceRepository videoConferenceRepository,
+                                  OpenVidu openVidu,
+                                  ConnectionProperties connectionProperties,
+                                  WebClient.Builder webClientBuilder,
+                                  @Value("${openvidu.url}") String openviduUrl,
+                                  @Value("${openvidu.secret}") String openviduSecret, ObjectMapper objectMapper) {
         this.videoConferenceRepository = videoConferenceRepository;
         this.openVidu = openVidu;
         this.connectionProperties = connectionProperties;
+        this.webClient = webClientBuilder.build();
+        this.openviduUrl = openviduUrl;
+        this.openviduSecret = openviduSecret;
+        this.objectMapper = objectMapper;
     }
 
     public OpenViduSessionRes createVideoConference(VideoConferenceCreateReq videoConferenceCreateReq) {
@@ -143,6 +163,31 @@ public class VideoConferenceService {
         return OpenViduSessionRes.builder().sessionId(sessionId).token(token).build();
     }
 
+    public void sendMessage(UUID videoConferenceId, ChatMessageReq chatMessageReq) {
+        VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId)
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 화상회의 입니다."));
+
+        if (videoConference.getStatus() != VideoConferenceStatus.IN_PROGRESS) {
+            throw new VideoConferenceNotInProgressException("진행 중인 화상회의가 아닙니다.");
+        }
+
+        Session session = fetchAndGetActiveSession(videoConference);
+
+        String data;
+        try {
+            data = objectMapper.writeValueAsString(chatMessageReq);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+
+        SignalReq signalReq = SignalReq.builder()
+                .type("chat")
+                .data(data)
+                .build();
+
+        sendOpenViduSignal(session.getSessionId(), signalReq);
+    }
+
     public VideoConferenceUpdateRes updateVideoConference(UUID videoConferenceId, VideoConferenceUpdateReq videoConferenceUpdateReq) {
         VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 화상회의 입니다."));
 
@@ -206,7 +251,10 @@ public class VideoConferenceService {
             throw new RuntimeException(e);
         }
 
-        return openVidu.getActiveSession(videoConference.getSessionId());
+        Session session = openVidu.getActiveSession(videoConference.getSessionId());
+        if (session == null) throw new EntityNotFoundException("활성화되지 않은 세션입니다.");
+
+        return session;
     }
 
     private void addInvitee(VideoConference videoConference, List<UUID> inviteeIdList) {
