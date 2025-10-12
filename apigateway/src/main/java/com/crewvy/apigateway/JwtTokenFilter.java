@@ -31,7 +31,8 @@ public class JwtTokenFilter implements GlobalFilter {
     private static final List<String> ALLOWED_PATH = List.of(
             "/member/create-admin",
             "/member/login",
-            "/actuator/health"
+            "/actuator/health",
+            "/openvidu-webhooks"
     );
 
     private static final List<String> ADMIN_ONLY_PATH = List.of(
