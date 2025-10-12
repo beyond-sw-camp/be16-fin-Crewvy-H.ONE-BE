@@ -28,6 +28,8 @@ public class Organization extends BaseEntity {
     @Column(nullable = false)
     private String name;
 
+    private Integer displayOrder;
+
     @Builder.Default
     @OneToMany(mappedBy = "parent", cascade = {CascadeType.PERSIST, CascadeType.REMOVE}, orphanRemoval = true)
     private List<Organization> children = new ArrayList<>();
@@ -38,5 +40,9 @@ public class Organization extends BaseEntity {
 
     public void updateName(String newName){
         this.name = newName;
+    }
+
+    public void updateDisplayOrder(Integer displayOrder) {
+        this.displayOrder = displayOrder;
     }
 }

@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -55,5 +56,12 @@ public class OrganizationController {
                                                 @PathVariable UUID id) {
         organizationService.deleteOrganization(uuid, memberPositionId, id);
         return new ResponseEntity<>(ApiResponse.success(null, "조직 삭제 성공"), HttpStatus.OK);
+    }
+
+    // 조직 순서 변경
+    @PutMapping("/reorder")
+    public ResponseEntity<?> reorderOrganization(@RequestBody List<UUID> organizationIds) {
+        organizationService.reorderOrganization(organizationIds);
+        return new ResponseEntity<>(ApiResponse.success(null, "조직 순서 변경 성공"), HttpStatus.OK);
     }
 }

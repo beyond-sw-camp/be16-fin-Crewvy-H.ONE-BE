@@ -8,6 +8,6 @@ import java.util.List;
 import java.util.UUID;
 
 public interface OrganizationRepository extends JpaRepository<Organization, UUID> {
-    List<Organization> findByCompany(Company company);
-    List<Organization> findByParentId(UUID parentId);
+    List<Organization> findByCompanyOrderByDisplayOrderAsc(Company company);
+    List<Organization> findByParentIdOrderByDisplayOrderAsc(UUID parentId);
 }

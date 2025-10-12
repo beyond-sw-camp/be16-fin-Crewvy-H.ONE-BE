@@ -13,15 +13,18 @@ import com.crewvy.member_service.member.entity.Organization;
 import com.crewvy.member_service.member.repository.CompanyRepository;
 import com.crewvy.member_service.member.repository.MemberRepository;
 import com.crewvy.member_service.member.repository.OrganizationRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
 @Transactional
+@Slf4j
 public class OrganizationService {
 
     private final OrganizationRepository organizationRepository;
@@ -49,7 +52,7 @@ public class OrganizationService {
 
     // 조직 생성
     public UUID createOrganization(UUID memberId, UUID memberPositionId, CreateOrganizationReq createOrganizationReq) {
-        if (memberService.checkPermissionWithoutCache(memberPositionId, "organization", Action.CREATE, PermissionRange.COMPANY).equals(Bool.FALSE.getCodeValue())) {
+        if (memberService.checkPermission(memberPositionId, "organization", Action.CREATE, PermissionRange.COMPANY).equals(Bool.FALSE.getCodeValue())) {
             throw new PermissionDeniedException("조직을 생성할 권한이 없습니다.");
         }
 
@@ -62,7 +65,11 @@ public class OrganizationService {
             throw new IllegalArgumentException("상위 조직과 다른 회사에 속할 수 없습니다.");
         }
 
-        return organizationRepository.save(createOrganizationReq.toEntity(parent, member.getCompany())).getId();
+        int displayOrder = organizationRepository.findByParentIdOrderByDisplayOrderAsc(parent.getId()).size();
+        Organization newOrganization = createOrganizationReq.toEntity(parent, member.getCompany());
+        newOrganization.updateDisplayOrder(displayOrder);
+
+        return organizationRepository.save(newOrganization).getId();
     }
 
     // 회원가입 시 사용되는 기본 조직 생성
@@ -72,6 +79,7 @@ public class OrganizationService {
                 .name(company.getCompanyName())
                 .company(company)
                 .children(null)
+                .displayOrder(0)
                 .build();
         return organizationRepository.save(organization);
     }
@@ -82,7 +90,7 @@ public class OrganizationService {
         Member member = memberRepository.findById(memberId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 계정입니다."));
         Company company = member.getCompany();
 
-        List<Organization> organizations = organizationRepository.findByCompany(company);
+        List<Organization> organizations = organizationRepository.findByCompanyOrderByDisplayOrderAsc(company);
         return organizations.stream()
                 .filter(o -> o.getParent() == null)
                 .map(OrganizationTreeRes::new)
@@ -112,7 +120,7 @@ public class OrganizationService {
                 -> new IllegalArgumentException("존재하지 않는 조직입니다."));
 
         // 하위 조직이 있는지 확인
-        if (!organizationRepository.findByParentId(organizationId).isEmpty()) {
+        if (!organizationRepository.findByParentIdOrderByDisplayOrderAsc(organizationId).isEmpty()) {
             throw new IllegalArgumentException("하위 조직이 존재하여 삭제할 수 없습니다.");
         }
 
@@ -122,5 +130,22 @@ public class OrganizationService {
         }
 
         organizationRepository.delete(organization);
+    }
+
+    // 조직 순서 변경
+    @Transactional
+    public void reorderOrganization(List<UUID> organizationIds) {
+        log.info("Reordering organizations: {}", organizationIds);
+        List<Organization> organizationsToUpdate = new ArrayList<>();
+        for (int i = 0; i < organizationIds.size(); i++) {
+            int displayOrder = i;
+            UUID id = organizationIds.get(i);
+            organizationRepository.findById(id).ifPresent(organization -> {
+                log.info("Updating organization {} with displayOrder {}", id, displayOrder);
+                organization.updateDisplayOrder(displayOrder);
+                organizationsToUpdate.add(organization);
+            });
+        }
+        organizationRepository.saveAll(organizationsToUpdate);
     }
 }

@@ -1,6 +1,7 @@
 package com.crewvy.member_service.member.entity;
 
 import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.common.entity.Bool;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,6 +26,12 @@ public class Role extends BaseEntity {
     @Column(nullable = false)
     private String name;
 
+    private String description;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private Bool ynDel = Bool.TRUE;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private Company company;
@@ -38,5 +45,13 @@ public class Role extends BaseEntity {
         if (newRolePermissions != null) {
             this.rolePermissionList.addAll(newRolePermissions);
         }
+    }
+
+    public void updateDescription(String description) {
+        this.description = description;
+    }
+
+    public void delete() {
+        this.ynDel = Bool.FALSE;
     }
 }

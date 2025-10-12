@@ -4,6 +4,7 @@ import com.crewvy.member_service.member.entity.Organization;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -19,6 +20,7 @@ public class OrganizationTreeRes {
         this.id = organization.getId();
         this.name = organization.getName();
         this.children = organization.getChildren().stream()
+                .sorted(Comparator.comparing(Organization::getDisplayOrder))
                 .map(OrganizationTreeRes::new)
                 .collect(Collectors.toList());
     }

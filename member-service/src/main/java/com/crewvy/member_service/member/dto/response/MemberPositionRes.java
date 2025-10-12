@@ -28,7 +28,7 @@ public class MemberPositionRes {
                 .id(memberPosition.getId())
                 .organization(OrganizationRes.fromEntity(memberPosition.getOrganization()))
                 .title(TitleRes.fromEntity(memberPosition.getTitle()))
-                .role(RoleRes.fromEntity(memberPosition.getRole()))
+                .role(RoleRes.forMemberPositionRes(memberPosition.getRole()))
                 .startDate(memberPosition.getStartDate())
                 .endDate(memberPosition.getEndDate())
                 .isActive(memberPosition.getIsActive())
