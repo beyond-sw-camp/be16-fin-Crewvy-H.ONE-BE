@@ -15,11 +15,9 @@ import java.util.UUID;
 @Transactional
 public class SystemAdminService {
     private final PermissionRepository permissionRepository;
-    private final MemberRepository memberRepository;
 
-    public SystemAdminService(PermissionRepository permissionRepository, MemberRepository memberRepository) {
+    public SystemAdminService(PermissionRepository permissionRepository) {
         this.permissionRepository = permissionRepository;
-        this.memberRepository = memberRepository;
     }
 
     public UUID createPermission(UUID uuid, CreatePermissionReq createPermissionReq){

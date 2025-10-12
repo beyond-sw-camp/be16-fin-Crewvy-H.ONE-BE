@@ -49,7 +49,7 @@ public class OrganizationService {
 
     // 조직 생성
     public UUID createOrganization(UUID memberId, UUID memberPositionId, CreateOrganizationReq createOrganizationReq) {
-        if (memberService.checkPermissionWithoutCache(memberPositionId, "organization", Action.CREATE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
+        if (memberService.checkPermissionWithoutCache(memberPositionId, "organization", Action.CREATE, PermissionRange.COMPANY).equals(Bool.FALSE.getCodeValue())) {
             throw new PermissionDeniedException("조직을 생성할 권한이 없습니다.");
         }
 
@@ -91,7 +91,7 @@ public class OrganizationService {
 
     // 조직 수정
     public UUID updateOrganization(UUID memberId, UUID memberPositionId, UUID organizationId, UpdateOrganizationReq updateOrganizationReq) {
-        if (memberService.checkPermission(memberPositionId, "organization", Action.UPDATE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
+        if (memberService.checkPermission(memberPositionId, "organization", Action.UPDATE, PermissionRange.COMPANY).equals(Bool.FALSE.getCodeValue())) {
             throw new PermissionDeniedException("조직을 수정할 권한이 없습니다.");
         }
 
@@ -104,7 +104,7 @@ public class OrganizationService {
 
     // 조직 삭제
     public void deleteOrganization(UUID memberId, UUID memberPositionId, UUID organizationId) {
-        if (memberService.checkPermission(memberPositionId, "organization", Action.DELETE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
+        if (memberService.checkPermission(memberPositionId, "organization", Action.DELETE, PermissionRange.COMPANY).equals(Bool.FALSE.getCodeValue())) {
             throw new PermissionDeniedException("조직을 삭제할 권한이 없습니다.");
         }
 

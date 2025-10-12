@@ -21,7 +21,6 @@ public class OnboardingService {
 
      // 관리자 계정 생성과 회사, 조직, 역할 등 초기 설정
     public UUID createAdminAndInitialSetup(CreateAdminReq createAdminReq) {
-        // 1. 회사 생성
         Company company = organizationService.createCompany(createAdminReq.getCompanyName(), createAdminReq.getBusinessNumber());
 
         Organization organization = organizationService.createDefaultOrganization(company);

@@ -73,19 +73,19 @@ public class RedisConfig {
 
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
-        objectMapper.activateDefaultTyping(typeValidator, ObjectMapper.DefaultTyping.NON_FINAL);
+
 
         SimpleModule boolModule = new SimpleModule();
         boolModule.addSerializer(Bool.class, new JsonSerializer<Bool>() {
             @Override
             public void serialize(Bool value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
-                gen.writeString(value.name());
+                gen.writeString(value.getCodeValue());
             }
         });
         boolModule.addDeserializer(Bool.class, new JsonDeserializer<Bool>() {
             @Override
             public Bool deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
-                return Bool.valueOf(p.getText());
+                return Bool.fromCode(p.getText());
             }
         });
         objectMapper.registerModule(boolModule);

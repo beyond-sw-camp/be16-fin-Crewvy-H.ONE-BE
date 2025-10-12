@@ -34,7 +34,7 @@ public class MemberService {
     private final TitleRepository titleRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
-    private final OrganizationRepository organizationRepository; // createMember에서 필요
+    private final OrganizationRepository organizationRepository;
 
     public MemberService(MemberRepository memberRepository,
                          MemberPositionRepository memberPositionRepository, RoleRepository roleRepository,
@@ -122,7 +122,7 @@ public class MemberService {
 
     // 계정 생성
     public UUID createMember(UUID memberId, UUID memberPositionId, CreateMemberReq createMemberReq) {
-        if (checkPermission(memberPositionId, "member", Action.CREATE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
+        if (checkPermission(memberPositionId, "member", Action.CREATE, PermissionRange.COMPANY).equals(Bool.FALSE.getCodeValue())) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
@@ -177,7 +177,7 @@ public class MemberService {
 
     // 직책 생성
     public UUID createTitle(UUID memberId, UUID memberPositionId, CreateTitleReq createTitleReq) {
-        if (checkPermission(memberPositionId, "member", Action.CREATE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
+        if (checkPermission(memberPositionId, "member", Action.CREATE, PermissionRange.COMPANY).equals(Bool.FALSE.getCodeValue())) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
@@ -188,7 +188,7 @@ public class MemberService {
 
     // 직급 생성
     public UUID createGrade(UUID memberId, UUID memberPositionId, CreateGradeReq createGradeReq) {
-        if (checkPermission(memberPositionId, "member", Action.CREATE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
+        if (checkPermission(memberPositionId, "member", Action.CREATE, PermissionRange.COMPANY).equals(Bool.FALSE.getCodeValue())) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
@@ -210,7 +210,7 @@ public class MemberService {
 
     // 직책 수정
     public void updateTitle(UUID memberPositionId, UUID titleId, UpdateTitleReq updateTitleReq) {
-        if (checkPermission(memberPositionId, "member", Action.UPDATE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
+        if (checkPermission(memberPositionId, "member", Action.UPDATE, PermissionRange.COMPANY).equals(Bool.FALSE.getCodeValue())) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
@@ -223,7 +223,7 @@ public class MemberService {
 
     // 직책 삭제
     public void deleteTitle(UUID memberPositionId, UUID titleId) {
-        if (checkPermission(memberPositionId, "member", Action.DELETE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
+        if (checkPermission(memberPositionId, "member", Action.DELETE, PermissionRange.COMPANY).equals(Bool.FALSE.getCodeValue())) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
@@ -233,7 +233,7 @@ public class MemberService {
     // 직급 목록 조회
     @Transactional(readOnly = true)
     public List<GradeRes> getGrades(UUID memberId, UUID memberPositionId) {
-        if (checkPermission(memberPositionId, "member", Action.READ, PermissionRange.COMPANY).equals(Bool.FALSE)) {
+        if (checkPermission(memberPositionId, "member", Action.READ, PermissionRange.COMPANY).equals(Bool.FALSE.getCodeValue())) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
         Member member = memberRepository.findById(memberId).orElseThrow(()
@@ -246,7 +246,7 @@ public class MemberService {
 
     // 직급 수정
     public void updateGrade(UUID memberPositionId, UUID gradeId, UpdateGradeReq updateGradeReq) {
-        if (checkPermission(memberPositionId, "member", Action.UPDATE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
+        if (checkPermission(memberPositionId, "member", Action.UPDATE, PermissionRange.COMPANY).equals(Bool.FALSE.getCodeValue())) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
@@ -259,7 +259,7 @@ public class MemberService {
 
     // 직급 삭제
     public void deleteGrade(UUID memberPositionId, UUID gradeId) {
-        if (checkPermission(memberPositionId, "member", Action.DELETE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
+        if (checkPermission(memberPositionId, "member", Action.DELETE, PermissionRange.COMPANY).equals(Bool.FALSE.getCodeValue())) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
@@ -323,44 +323,14 @@ public class MemberService {
             }
         }
 
-        // COMPANY 권한이거나, DEPARTMENT 권한 검사를 통과한 경우
-        List<TitleRes> titleList = targetMember.getMemberPositionList().stream()
-                .map(mp -> TitleRes.fromEntity(mp.getTitle())).distinct().collect(Collectors.toList());
-
-        List<OrganizationRes> organizationList = targetMember.getMemberPositionList().stream()
-                .map(mp -> OrganizationRes.fromEntity(mp.getOrganization())).distinct().collect(Collectors.toList());
-
-        List<MemberPositionRes> memberPositionResList = targetMember.getMemberPositionList().stream()
-                .map(MemberPositionRes::fromEntity).collect(Collectors.toList());
-
-        return MemberDetailRes.builder()
-                .name(targetMember.getName())
-                .titleList(titleList)
-                .organizationList(organizationList)
-                .memberStatus(targetMember.getMemberStatus())
-                .accountStatus(targetMember.getAccountStatus())
-                .employmentType(targetMember.getEmploymentType())
-                .email(targetMember.getEmail())
-                .phoneNumber(targetMember.getPhoneNumber())
-                .emergencyContact(targetMember.getEmergencyContact())
-                .address(targetMember.getAddress())
-                .bank(targetMember.getBank())
-                .bankAccount(targetMember.getBankAccount())
-                .profileUrl(targetMember.getProfileUrl())
-                .sabun(targetMember.getSabun())
-                .joinDate(targetMember.getJoinDate())
-                .extensionNumber(targetMember.getExtensionNumber())
-                .telNumber(targetMember.getTelNumber())
-                .memberPositionResList(memberPositionResList)
-                .gradeHistorySet(targetMember.getGradeHistorySet())
-                .build();
+        return MemberDetailRes.fromEntity(targetMember);
     }
 
     private PermissionRange getHighestPermissionRangeForRead(UUID memberPositionId) {
-        if (checkPermission(memberPositionId, "member", Action.READ, PermissionRange.COMPANY).equals(Bool.TRUE)) {
+        if (checkPermission(memberPositionId, "member", Action.READ, PermissionRange.COMPANY).equals(Bool.TRUE.getCodeValue())) {
             return PermissionRange.COMPANY;
         }
-        if (checkPermission(memberPositionId, "member", Action.READ, PermissionRange.DEPARTMENT).equals(Bool.TRUE)) {
+        if (checkPermission(memberPositionId, "member", Action.READ, PermissionRange.DEPARTMENT).equals(Bool.TRUE.getCodeValue())) {
             return PermissionRange.DEPARTMENT;
         }
         return null;
@@ -369,21 +339,21 @@ public class MemberService {
     // 권한 확인
     @Cacheable(cacheManager = "permissionCacheManager", value = "permissions", key = "#memberPositionId.toString() + ':' + #resource + ':' + #action.name() + ':' + #range.name()")
     @Transactional(readOnly = true)
-    public Bool checkPermission(UUID memberPositionId, String resource, Action action, PermissionRange range) {
+    public String checkPermission(UUID memberPositionId, String resource, Action action, PermissionRange range) {
         if (!permissionRepository.hasPermission(memberPositionId, resource, action, range)) {
-            return Bool.FALSE;
+            return Bool.FALSE.getCodeValue();
         } else {
-            return Bool.TRUE;
+            return Bool.TRUE.getCodeValue();
         }
     }
 
     // 권한 확인 (캐시 없음)
     @Transactional(readOnly = true)
-    public Bool checkPermissionWithoutCache(UUID memberPositionId, String resource, Action action, PermissionRange range) {
+    public String checkPermissionWithoutCache(UUID memberPositionId, String resource, Action action, PermissionRange range) {
         if (!permissionRepository.hasPermission(memberPositionId, resource, action, range)) {
-            return Bool.FALSE;
+            return Bool.FALSE.getCodeValue();
         } else {
-            return Bool.TRUE;
+            return Bool.TRUE.getCodeValue();
         }
     }
 
@@ -396,7 +366,7 @@ public class MemberService {
     // 역할별 권한 수정
     @CacheEvict(cacheManager = "permissionCacheManager", value = "permissions", allEntries = true)
     public UUID updateRolePermissions(UUID memberPositionId, UUID roleId, UpdateRolePermissionsReq req) {
-        if (checkPermission(memberPositionId, "member", Action.UPDATE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
+        if (checkPermission(memberPositionId, "member", Action.UPDATE, PermissionRange.COMPANY).equals(Bool.FALSE.getCodeValue())) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
@@ -425,7 +395,7 @@ public class MemberService {
     // 역할 수정
     @CacheEvict(cacheManager = "permissionCacheManager", value = "permissions", allEntries = true)
     public void updateMemberRole(UUID adminMemberPositionId, UUID targetMemberPositionId, UpdateMemberRoleReq req) {
-        if (checkPermission(adminMemberPositionId, "member", Action.UPDATE, PermissionRange.COMPANY).equals(Bool.FALSE)) {
+        if (checkPermission(adminMemberPositionId, "member", Action.UPDATE, PermissionRange.COMPANY).equals(Bool.FALSE.getCodeValue())) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
