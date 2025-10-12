@@ -100,13 +100,7 @@ public class VideoConferenceService {
         if (videoConference.getVideoConferenceInviteeList().stream().noneMatch(invitee -> invitee.getMemberId().equals(new UUID(123, 123))))
             throw new UserNotInvitedException("초대 받지 않은 화상회의입니다.");
 
-        try {
-            openVidu.fetch();
-        } catch (OpenViduJavaClientException | OpenViduHttpException e) {
-            throw new RuntimeException(e);
-        }
-
-        Session session = openVidu.getActiveSession(videoConference.getSessionId());
+        Session session = fetchAndGetActiveSession(videoConference);
 
         // 이미 접속 중인 유저 재 참여 방지
         boolean isAlreadyJoined = session
@@ -193,13 +187,7 @@ public class VideoConferenceService {
         if (videoConference.getStatus() != VideoConferenceStatus.IN_PROGRESS)
             throw new VideoConferenceNotInProgressException("진행 중인 회의가 아닙니다.");
 
-        try {
-            openVidu.fetch();
-        } catch (OpenViduJavaClientException | OpenViduHttpException e) {
-            throw new RuntimeException(e);
-        }
-
-        Session session = openVidu.getActiveSession(videoConference.getSessionId());
+        Session session = fetchAndGetActiveSession(videoConference);
         Connection connection = session.getActiveConnections().stream()
                 .filter(c -> c.getClientData().startsWith(new UUID(123, 123).toString())).findFirst()
                 .orElseThrow(() -> new EntityNotFoundException("참여 중인 회의가 아닙니다."));
@@ -211,6 +199,15 @@ public class VideoConferenceService {
         }
     }
 
+    private Session fetchAndGetActiveSession(VideoConference videoConference) {
+        try {
+            openVidu.fetch();
+        } catch (OpenViduJavaClientException | OpenViduHttpException e) {
+            throw new RuntimeException(e);
+        }
+
+        return openVidu.getActiveSession(videoConference.getSessionId());
+    }
 
     private void addInvitee(VideoConference videoConference, List<UUID> inviteeIdList) {
         inviteeIdList.stream()
