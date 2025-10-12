@@ -214,4 +214,41 @@ public class VideoConferenceService {
                 .map(id -> VideoConferenceInvitee.builder().memberId(id).videoConference(videoConference).build())
                 .forEach(videoConference.getVideoConferenceInviteeList()::add);
     }
+
+    private void sendOpenViduSignal(String sessionId, SignalReq signalReq) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("session", sessionId);
+        body.put("type", signalReq.getType());
+        body.put("data", signalReq.getData());
+        if (signalReq.getTo() != null && !signalReq.getTo().isEmpty()) {
+            body.put("to", signalReq.getTo().stream().map(Connection::getConnectionId).toList());
+        }
+
+        webClient.post()
+                .uri(openviduUrl + "/openvidu/api/signal")
+                .header(HttpHeaders.AUTHORIZATION, "Basic " + Base64.getEncoder().encodeToString(("OPENVIDUAPP:" + openviduSecret).getBytes()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(body)
+                .retrieve()
+                // There is a problem with some body parameter
+                .onStatus(status -> status.value() == 400, response ->
+                        response.bodyToMono(String.class).flatMap(errorBody ->
+                                Mono.error(new InvalidSignalRequestException("시그널 전송 실패. 상태코드: 400, Body: " + errorBody))))
+                // No session exists for the passed session body parameter
+                .onStatus(status -> status.value() == 404, response ->
+                        response.bodyToMono(String.class).flatMap(errorBody ->
+                                Mono.error(new EntityNotFoundException("시그널 전송 실패. 상태코드: 404, Body: " + errorBody))))
+                // No connection exists for the passed to array.
+                // This error may be triggered if the session has no connected participants or if you provide some string value that does not correspond to a valid connectionId of the session (even though others may be correct)
+                .onStatus(status -> status.value() == 406, response ->
+                        response.bodyToMono(String.class).flatMap(errorBody ->
+                                Mono.error(new ConnectionNotFoundException("시그널 전송 실패. 상태코드: 406, Body: " + errorBody))))
+                // 기타 openvidu 문서에 명시되어 있지 않을 수 있는 에러 상태 코드 수신 시
+                .onStatus(HttpStatusCode::isError, response ->
+                        response.bodyToMono(String.class).flatMap(errorBody ->
+                                Mono.error(new RuntimeException("시그널 전송 실패. 상태코드: " + response.statusCode() + ", Body: " + errorBody)))
+                )
+                .bodyToMono(Void.class)
+                .block();
+    }
 }
