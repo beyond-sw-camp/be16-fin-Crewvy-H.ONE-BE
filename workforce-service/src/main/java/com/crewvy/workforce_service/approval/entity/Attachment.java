@@ -13,6 +13,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @Getter
 @Builder
+@Entity
 public class Attachment extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

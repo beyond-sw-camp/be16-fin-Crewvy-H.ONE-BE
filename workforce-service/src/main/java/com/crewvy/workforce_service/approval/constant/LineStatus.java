@@ -1,4 +1,4 @@
-package com.crewvy.workforce_service.approval.entity;
+package com.crewvy.workforce_service.approval.constant;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

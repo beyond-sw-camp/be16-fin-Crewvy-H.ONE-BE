@@ -1,5 +1,7 @@
 package com.crewvy.workforce_service.approval.entity;
 
+import com.crewvy.workforce_service.approval.constant.LineStatus;
+import com.crewvy.workforce_service.approval.converter.LineStatusConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -24,15 +26,16 @@ public class ApprovalLine{
     @JoinColumn(name = "approval_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private Approval approval;
 
-    @Column(nullable = false)
     private UUID memberId;
 
     @Convert(converter = LineStatusConverter.class)
     private LineStatus lineStatus;
 
-    @Column(nullable = false)
     private LocalDateTime approvalDate;
 
-    @Column(nullable = false)
     private int lineIndex;
+
+    public void updateLineStatus(LineStatus status) {
+        this.lineStatus = status;
+    }
 }
