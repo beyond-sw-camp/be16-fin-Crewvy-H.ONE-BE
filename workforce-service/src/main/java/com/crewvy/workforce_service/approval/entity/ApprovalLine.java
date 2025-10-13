@@ -1,6 +1,7 @@
 package com.crewvy.workforce_service.approval.entity;
 
-import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.workforce_service.approval.constant.LineStatus;
+import com.crewvy.workforce_service.approval.converter.LineStatusConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,6 +10,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UuidGenerator;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @AllArgsConstructor
 @NoArgsConstructor
@@ -17,22 +19,23 @@ import java.time.LocalDateTime;
 @Entity
 public class ApprovalLine{
     @Id
-    @UuidGenerator
-    private String id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "approval_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private Approval approval;
 
-    @Column(nullable = false)
-    private String memberId;
+    private UUID memberId;
 
     @Convert(converter = LineStatusConverter.class)
     private LineStatus lineStatus;
 
-    @Column(nullable = false)
     private LocalDateTime approvalDate;
 
-    @Column(nullable = false)
     private int lineIndex;
+
+    public void updateLineStatus(LineStatus status) {
+        this.lineStatus = status;
+    }
 }

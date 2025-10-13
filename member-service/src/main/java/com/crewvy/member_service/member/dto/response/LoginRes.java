@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -12,4 +14,7 @@ import lombok.NoArgsConstructor;
 public class LoginRes {
     private String accessToken;
     private String refreshToken;
+    private String userName;
+    private UUID memberId;
+    private UUID memberPositionId;
 }

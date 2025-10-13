@@ -1,5 +1,9 @@
 package com.crewvy.workforce_service.performance.entity;
 
+import com.crewvy.workforce_service.performance.constant.EvaluationType;
+import com.crewvy.workforce_service.performance.constant.Grade;
+import com.crewvy.workforce_service.performance.converter.EvaluationTypeConverter;
+import com.crewvy.workforce_service.performance.converter.GradeConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,7 +26,6 @@ public class Evaluation {
     @JoinColumn(name = "goal_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private Goal goal;
 
-    @Column(nullable = false)
     private UUID memberID;
 
     @Convert(converter = GradeConverter.class)

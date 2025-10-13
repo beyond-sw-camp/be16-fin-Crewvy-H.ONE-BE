@@ -20,10 +20,8 @@ public class TeamGoal extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false)
     private UUID organizationId;
 
-    @Column(nullable = false)
     private UUID memberId;
 
     private String title;

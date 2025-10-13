@@ -1,12 +1,17 @@
 package com.crewvy.workforce_service.approval.entity;
 
+import com.crewvy.common.converter.JsonToMapConverter;
 import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.workforce_service.approval.constant.ApprovalState;
+import com.crewvy.workforce_service.approval.converter.ApprovalStateConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -24,7 +29,6 @@ public class Approval extends BaseEntity {
     @JoinColumn(name = "document_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private ApprovalDocument approvalDocument;
 
-    @Column(nullable = false)
     private UUID memberId;
 
     private String title;
@@ -35,4 +39,21 @@ public class Approval extends BaseEntity {
 
     @Convert(converter = ApprovalStateConverter.class)
     private ApprovalState state;
+
+    @Builder.Default
+    @OneToMany(mappedBy = "approval", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ApprovalLine> approvalLineList = new ArrayList<>();
+
+    @Builder.Default
+    @OneToMany(mappedBy = "approval", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Attachment> attachmentList = new ArrayList<>();
+
+    public void updateState(ApprovalState state) {
+        this.state = state;
+    }
+
+    public void updateApproval(String title, Map<String, Object> contents) {
+        this.title = title;
+        this.contents = contents;
+    }
 }

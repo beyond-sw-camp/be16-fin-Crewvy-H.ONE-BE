@@ -1,6 +1,8 @@
 package com.crewvy.workforce_service.approval.entity;
 
+import com.crewvy.common.converter.JsonToMapConverter;
 import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.workforce_service.approval.dto.request.UpdateDocumentDto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -29,4 +31,14 @@ public class ApprovalDocument extends BaseEntity {
 
     @OneToMany(mappedBy = "approvalDocument", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ApprovalPolicy> approvalPolicy;
+
+    public void updateDocument(UpdateDocumentDto dto) {
+        this.documentName = dto.getTitle();
+        this.metadata = dto.getMetadata();
+    }
+
+    public void addApprovalPolicy(ApprovalPolicy policy) {
+        this.approvalPolicy.add(policy);
+        policy.setApprovalDocument(this); // 연관관계의 양쪽 모두에 값을 설정!
+    }
 }
