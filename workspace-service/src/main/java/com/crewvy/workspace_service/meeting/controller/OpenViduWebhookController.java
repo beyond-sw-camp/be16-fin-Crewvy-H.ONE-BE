@@ -1,6 +1,5 @@
 package com.crewvy.workspace_service.meeting.controller;
 
-import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workspace_service.meeting.service.OpenViduWebhookService;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
