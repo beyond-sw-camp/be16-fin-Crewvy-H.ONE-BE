@@ -3,6 +3,7 @@ package com.crewvy.workspace_service.meeting.dto;
 import com.crewvy.workspace_service.meeting.entity.VideoConference;
 import lombok.*;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
@@ -13,14 +14,14 @@ public class VideoConferenceBookRes {
     private UUID id;
     private String name;
     private String description;
-    private String scheduledStartTime;
+    private LocalDateTime scheduledStartTime;
 
     public static VideoConferenceBookRes fromEntity(VideoConference videoConference) {
         return VideoConferenceBookRes.builder()
                 .id(videoConference.getId())
                 .name(videoConference.getName())
                 .description(videoConference.getDescription())
-                .scheduledStartTime(videoConference.getScheduledStartTime().toString())
+                .scheduledStartTime(videoConference.getScheduledStartTime())
                 .build();
     }
 }

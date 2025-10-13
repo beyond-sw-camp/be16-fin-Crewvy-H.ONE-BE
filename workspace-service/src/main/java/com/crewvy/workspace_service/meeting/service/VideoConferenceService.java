@@ -26,8 +26,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 // TODO : jwt가 이메일에서 UUID으로 변경되면 더미가 아니라 진짜 요청한 유저의 UUID를 넣어야 함
@@ -219,7 +217,7 @@ public class VideoConferenceService {
             videoConference.updateIsRecording(Bool.fromBoolean(videoConferenceUpdateReq.getIsRecording()));
 
         if (videoConferenceUpdateReq.getScheduledStartTime() != null)
-            videoConference.updateScheduledStartTime(LocalDateTime.parse(videoConferenceUpdateReq.getScheduledStartTime(), DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")));
+            videoConference.updateScheduledStartTime(videoConferenceUpdateReq.getScheduledStartTime());
 
         videoConference.getVideoConferenceInviteeList().clear();
         videoConferenceUpdateReq.getInviteeIdList().add(new UUID(123, 123));

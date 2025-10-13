@@ -2,6 +2,7 @@ package com.crewvy.workspace_service.meeting.dto;
 
 import lombok.*;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
@@ -13,6 +14,6 @@ public class VideoConferencePageRes {
     private String sessionId;
     private String name;
     private String description;
-    private String actualStartTime;
+    private LocalDateTime actualStartTime;
     private Integer participantsCount;
 }
