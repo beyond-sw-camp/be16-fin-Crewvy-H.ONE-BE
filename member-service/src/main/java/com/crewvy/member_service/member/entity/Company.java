@@ -22,5 +22,7 @@ public class Company extends BaseEntity {
     @Column(nullable = false)
     private String companyName;
 
+    private String businessNumber;
+
     private String logoUrl;
 }

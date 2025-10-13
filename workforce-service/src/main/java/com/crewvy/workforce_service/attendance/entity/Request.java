@@ -1,8 +1,10 @@
 package com.crewvy.workforce_service.attendance.entity;
 
 import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.workforce_service.attendance.constant.DeviceType;
 import com.crewvy.workforce_service.attendance.constant.RequestStatus;
 import com.crewvy.workforce_service.attendance.constant.RequestUnit;
+import com.crewvy.workforce_service.attendance.converter.DeviceTypeConverter;
 import com.crewvy.workforce_service.attendance.converter.RequestStatusConverter;
 import com.crewvy.workforce_service.attendance.converter.RequestUnitConverter;
 import jakarta.persistence.*;
@@ -25,17 +27,17 @@ public class Request extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "request_id", nullable = false, columnDefinition = "BINARY(16)")
+    @Column(name = "request_id", nullable = false)
     private UUID requestId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "policy_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private Policy policy;
 
-    @Column(name = "member_id", nullable = false, columnDefinition = "BINARY(16)")
+    @Column(name = "member_id", nullable = false)
     private UUID memberId;
 
-    @Column(name = "document_id", nullable = false, columnDefinition = "BINARY(16)")
+    @Column(name = "document_id", nullable = false)
     private UUID documentId;
 
     @Column(name = "request_unit", nullable = false)
@@ -66,4 +68,14 @@ public class Request extends BaseEntity {
 
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
+
+    @Column(name = "device_id")
+    private String deviceId;
+
+    @Column(name = "device_name")
+    private String deviceName;
+
+    @Column(name = "device_type")
+    @Convert(converter = DeviceTypeConverter.class)
+    private DeviceType deviceType;
 }

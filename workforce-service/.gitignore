@@ -35,3 +35,7 @@ out/
 
 ### VS Code ###
 .vscode/
+
+##로컬 테스트용 더미##
+/src/main/java/com/crewvy/workforce_service/auth/dummy/
+/src/main/java/com/crewvy/workforce_service/config/AutoCreate.java 
