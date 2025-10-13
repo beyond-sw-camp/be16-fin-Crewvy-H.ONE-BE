@@ -72,7 +72,7 @@ public class PerformanceService {
     }
 
     //    팀 목표 생성
-    public void createTeamGoal(CreateTeamGoalDto dto) {
+    public UUID createTeamGoal(CreateTeamGoalDto dto) {
         TeamGoal newTeamGoal = TeamGoal.builder()
                 .title(dto.getTitle())
                 .contents(dto.getContents())
@@ -80,6 +80,8 @@ public class PerformanceService {
                 .endDate(dto.getEndDate())
                 .build();
         teamGoalRepository.save(newTeamGoal);
+
+        return newTeamGoal.getId();
     }
 
     //    하위목표 상세조회
@@ -131,7 +133,7 @@ public class PerformanceService {
     }
 
     //    내 목표 생성
-    public void createMyGoal(CreateMyGoalDto dto) {
+    public UUID createMyGoal(CreateMyGoalDto dto) {
         TeamGoal teamGoal = teamGoalRepository.findById(dto.getTeamGoalId()).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 팀목표 입니다."));
 
         Goal newGoal = Goal.builder()
@@ -145,17 +147,21 @@ public class PerformanceService {
                 .build();
 
         performanceRepository.save(newGoal);
+
+        return newGoal.getId();
     }
 
     //    목표 상태변경(승인, 반려 등)
-    public void updateGoalStatus(UpdateStatusDto dto) {
+    public UUID updateGoalStatus(UpdateStatusDto dto) {
         Goal goal = performanceRepository.findById(dto.getGoalId()).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 목표입니다."));
 
         goal.updateStatus(dto.getStatus(), dto.getComment());
+
+        return goal.getId();
     }
 
     //    평가 생성
-    public void createEvaluation(CreateEvaluationDto dto) {
+    public UUID createEvaluation(CreateEvaluationDto dto) {
         Goal goal = performanceRepository.findById(dto.getGoalId()).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 목표입니다."));
 
         Evaluation evaluation = Evaluation.builder()
@@ -166,6 +172,8 @@ public class PerformanceService {
                 .build();
 
         evaluationRepository.save(evaluation);
+
+        return evaluation.getId();
     }
 
     //    평가 조회
@@ -180,9 +188,11 @@ public class PerformanceService {
     }
 
     //    내 목표 업데이트
-    public void updateMyGoal(UpdateMyGoalDto dto) {
+    public UUID updateMyGoal(UpdateMyGoalDto dto) {
         Goal goal = performanceRepository.findById(dto.getGoalId()).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 목표입니다."));
         goal.updateGoal(dto);
+
+        return goal.getId();
     }
 
     //    증적 제출 및 수정
