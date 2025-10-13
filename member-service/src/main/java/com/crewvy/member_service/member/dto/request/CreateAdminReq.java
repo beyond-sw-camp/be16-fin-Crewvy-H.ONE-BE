@@ -1,17 +1,16 @@
 package com.crewvy.member_service.member.dto.request;
 
+import com.crewvy.member_service.member.constant.EmploymentType;
 import com.crewvy.member_service.member.entity.Company;
 import com.crewvy.member_service.member.entity.Member;
 import jakarta.validation.constraints.NotEmpty;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder // AutoCreate 에서 사용
 public class CreateAdminReq {
     @NotEmpty(message = "이메일을 입력해 주세요.")
     private String email;
@@ -26,8 +25,11 @@ public class CreateAdminReq {
     private String bank;
     private String bankAccount;
     private String profileUrl;
+    private String employmentType;
     @NotEmpty(message = "회사명을 입력해 주세요.")
     private String companyName;
+    @NotEmpty(message = "사업자 등록번호를 입력해 주세요.")
+    private String businessNumber;
 
     public Member toEntity(String encodePassword, Company company){
         return Member.builder()
@@ -39,6 +41,7 @@ public class CreateAdminReq {
                 .bank(this.bank)
                 .bankAccount(this.bankAccount)
                 .profileUrl(this.profileUrl)
+                .employmentType(EmploymentType.FULL)
                 .company(company)
                 .build();
     }

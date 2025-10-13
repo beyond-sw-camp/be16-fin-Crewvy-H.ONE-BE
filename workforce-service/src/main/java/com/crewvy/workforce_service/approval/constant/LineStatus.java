@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.approval.constant;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+
 import java.util.Arrays;
 
 @Getter

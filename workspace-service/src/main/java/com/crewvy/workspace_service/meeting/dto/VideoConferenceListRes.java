@@ -1,6 +1,5 @@
 package com.crewvy.workspace_service.meeting.dto;
 
-import com.crewvy.common.entity.Bool;
 import com.crewvy.workspace_service.meeting.entity.VideoConference;
 import com.crewvy.workspace_service.meeting.entity.VideoConferenceInvitee;
 import lombok.*;
@@ -17,8 +16,8 @@ public class VideoConferenceListRes {
     private UUID id;
     private String name;
     private String description;
-    private String scheduledStartTime;
-    private String actualStartTime;
+    private LocalDateTime scheduledStartTime;
+    private LocalDateTime actualStartTime;
     private String status;
     private Boolean isRecording;
     private List<UUID> inviteeIdList;
@@ -28,8 +27,8 @@ public class VideoConferenceListRes {
                 .id(videoConference.getId())
                 .name(videoConference.getName())
                 .description(videoConference.getDescription())
-                .scheduledStartTime(videoConference.getScheduledStartTime().toString())
-                .actualStartTime(videoConference.getActualStartTime().toString())
+                .scheduledStartTime(videoConference.getScheduledStartTime())
+                .actualStartTime(videoConference.getActualStartTime())
                 .status(videoConference.getStatus().getCodeName())
                 .isRecording(videoConference.getIsRecording().toBoolean())
                 .inviteeIdList(videoConference.getVideoConferenceInviteeList().stream().map(VideoConferenceInvitee::getMemberId).toList())

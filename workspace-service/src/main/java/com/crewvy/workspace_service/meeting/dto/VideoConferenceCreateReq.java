@@ -5,7 +5,6 @@ import com.crewvy.workspace_service.meeting.entity.VideoConference;
 import lombok.*;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -19,16 +18,15 @@ public class VideoConferenceCreateReq {
     private String description;
     private List<UUID> inviteeIdList = new ArrayList<>();
     private Boolean isRecording;
-    private String scheduledStartTime;
+    private LocalDateTime scheduledStartTime;
 
     public VideoConference toEntity(UUID hostId) {
-        LocalDateTime scheduledStartTime = this.scheduledStartTime == null ? null : LocalDateTime.parse(this.scheduledStartTime, DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"));
         return VideoConference.builder()
                 .description(this.description)
                 .name(this.name)
                 .isRecording(Bool.fromBoolean(this.isRecording))
                 .hostId(hostId)
-                .scheduledStartTime(scheduledStartTime)
+                .scheduledStartTime(this.scheduledStartTime)
                 .build();
     }
 }
