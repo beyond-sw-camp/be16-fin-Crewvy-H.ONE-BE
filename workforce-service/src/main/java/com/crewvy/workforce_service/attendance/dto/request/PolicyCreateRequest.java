@@ -1,5 +1,6 @@
 package com.crewvy.workforce_service.attendance.dto.request;
 
+import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
@@ -7,14 +8,13 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.util.Map;
-import java.util.UUID;
 
 @Getter
 @NoArgsConstructor
 public class PolicyCreateRequest {
 
-    @NotNull(message = "정책 유형 ID는 필수입니다.")
-    private UUID policyTypeId;
+    @NotNull(message = "정책 유형 코드는 필수입니다.")
+    private PolicyTypeCode typeCode;
 
     @NotBlank(message = "정책 이름은 필수입니다.")
     private String name;
