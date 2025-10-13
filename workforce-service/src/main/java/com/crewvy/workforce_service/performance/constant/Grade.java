@@ -1,4 +1,4 @@
-package com.crewvy.workforce_service.performance.entity;
+package com.crewvy.workforce_service.performance.constant;
 
 public enum Grade {
     A_PLUS("A+", 5),  // 점수를 정수로 변경

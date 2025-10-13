@@ -1,5 +1,6 @@
-package com.crewvy.workforce_service.performance.entity;
+package com.crewvy.workforce_service.performance.converter;
 
+import com.crewvy.workforce_service.performance.constant.EvaluationType;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 
