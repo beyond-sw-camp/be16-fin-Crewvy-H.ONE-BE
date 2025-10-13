@@ -1,6 +1,7 @@
 package com.crewvy.member_service.member.entity;
 
 import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.member_service.member.constant.PermissionRange;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -26,4 +27,8 @@ public class RolePermission extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "permission_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private Permission permission;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private PermissionRange permissionRange;
 }

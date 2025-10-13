@@ -63,7 +63,9 @@ public class AutoCreateAdmin implements ApplicationRunner {
             for (Action action : Action.values()) {
                 Permission sysPermission = Permission.builder()
                         .name(String.format("%s:%s:SYSTEM", resource, action))
-                        .resource(resource).action(action).permissionRange(PermissionRange.SYSTEM)
+                        .resource(resource)
+                        .action(action)
+                        .permissionRange(PermissionRange.SYSTEM)
                         .description(String.format("[%s]에 대한 %s 최상위 권한", resource, action.getCodeName())).build();
                 permissionList.add(sysPermission);
             }
@@ -74,7 +76,9 @@ public class AutoCreateAdmin implements ApplicationRunner {
             for (Action action : Action.values()) {
                 Permission comPermission = Permission.builder()
                         .name(String.format("%s:%s:COMPANY", resource, action))
-                        .resource(resource).action(action).permissionRange(PermissionRange.COMPANY)
+                        .resource(resource)
+                        .action(action)
+                        .permissionRange(PermissionRange.COMPANY)
                         .description(String.format("[%s]에 대한 %s 회사 전체 권한", resource, action.getCodeName())).build();
                 permissionList.add(comPermission);
             }
@@ -85,7 +89,9 @@ public class AutoCreateAdmin implements ApplicationRunner {
             for (Action action : Action.values()) {
                 Permission comPermission = Permission.builder()
                         .name(String.format("%s:%s:COMPANY", resource, action))
-                        .resource(resource).action(action).permissionRange(PermissionRange.INDIVIDUAL)
+                        .resource(resource)
+                        .action(action)
+                        .permissionRange(PermissionRange.INDIVIDUAL)
                         .description(String.format("[%s]에 대한 %s 회사 전체 권한", resource, action.getCodeName())).build();
                 permissionList.add(comPermission);
             }
@@ -127,6 +133,7 @@ public class AutoCreateAdmin implements ApplicationRunner {
                 .map(permission -> RolePermission.builder()
                         .role(systemAdminRole)
                         .permission(permission)
+                        .permissionRange(permission.getPermissionRange())
                         .build())
                 .collect(Collectors.toList());
         rolePermissionRepository.saveAll(systemAdminRolePermissions);
@@ -180,6 +187,7 @@ public class AutoCreateAdmin implements ApplicationRunner {
                 .map(permission -> RolePermission.builder()
                         .role(userRole)
                         .permission(permission)
+                        .permissionRange(permission.getPermissionRange())
                         .build())
                 .collect(Collectors.toList());
         rolePermissionRepository.saveAll(userRolePermissions);

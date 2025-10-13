@@ -74,22 +74,6 @@ public class RedisConfig {
         ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
 
-
-        SimpleModule boolModule = new SimpleModule();
-        boolModule.addSerializer(Bool.class, new JsonSerializer<Bool>() {
-            @Override
-            public void serialize(Bool value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
-                gen.writeString(value.getCodeValue());
-            }
-        });
-        boolModule.addDeserializer(Bool.class, new JsonDeserializer<Bool>() {
-            @Override
-            public Bool deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
-                return Bool.fromCode(p.getText());
-            }
-        });
-        objectMapper.registerModule(boolModule);
-
         return objectMapper;
     }
 

@@ -1,6 +1,5 @@
 package com.crewvy.member_service.member.service;
 
-import com.crewvy.common.entity.Bool;
 import com.crewvy.common.exception.PermissionDeniedException;
 import com.crewvy.member_service.member.constant.Action;
 import com.crewvy.member_service.member.constant.PermissionRange;
@@ -21,6 +20,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
+import static java.lang.Boolean.FALSE;
 
 @Service
 @Transactional
@@ -52,7 +53,7 @@ public class OrganizationService {
 
     // 조직 생성
     public UUID createOrganization(UUID memberId, UUID memberPositionId, CreateOrganizationReq createOrganizationReq) {
-        if (memberService.checkPermission(memberPositionId, "organization", Action.CREATE, PermissionRange.COMPANY).equals(Bool.FALSE.getCodeValue())) {
+        if (memberService.checkPermission(memberPositionId, "organization", Action.CREATE, PermissionRange.COMPANY) == FALSE) {
             throw new PermissionDeniedException("조직을 생성할 권한이 없습니다.");
         }
 
@@ -99,7 +100,7 @@ public class OrganizationService {
 
     // 조직 수정
     public UUID updateOrganization(UUID memberId, UUID memberPositionId, UUID organizationId, UpdateOrganizationReq updateOrganizationReq) {
-        if (memberService.checkPermission(memberPositionId, "organization", Action.UPDATE, PermissionRange.COMPANY).equals(Bool.FALSE.getCodeValue())) {
+        if (memberService.checkPermission(memberPositionId, "organization", Action.UPDATE, PermissionRange.COMPANY) == FALSE) {
             throw new PermissionDeniedException("조직을 수정할 권한이 없습니다.");
         }
 
@@ -112,7 +113,7 @@ public class OrganizationService {
 
     // 조직 삭제
     public void deleteOrganization(UUID memberId, UUID memberPositionId, UUID organizationId) {
-        if (memberService.checkPermission(memberPositionId, "organization", Action.DELETE, PermissionRange.COMPANY).equals(Bool.FALSE.getCodeValue())) {
+        if (memberService.checkPermission(memberPositionId, "organization", Action.DELETE, PermissionRange.COMPANY) == FALSE) {
             throw new PermissionDeniedException("조직을 삭제할 권한이 없습니다.");
         }
 

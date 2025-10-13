@@ -47,6 +47,10 @@ public class Role extends BaseEntity {
         }
     }
 
+    public void updateName(String newName){
+        this.name = newName;
+    }
+
     public void updateDescription(String description) {
         this.description = description;
     }

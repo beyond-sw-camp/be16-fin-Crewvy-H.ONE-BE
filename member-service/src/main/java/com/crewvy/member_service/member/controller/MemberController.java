@@ -1,6 +1,8 @@
 package com.crewvy.member_service.member.controller;
 
 import com.crewvy.common.dto.ApiResponse;
+import com.crewvy.common.entity.Bool;
+import com.crewvy.common.exception.PermissionDeniedException;
 import com.crewvy.member_service.member.constant.Action;
 import com.crewvy.member_service.member.constant.PermissionRange;
 import com.crewvy.member_service.member.dto.request.*;
@@ -12,6 +14,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+
+import static java.lang.Boolean.FALSE;
 
 @RestController
 @RequestMapping("/member")
@@ -143,6 +147,30 @@ public class MemberController {
                                       @RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
         return new ResponseEntity<>(ApiResponse.success(
                 memberService.getRole(uuid, memberPositionId), "역할 목록 조회 성공"), HttpStatus.OK);
+    }
+
+    // 역할 상세 조회
+    @GetMapping("/role/{roleId}")
+    public ResponseEntity<?> getRoleDetail(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                           @PathVariable UUID roleId) {
+        if (memberService.checkPermission(memberPositionId, "role", Action.READ, PermissionRange.COMPANY) == FALSE) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.getRoleById(roleId), "역할 상세 조회 성공"), HttpStatus.OK);
+    }
+
+    // 역할 수정
+    @PutMapping("/role/{roleId}")
+    public ResponseEntity<?> updateRole(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                        @PathVariable UUID roleId,
+                                        @RequestBody RoleUpdateReq roleUpdateReq) {
+        if (memberService.checkPermission(memberPositionId, "role", Action.UPDATE, PermissionRange.COMPANY) == FALSE) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+        memberService.updateRole(roleId, roleUpdateReq);
+        return new ResponseEntity<>(ApiResponse.success(null,
+                "역할 수정 성공"), HttpStatus.OK);
     }
 
     // 역할의 권한 목록 수정
