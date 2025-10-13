@@ -7,6 +7,8 @@ import com.crewvy.workforce_service.reservation.dto.response.ReservationRes;
 import com.crewvy.workforce_service.reservation.service.ReservationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,37 +24,37 @@ public class ReservationController {
 
     // 예약 등록
     @PostMapping("/register")
-    public ApiResponse<?> create(@RequestBody ReservationCreateReq req) {
+    public ResponseEntity<?> create(@RequestBody ReservationCreateReq req) {
         ReservationRes res = reservationService.create(req);
-        return new ApiResponse<>(true, res, "예약 등록 성공");
+        return new ResponseEntity<>(new ApiResponse<>(true, res, "예약 등록 성공"), HttpStatus.CREATED);
     }
 
     // 전체 예약 조회
     @GetMapping("/list")
-    public ApiResponse<?> allReservationList(@RequestParam UUID companyId) {
+    public ResponseEntity<?> allReservationList(@RequestParam UUID companyId) {
         List<ReservationRes> res = reservationService.listByCompany(companyId);
-        return new ApiResponse<>(true, res, "예약 조회 성공");
+        return new ResponseEntity<>(new ApiResponse<>(true, res, "예약 조회 성공"), HttpStatus.OK);
     }
 
     // 내 예약 조회
     @GetMapping("/myList")
-    public ApiResponse<?> myReservationList(@RequestParam UUID companyId,
+    public ResponseEntity<?> myReservationList(@RequestParam UUID companyId,
                                             @RequestParam UUID memberId) {
         List<ReservationRes> res = reservationService.listByCompanyAndMember(companyId, memberId);
-        return new ApiResponse<>(true, res, "내 예약 조회 성공");
+        return new ResponseEntity<>(new ApiResponse<>(true, res, "내 예약 조회 성공"), HttpStatus.OK);
     }
 
     // 예약 수정
     @PutMapping("/{id}")
-    public ApiResponse<?> update(@PathVariable UUID id, @RequestBody ReservationUpdateReq req) {
+    public ResponseEntity<?> update(@PathVariable UUID id, @RequestBody ReservationUpdateReq req) {
         ReservationRes res = reservationService.update(id, req);
-        return new ApiResponse<>(true, res, "예약 수정 성공");
+        return new ResponseEntity<>(new ApiResponse<>(true, res, "예약 수정 성공"), HttpStatus.OK);
     }
 
     // 예약 삭제
     @DeleteMapping("/{id}")
-    public ApiResponse<?> delete(@PathVariable UUID id) {
+    public ResponseEntity<?> delete(@PathVariable UUID id) {
         reservationService.delete(id);
-        return new ApiResponse<>(true, null, "예약 삭제 성공");
+        return new ResponseEntity<>(new ApiResponse<>(true, null, "예약 삭제 성공"), HttpStatus.OK);
     }
 }
