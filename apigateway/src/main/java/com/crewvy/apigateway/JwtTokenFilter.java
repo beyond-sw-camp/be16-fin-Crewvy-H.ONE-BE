@@ -31,7 +31,9 @@ public class JwtTokenFilter implements GlobalFilter {
     private static final List<String> ALLOWED_PATH = List.of(
             "/member/create-admin",
             "/member/login",
-            "/actuator/health"
+            "/member/check-email",
+            "/actuator/health",
+            "/openvidu-webhooks"
     );
 
     private static final List<String> ADMIN_ONLY_PATH = List.of(
@@ -62,18 +64,18 @@ public class JwtTokenFilter implements GlobalFilter {
                     .build()
                     .parseClaimsJws(token)
                     .getBody();
-            String email = claims.getSubject();
+
+            String memberId = claims.getSubject();
+            String memberPositionId = claims.get("MemberPositionId", String.class);
             String role = claims.get("role", String.class);
 
-            if (ADMIN_ONLY_PATH.contains(urlPath) && !role.equals("ADMIN")) {
-                exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
-                return exchange.getResponse().setComplete();
-            }
             ServerWebExchange serverWebExchange = exchange.mutate()
                     .request(r -> r
-                            .header("X-User-Email", email)
+                            .header("X-User-UUID", memberId)
+                            .header("X-User-MemberPositionId", memberPositionId)
                             .header("X-User-Role", role))
                     .build();
+
             return chain.filter(serverWebExchange);
         } catch (Exception e) {
             e.printStackTrace();

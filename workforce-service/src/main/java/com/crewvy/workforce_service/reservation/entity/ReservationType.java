@@ -1,10 +1,14 @@
 package com.crewvy.workforce_service.reservation.entity;
 
+import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.workforce_service.reservation.constant.ReservationCategoryStatus;
+import com.crewvy.workforce_service.reservation.converter.ReservationCategoryStatusConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.util.UUID;
 
@@ -13,7 +17,8 @@ import java.util.UUID;
 @AllArgsConstructor
 @Getter
 @Entity
-public class ReservationType {
+@Setter
+public class ReservationType extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -24,7 +29,14 @@ public class ReservationType {
     private ReservationCategory reservationCategory;
 
     @Column(nullable = false)
+    @Convert(converter = ReservationCategoryStatusConverter.class)
+    private ReservationCategoryStatus reservationCategoryStatus;
+
+    @Column(nullable = false)
     private String name;
+
+    @Column(nullable = false)
+    private String location;
 
     private int capacity;
 

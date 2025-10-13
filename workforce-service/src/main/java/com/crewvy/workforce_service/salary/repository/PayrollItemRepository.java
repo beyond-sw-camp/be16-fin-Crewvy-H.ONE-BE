@@ -10,4 +10,8 @@ import java.util.UUID;
 
 @Repository
 public interface PayrollItemRepository extends JpaRepository<PayrollItem, UUID> {
+
+    List<PayrollItem> findByCompanyIdOrderByCreatedAtAsc(UUID companyId);
+
+    List<PayrollItem> findByCompanyIdAndSalaryTypeOrderByCreatedAtAsc(UUID companyId, SalaryType salaryType);
 }
