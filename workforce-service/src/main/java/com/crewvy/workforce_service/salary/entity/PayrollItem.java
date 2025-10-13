@@ -1,6 +1,7 @@
 package com.crewvy.workforce_service.salary.entity;
 
-
+import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.common.entity.Bool;
 import com.crewvy.workforce_service.salary.constant.SalaryType;
 import com.crewvy.workforce_service.salary.converter.SalaryTypeConverter;
 import jakarta.persistence.*;
@@ -9,7 +10,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.math.BigInteger;
 import java.util.UUID;
 
 @Builder
@@ -17,23 +17,36 @@ import java.util.UUID;
 @AllArgsConstructor
 @Getter
 @Entity
-public class SalaryDetail {
+public class PayrollItem extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "salary_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
-    private Salary salary;
+    @Column(nullable = false)
+    private UUID companyId;
+
+    @Column(nullable = false)
+    private UUID memberId;
 
     @Column(nullable = false)
     @Convert(converter = SalaryTypeConverter.class)
     private SalaryType salaryType;
 
     @Column(nullable = false)
-    private String salaryName;
+    private String name;
 
     @Column(nullable = false)
-    private BigInteger amount;
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    private Bool isActive = Bool.TRUE;
+
+    private String description;
+
+    public void updateItem(SalaryType salaryType, String name, Bool isActive, String description) {
+        this.salaryType = salaryType;
+        this.name = name;
+        this.isActive = isActive;
+        this.description = description;
+    }
 }
