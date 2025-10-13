@@ -40,8 +40,8 @@ public class MemberService {
     private final JwtTokenProvider jwtTokenProvider;
     private final OrganizationRepository organizationRepository;
 
-    public MemberService(MemberRepository memberRepository,
-                         MemberPositionRepository memberPositionRepository, RoleRepository roleRepository,
+    public MemberService(MemberRepository memberRepository, MemberPositionRepository memberPositionRepository,
+                         RoleRepository roleRepository,
                          RolePermissionRepository rolePermissionRepository, PermissionRepository permissionRepository,
                          GradeRepository gradeRepository, TitleRepository titleRepository,
                          PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider,
@@ -524,8 +524,8 @@ public class MemberService {
                 })
                 .collect(Collectors.toList());
 
-        role.updatePermission(newRolePermissions); // Use the updatePermission method in Role entity
-        roleRepository.save(role); // Save the role to cascade changes to RolePermission
+        role.updatePermission(newRolePermissions);
+        roleRepository.save(role);
     }
 
     private PermissionRange mapFrontendRangeToBackendEnum(String frontendRange) {
