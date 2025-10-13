@@ -1,6 +1,5 @@
 package com.crewvy.workforce_service.approval.entity;
 
-import com.crewvy.common.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,6 +8,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.UuidGenerator;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @AllArgsConstructor
 @NoArgsConstructor
@@ -25,7 +25,7 @@ public class ApprovalLine{
     private Approval approval;
 
     @Column(nullable = false)
-    private String memberId;
+    private UUID memberId;
 
     @Convert(converter = LineStatusConverter.class)
     private LineStatus lineStatus;

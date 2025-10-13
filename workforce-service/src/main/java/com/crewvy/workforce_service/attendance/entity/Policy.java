@@ -1,7 +1,8 @@
 package com.crewvy.workforce_service.attendance.entity;
 
-import com.crewvy.common.converter.JsonToMapConverter;
 import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.workforce_service.attendance.converter.JsonToPolicyRuleDetailsConverter;
+import com.crewvy.workforce_service.attendance.dto.rule.PolicyRuleDetails;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,7 +10,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
-import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -22,23 +22,22 @@ public class Policy extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "policy_id", nullable = false, columnDefinition = "BINARY(16)")
+    @Column(name = "policy_id", nullable = false)
     private UUID policyId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "policy_type_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
+    @JoinColumn(name = "policy_type_id")
     private PolicyType policyType;
 
-    @Column(name = "company_id", nullable = false, columnDefinition = "BINARY(16)")
+    @JoinColumn(name = "company_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private UUID companyId;
 
     @Column(name = "name", nullable = false)
     private String name;
 
-    // 정책별 세부 규칙 (JSON 형식으로 저장)
     @Column(name = "rule_details", columnDefinition = "json")
-    @Convert(converter = JsonToMapConverter.class)
-    private Map<String, Object> ruleDetails;
+    @Convert(converter = JsonToPolicyRuleDetailsConverter.class)
+    private PolicyRuleDetails ruleDetails;
 
     @Column(name = "is_paid", nullable = false)
     private Boolean isPaid;

@@ -25,4 +25,8 @@ public class Title extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private Company company;
+
+    public void updateName(String name) {
+        this.name = name;
+    }
 }

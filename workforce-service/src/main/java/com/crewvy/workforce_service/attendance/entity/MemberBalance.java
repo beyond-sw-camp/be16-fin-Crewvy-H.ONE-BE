@@ -22,10 +22,10 @@ public class MemberBalance extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "member_balance_id", nullable = false, columnDefinition = "BINARY(16)")
+    @Column(name = "member_balance_id", nullable = false)
     private UUID memberBalanceId;
 
-    @Column(name = "member_id", nullable = false, columnDefinition = "BINARY(16)")
+    @Column(name = "member_id", nullable = false)
     private UUID memberId;
 
     @Column(name = "balance_type_code", nullable = false)

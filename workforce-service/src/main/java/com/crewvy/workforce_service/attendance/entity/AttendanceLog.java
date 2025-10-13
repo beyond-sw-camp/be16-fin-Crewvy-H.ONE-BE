@@ -1,8 +1,12 @@
 package com.crewvy.workforce_service.attendance.entity;
 
 import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.workforce_service.attendance.constant.EventType;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -17,19 +21,22 @@ public class AttendanceLog extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "attendance_log_id", nullable = false, columnDefinition = "BINARY(16)")
+    @Column(name = "attendance_log_id", nullable = false)
     private UUID attendanceLogId;
 
-    @Column(name = "member_id", nullable = false, columnDefinition = "BINARY(16)")
+    @Column(name = "member_id", nullable = false)
     private UUID memberId;
+
+    @Column(name = "event_type", nullable = false)
+    private EventType eventType;
 
     @Column(name = "event_time", nullable = false)
     private LocalDateTime eventTime;
 
-    @Column(name = "latitude", nullable = false)
+    @Column(name = "latitude")
     private Double latitude;
 
-    @Column(name = "longitude", nullable = false)
+    @Column(name = "longitude")
     private Double longitude;
 
     @Column(name = "is_corrected", nullable = false)

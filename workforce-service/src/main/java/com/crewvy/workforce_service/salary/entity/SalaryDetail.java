@@ -2,7 +2,6 @@ package com.crewvy.workforce_service.salary.entity;
 
 
 import com.crewvy.workforce_service.salary.constant.SalaryType;
-import com.crewvy.workforce_service.salary.converter.SalaryStatusConverter;
 import com.crewvy.workforce_service.salary.converter.SalaryTypeConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
