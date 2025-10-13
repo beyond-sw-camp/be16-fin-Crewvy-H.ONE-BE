@@ -66,7 +66,7 @@ public class AutoCreateAdmin implements ApplicationRunner {
                         .resource(resource)
                         .action(action)
                         .permissionRange(PermissionRange.SYSTEM)
-                        .description(String.format("[%s]에 대한 %s 최상위 권한", resource, action.getCodeName())).build();
+                        .description(String.format("[%s]에 대한 %s 권한", resource, action.getCodeName())).build();
                 permissionList.add(sysPermission);
             }
         }
@@ -79,7 +79,7 @@ public class AutoCreateAdmin implements ApplicationRunner {
                         .resource(resource)
                         .action(action)
                         .permissionRange(PermissionRange.COMPANY)
-                        .description(String.format("[%s]에 대한 %s 회사 전체 권한", resource, action.getCodeName())).build();
+                        .description(String.format("[%s]에 대한 %s 권한", resource, action.getCodeName())).build();
                 permissionList.add(comPermission);
             }
         }
@@ -92,7 +92,7 @@ public class AutoCreateAdmin implements ApplicationRunner {
                         .resource(resource)
                         .action(action)
                         .permissionRange(PermissionRange.INDIVIDUAL)
-                        .description(String.format("[%s]에 대한 %s 회사 전체 권한", resource, action.getCodeName())).build();
+                        .description(String.format("[%s]에 대한 %s 권한", resource, action.getCodeName())).build();
                 permissionList.add(comPermission);
             }
         }

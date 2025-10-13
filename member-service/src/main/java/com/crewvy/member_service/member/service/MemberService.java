@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -41,11 +42,10 @@ public class MemberService {
     private final OrganizationRepository organizationRepository;
 
     public MemberService(MemberRepository memberRepository, MemberPositionRepository memberPositionRepository,
-                         RoleRepository roleRepository,
-                         RolePermissionRepository rolePermissionRepository, PermissionRepository permissionRepository,
-                         GradeRepository gradeRepository, TitleRepository titleRepository,
-                         PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider,
-                         OrganizationRepository organizationRepository) {
+                         RoleRepository roleRepository, RolePermissionRepository rolePermissionRepository,
+                         PermissionRepository permissionRepository, GradeRepository gradeRepository,
+                         TitleRepository titleRepository, PasswordEncoder passwordEncoder,
+                         JwtTokenProvider jwtTokenProvider, OrganizationRepository organizationRepository) {
         this.memberRepository = memberRepository;
         this.memberPositionRepository = memberPositionRepository;
         this.roleRepository = roleRepository;
@@ -475,16 +475,35 @@ public class MemberService {
         Role role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 역할입니다."));
 
-        List<PermissionRes> permissionResList = role.getRolePermissionList().stream()
-                .map(rp -> {
-                    Permission permission = rp.getPermission();
+        List<Permission> allPermissions = permissionRepository.findAllByPermissionRangeNot(PermissionRange.SYSTEM);
+
+        Map<String, PermissionRange> rolePermissionMap = role.getRolePermissionList().stream()
+                .collect(Collectors.toMap(
+                        rp -> rp.getPermission().getResource() + ":" + rp.getPermission().getAction(),
+                        RolePermission::getPermissionRange,
+                        (existing, replacement) -> existing.ordinal() > replacement.ordinal() ? existing : replacement
+                ));
+
+        Map<String, List<Permission>> groupedPermissions = allPermissions.stream()
+                .collect(Collectors.groupingBy(p -> p.getResource() + ":" + p.getAction()));
+
+        List<PermissionRes> permissionResList = groupedPermissions.entrySet().stream()
+                .map(entry -> {
+                    String groupKey = entry.getKey();
+                    List<Permission> permsInGroup = entry.getValue();
+                    Permission firstPerm = permsInGroup.get(0);
+
+                    PermissionRange currentRange = rolePermissionMap.getOrDefault(groupKey, PermissionRange.NONE);
+
+                    Map<PermissionRange, UUID> rangeToIdMap = permsInGroup.stream()
+                            .collect(Collectors.toMap(Permission::getPermissionRange, Permission::getId));
+
                     return PermissionRes.builder()
-                            .id(permission.getId())
-                            .name(permission.getName())
-                            .description(permission.getDescription())
-                            .resource(permission.getResource())
-                            .action(permission.getAction().getCodeName())
-                            .permissionRange(rp.getPermissionRange().getCodeName())
+                            .resource(firstPerm.getResource())
+                            .action(firstPerm.getAction().getCodeName())
+                            .description(firstPerm.getDescription())
+                            .currentRange(currentRange)
+                            .rangeToIdMap(rangeToIdMap)
                             .build();
                 })
                 .collect(Collectors.toList());
@@ -509,12 +528,11 @@ public class MemberService {
         rolePermissionRepository.deleteAllByRole(role);
 
         List<RolePermission> newRolePermissions = request.getPermissions().stream()
-                .filter(pReq -> !pReq.getSelectedRange().equals("없음"))
                 .map(pReq -> {
                     Permission permission = permissionRepository.findById(pReq.getPermissionId())
-                            .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 권한입니다."));
+                            .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 권한입니다. ID: " + pReq.getPermissionId()));
 
-                    PermissionRange selectedRange = mapFrontendRangeToBackendEnum(pReq.getSelectedRange());
+                    PermissionRange selectedRange = PermissionRange.valueOf(pReq.getSelectedRange());
 
                     return RolePermission.builder()
                             .role(role)
@@ -530,12 +548,18 @@ public class MemberService {
 
     private PermissionRange mapFrontendRangeToBackendEnum(String frontendRange) {
         switch (frontendRange) {
-            case "본인": return PermissionRange.INDIVIDUAL;
-            case "부서": return PermissionRange.DEPARTMENT;
-            case "전사": return PermissionRange.COMPANY;
-            case "시스템관리자": return PermissionRange.SYSTEM;
-            case "없음": return null; // Or throw an exception if "없음" is not allowed to be mapped
-            default: throw new IllegalArgumentException("Unknown PermissionRange: " + frontendRange);
+            case "본인":
+                return PermissionRange.INDIVIDUAL;
+            case "부서":
+                return PermissionRange.DEPARTMENT;
+            case "전사":
+                return PermissionRange.COMPANY;
+            case "시스템관리자":
+                return PermissionRange.SYSTEM;
+            case "없음":
+                return null;
+            default:
+                throw new IllegalArgumentException("Unknown PermissionRange: " + frontendRange);
         }
     }
 }

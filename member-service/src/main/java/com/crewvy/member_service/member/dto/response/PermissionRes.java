@@ -1,10 +1,12 @@
 package com.crewvy.member_service.member.dto.response;
 
+import com.crewvy.member_service.member.constant.PermissionRange;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Getter
@@ -12,10 +14,9 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class PermissionRes {
-    private UUID id;
-    private String name;
-    private String description;
     private String resource;
     private String action;
-    private String permissionRange;
+    private String description;
+    private PermissionRange currentRange;
+    private Map<PermissionRange, UUID> rangeToIdMap;
 }
