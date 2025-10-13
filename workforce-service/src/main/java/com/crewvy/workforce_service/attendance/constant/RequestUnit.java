@@ -1,5 +1,6 @@
 package com.crewvy.workforce_service.attendance.constant;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -15,6 +16,7 @@ public enum RequestUnit {
     private final String codeValue;
     private final String codeName;
 
+    @JsonCreator
     public static RequestUnit fromCode(String code) {
         return Arrays.stream(values())
                 .filter(v -> v.codeValue.equals(code))
