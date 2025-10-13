@@ -3,6 +3,7 @@ package com.crewvy.workforce_service.attendance.service;
 import com.crewvy.common.exception.BusinessException;
 import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
 import com.crewvy.workforce_service.attendance.dto.request.PolicyCreateRequest;
+import com.crewvy.workforce_service.attendance.dto.request.PolicyUpdateRequest;
 import com.crewvy.workforce_service.attendance.dto.response.PolicyResponse;
 import com.crewvy.workforce_service.attendance.dto.rule.*;
 import com.crewvy.workforce_service.attendance.entity.Policy;
@@ -65,6 +66,35 @@ public class PolicyService {
     public Page<PolicyResponse> findAllPoliciesByCompany(UUID companyId, Pageable pageable) {
         Page<Policy> policyPage = policyRepository.findByCompanyId(companyId, pageable);
         return policyPage.map(PolicyResponse::new);
+    }
+
+    public PolicyResponse updatePolicy(UUID policyId, PolicyUpdateRequest request) {
+        // 1. PolicyType이 존재하는지 확인
+        PolicyType policyType = policyTypeRepository.findById(request.getPolicyTypeId())
+                .orElseThrow(() -> new BusinessException("존재하지 않는 정책 유형입니다."));
+
+        // 2. 수정할 Policy 엔티티를 조회
+        Policy policy = policyRepository.findById(policyId)
+                .orElseThrow(() -> new BusinessException("ID에 해당하는 정책을 찾을 수 없습니다: " + policyId));
+
+        // 3. ruleDetails 변환 및 검증
+        PolicyRuleDetails ruleDetails = convertAndValidateRuleDetails(request.getRuleDetails(), policyType.getTypeCode());
+
+        // 4. 엔티티 내용 업데이트
+        policy.update(
+                policyType,
+                request.getName(),
+                request.getIsPaid(),
+                request.getEffectiveFrom(),
+                request.getEffectiveTo(),
+                ruleDetails
+        );
+
+        // 5. 변경된 엔티티를 저장 (JPA의 Dirty Checking 덕분에 save 호출은 선택 사항)
+        // policyRepository.save(policy);
+
+        // 6. 응답 DTO로 변환하여 반환
+        return new PolicyResponse(policy);
     }
 
     /**

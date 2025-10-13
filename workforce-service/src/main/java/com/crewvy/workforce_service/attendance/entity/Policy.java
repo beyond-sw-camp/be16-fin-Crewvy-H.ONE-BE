@@ -47,4 +47,13 @@ public class Policy extends BaseEntity {
 
     @Column(name = "effective_to")
     private LocalDate effectiveTo;
+
+    public void update(PolicyType policyType, String name, Boolean isPaid, LocalDate effectiveFrom, LocalDate effectiveTo, PolicyRuleDetails ruleDetails) {
+        this.policyType = policyType;
+        this.name = name;
+        this.isPaid = isPaid;
+        this.effectiveFrom = effectiveFrom;
+        this.effectiveTo = effectiveTo;
+        this.ruleDetails = ruleDetails;
+    }
 }
