@@ -59,6 +59,12 @@ dependencies {
 	// JSON 변환 지원을 위한 jackson 의존성 추가
 	implementation 'org.springframework.boot:spring-boot-starter-json'
 
+	// Redis
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+	// Cache
+	implementation 'org.springframework.boot:spring-boot-starter-cache'
+
 //	이 아래는 수정X
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'

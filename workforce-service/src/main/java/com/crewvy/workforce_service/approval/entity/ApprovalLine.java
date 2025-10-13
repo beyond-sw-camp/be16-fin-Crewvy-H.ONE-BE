@@ -1,6 +1,5 @@
 package com.crewvy.workforce_service.approval.entity;
 
-import com.crewvy.common.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
