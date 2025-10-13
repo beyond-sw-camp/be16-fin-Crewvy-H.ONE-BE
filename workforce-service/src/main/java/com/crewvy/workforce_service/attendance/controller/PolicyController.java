@@ -6,6 +6,8 @@ import com.crewvy.workforce_service.attendance.dto.response.PolicyResponse;
 import com.crewvy.workforce_service.attendance.service.PolicyService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -23,4 +25,20 @@ public class PolicyController {
         PolicyResponse response = policyService.createPolicy(companyId, request);
         return ApiResponse.success(response, "정책 생성 완료");
     }
+
+    @GetMapping("/{policyId}")
+    public ApiResponse<PolicyResponse> findPolicyById(@PathVariable UUID policyId) {
+        PolicyResponse response = policyService.findPolicyById(policyId);
+        return ApiResponse.success(response, "정책 조회 완료");
+    }
+
+    @GetMapping
+    public ApiResponse<Page<PolicyResponse>> findAllPolicies(
+            @RequestParam("companyId") UUID companyId,
+            Pageable pageable) {
+        Page<PolicyResponse> response = policyService.findAllPoliciesByCompany(companyId, pageable);
+        return ApiResponse.success(response);
+    }
+
+
 }

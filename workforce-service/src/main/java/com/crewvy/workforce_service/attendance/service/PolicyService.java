@@ -4,15 +4,15 @@ import com.crewvy.common.exception.BusinessException;
 import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
 import com.crewvy.workforce_service.attendance.dto.request.PolicyCreateRequest;
 import com.crewvy.workforce_service.attendance.dto.response.PolicyResponse;
-import com.crewvy.workforce_service.attendance.dto.rule.AuthMethodDto;
-import com.crewvy.workforce_service.attendance.dto.rule.PolicyRuleDetails;
-import com.crewvy.workforce_service.attendance.dto.rule.WorkTimeRuleDto;
+import com.crewvy.workforce_service.attendance.dto.rule.*;
 import com.crewvy.workforce_service.attendance.entity.Policy;
 import com.crewvy.workforce_service.attendance.entity.PolicyType;
 import com.crewvy.workforce_service.attendance.repository.PolicyRepository;
 import com.crewvy.workforce_service.attendance.repository.PolicyTypeRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,6 +54,19 @@ public class PolicyService {
         return new PolicyResponse(savedPolicy);
     }
 
+    @Transactional(readOnly = true)
+    public PolicyResponse findPolicyById(UUID policyId) {
+        Policy policy = policyRepository.findById(policyId)
+                .orElseThrow(() -> new BusinessException("ID에 해당하는 정책을 찾을 수 없습니다: " + policyId));
+        return new PolicyResponse(policy);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PolicyResponse> findAllPoliciesByCompany(UUID companyId, Pageable pageable) {
+        Page<Policy> policyPage = policyRepository.findByCompanyId(companyId, pageable);
+        return policyPage.map(PolicyResponse::new);
+    }
+
     /**
      * Map으로 받은 ruleDetails를 PolicyRuleDetails DTO로 변환하고 유효성을 검증합니다.
      */
@@ -70,14 +83,28 @@ public class PolicyService {
             // 1. PolicyTypeCode에 따른 '구조적' 유효성 검증
             validateStructureByTypeCode(ruleDetails, typeCode);
 
-            // 2. 각 규칙 블록별 '내부' 유효성 검증
-            validateAuthRuleDetails(ruleDetails);
-            validateWorkTimeRuleDetails(ruleDetails);
-            validateLeaveRuleDetails(ruleDetails);
-            validateTripRuleDetails(ruleDetails);
-            validateGoOutRuleDetails(ruleDetails);
-            validateBreakRuleDetails(ruleDetails);
-            validateLatenessRuleDetails(ruleDetails);
+            // 2. 존재하는 규칙 블록에 대해서만 '내부' 유효성 검증을 선택적으로 실행
+            if (ruleDetails.getAuthRule() != null) {
+                validateAuthRuleDetails(ruleDetails.getAuthRule());
+            }
+            if (ruleDetails.getWorkTimeRule() != null) {
+                validateWorkTimeRuleDetails(ruleDetails.getWorkTimeRule());
+            }
+            if (ruleDetails.getLeaveRule() != null) {
+                validateLeaveRuleDetails(ruleDetails.getLeaveRule());
+            }
+            if (ruleDetails.getTripRule() != null) {
+                validateTripRuleDetails(ruleDetails.getTripRule());
+            }
+            if (ruleDetails.getGoOutRuleDto() != null) {
+                validateGoOutRuleDetails(ruleDetails.getGoOutRuleDto());
+            }
+            if (ruleDetails.getBreakRule() != null) {
+                validateBreakRuleDetails(ruleDetails.getBreakRule());
+            }
+            if (ruleDetails.getLatenessRule() != null) {
+                validateLatenessRuleDetails(ruleDetails.getLatenessRule());
+            }
 
             return ruleDetails;
         } catch (IllegalArgumentException e) {
@@ -101,9 +128,9 @@ public class PolicyService {
         }
     }
 
-    private void validateAuthRuleDetails(PolicyRuleDetails ruleDetails) {
-        if (ruleDetails.getAuthRule() != null && ruleDetails.getAuthRule().getMethods() != null) {
-            for (AuthMethodDto method : ruleDetails.getAuthRule().getMethods()) {
+    private void validateAuthRuleDetails(AuthRuleDto authRule) {
+        if (authRule.getMethods() != null) {
+            for (AuthMethodDto method : authRule.getMethods()) {
                 if (method.getDeviceType() == null || method.getAuthMethod() == null) {
                     throw new BusinessException("인증 규칙에 deviceType 또는 authMethod가 누락되었습니다.");
                 }
@@ -129,66 +156,51 @@ public class PolicyService {
         }
     }
 
-    private void validateWorkTimeRuleDetails(PolicyRuleDetails ruleDetails) {
-        if (ruleDetails.getWorkTimeRule() != null) {
-            WorkTimeRuleDto workTimeRule = ruleDetails.getWorkTimeRule();
-            if (workTimeRule.getType() == null) {
-                throw new BusinessException("근무 시간 규칙에는 type이 필수입니다.");
-            }
-            switch (workTimeRule.getType()) {
-                case "FIXED":
-                    if (workTimeRule.getFixedWorkMinutes() == null) {
-                        throw new BusinessException("고정 근무제에는 fixedWorkMinutes가 필수입니다.");
-                    }
-                    break;
-                case "FLEXIBLE":
-                    if (workTimeRule.getCoreTimeStart() == null || workTimeRule.getCoreTimeEnd() == null) {
-                        throw new BusinessException("선택적 근무제에는 coreTimeStart와 coreTimeEnd가 필수입니다.");
-                    }
-                    break;
-            }
+    private void validateWorkTimeRuleDetails(WorkTimeRuleDto workTimeRule) {
+        if (workTimeRule.getType() == null) {
+            throw new BusinessException("근무 시간 규칙에는 type이 필수입니다.");
+        }
+        switch (workTimeRule.getType()) {
+            case "FIXED":
+                if (workTimeRule.getFixedWorkMinutes() == null) {
+                    throw new BusinessException("고정 근무제에는 fixedWorkMinutes가 필수입니다.");
+                }
+                break;
+            case "FLEXIBLE":
+                if (workTimeRule.getCoreTimeStart() == null || workTimeRule.getCoreTimeEnd() == null) {
+                    throw new BusinessException("선택적 근무제에는 coreTimeStart와 coreTimeEnd가 필수입니다.");
+                }
+                break;
         }
     }
 
-    private void validateLeaveRuleDetails(PolicyRuleDetails ruleDetails) {
-        if (ruleDetails.getLeaveRule() != null) {
-            if (ruleDetails.getLeaveRule().getType() == null) {
-                throw new BusinessException("휴가 규칙에는 type이 필수입니다.");
-            }
+    private void validateLeaveRuleDetails(LeaveRuleDto leaveRule) {
+        if (leaveRule.getType() == null) {
+            throw new BusinessException("휴가 규칙에는 type이 필수입니다.");
         }
     }
 
-    private void validateTripRuleDetails(PolicyRuleDetails ruleDetails) {
-        if (ruleDetails.getTripRule() != null) {
-            if (ruleDetails.getTripRule().getType() == null) {
-                throw new BusinessException("출장 규칙에는 type이 필수입니다.");
-            }
+    private void validateTripRuleDetails(TripRuleDto tripRule) {
+        if (tripRule.getType() == null) {
+            throw new BusinessException("출장 규칙에는 type이 필수입니다.");
         }
     }
 
-    private void validateGoOutRuleDetails(PolicyRuleDetails ruleDetails) {
-        if (ruleDetails.getGoOutRuleDto() != null) {
-            if (ruleDetails.getGoOutRuleDto().getType() == null) {
-                throw new BusinessException("외출 규칙에는 type이 필수입니다.");
-            }
+    private void validateGoOutRuleDetails(GoOutRuleDto goOutRule) {
+        if (goOutRule.getType() == null) {
+            throw new BusinessException("외출 규칙에는 type이 필수입니다.");
         }
     }
 
-    private void validateBreakRuleDetails(PolicyRuleDetails ruleDetails) {
-        if (ruleDetails.getBreakRule() != null) {
-            if (ruleDetails.getBreakRule().getType() == null) {
-                throw new BusinessException("휴게 규칙에는 type이 필수입니다.");
-            }
+    private void validateBreakRuleDetails(BreakRuleDto breakRule) {
+        if (breakRule.getType() == null) {
+            throw new BusinessException("휴게 규칙에는 type이 필수입니다.");
         }
     }
 
-    private void validateLatenessRuleDetails(PolicyRuleDetails ruleDetails) {
-        if (ruleDetails.getLatenessRule() != null) {
-            if (ruleDetails.getLatenessRule().getDeductionType() == null) {
-                throw new BusinessException("지각/조퇴 규칙에는 deductionType이 필수입니다.");
-            }
+    private void validateLatenessRuleDetails(LatenessRuleDto latenessRule) {
+        if (latenessRule.getDeductionType() == null) {
+            throw new BusinessException("지각/조퇴 규칙에는 deductionType이 필수입니다.");
         }
     }
-
-
 }
