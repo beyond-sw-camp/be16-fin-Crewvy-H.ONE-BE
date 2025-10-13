@@ -72,7 +72,7 @@ public class MemberController {
                                          @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                          @RequestBody CreateTitleReq createTitleReq) {
         return new ResponseEntity<>(ApiResponse.success(
-                memberService.createTitle(uuid, memberPositionId, createTitleReq), "직책 생성 성공"), HttpStatus.OK);
+                memberService.createTitle(uuid, memberPositionId, createTitleReq), "직책 생성 성공"), HttpStatus.CREATED);
     }
 
     // 직급 생성
@@ -81,7 +81,7 @@ public class MemberController {
                                          @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                          @RequestBody CreateGradeReq createGradeReq) {
         return new ResponseEntity<>(ApiResponse.success(
-                memberService.createGrade(uuid, memberPositionId, createGradeReq), "직급 생성 성공"), HttpStatus.OK);
+                memberService.createGrade(uuid, memberPositionId, createGradeReq), "직급 생성 성공"), HttpStatus.CREATED);
     }
 
     // 직책 목록 조회

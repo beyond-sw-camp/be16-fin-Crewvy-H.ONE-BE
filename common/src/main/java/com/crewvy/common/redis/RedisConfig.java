@@ -37,6 +37,12 @@ public class RedisConfig {
     @Value("${spring.redis.port}")
     private int port;
 
+    private final ObjectMapper objectMapper;
+
+    public RedisConfig(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
+
     @Bean
     @Qualifier("rtInventory")
     public RedisConnectionFactory rtConnectionFactory() {
@@ -71,7 +77,6 @@ public class RedisConfig {
                 .allowIfBaseType(Object.class)
                 .build();
 
-        ObjectMapper objectMapper = new ObjectMapper();
         objectMapper.registerModule(new JavaTimeModule());
 
         return objectMapper;
