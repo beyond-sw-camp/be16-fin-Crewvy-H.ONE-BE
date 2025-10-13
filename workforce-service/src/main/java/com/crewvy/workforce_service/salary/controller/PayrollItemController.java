@@ -8,6 +8,8 @@ import com.crewvy.workforce_service.salary.dto.response.PayrollItemRes;
 import com.crewvy.workforce_service.salary.service.PayrollItemService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,45 +25,45 @@ public class PayrollItemController {
 
     // 급여 항목 목록 조회
     @GetMapping("/list")
-    public ApiResponse<?> getPayrollItems(@RequestParam UUID companyId) {
+    public ResponseEntity<?> getPayrollItems(@RequestParam UUID companyId) {
         List<PayrollItemRes> response = payrollItemService.getPayrollItems(companyId);
-        return new ApiResponse<>(true, response, "목록 조회 성공");
+        return new ResponseEntity<>(new ApiResponse<>(true, response, "목록 조회 성공"), HttpStatus.OK);
     }
 
     // 급여 항목 타입별 목록 조회
     @GetMapping("/list/type")
-    public ApiResponse<List<PayrollItemRes>> getPayrollItemsByType(
+    public ResponseEntity<?> getPayrollItemsByType(
             @RequestParam UUID companyId, 
             @RequestParam SalaryType salaryType) {
         List<PayrollItemRes> response = payrollItemService.getPayrollItemsByType(companyId, salaryType);
-        return new ApiResponse<>(true, response, "타입별 목록 조회 성공");
+        return new ResponseEntity<>(new ApiResponse<>(true, response, "타입별 목록 조회 성공"), HttpStatus.OK);
     }
 
     // 급여 항목 상세 조회
     @GetMapping("/{id}")
-    public ApiResponse<PayrollItemRes> getPayrollItem(@PathVariable UUID id) {
+    public ResponseEntity<?> getPayrollItem(@PathVariable UUID id) {
         PayrollItemRes response = payrollItemService.getPayrollItem(id);
-        return new ApiResponse<>(true, response, "상세 조회 성공");
+        return new ResponseEntity<>(new ApiResponse<>(true, response, "상세 조회 성공"), HttpStatus.OK);
     }
 
     // 급여 항목 추가
     @PostMapping
-    public ApiResponse<?> createPayrollItem(@RequestBody PayrollItemCreateReq request) {
+    public ResponseEntity<?> createPayrollItem(@RequestBody PayrollItemCreateReq request) {
         PayrollItemRes response = payrollItemService.createPayrollItem(request);
-        return new ApiResponse<>(true, response, "항목 추가 성공");
+        return new ResponseEntity<>(new ApiResponse<>(true, response, "항목 추가 성공"), HttpStatus.CREATED);
     }
 
     // 급여 항목 수정
     @PutMapping
-    public ApiResponse<List<PayrollItemRes>> updatePayrollItems(@RequestBody List<PayrollItemUpdateReq> requests) {
+    public ResponseEntity<?> updatePayrollItems(@RequestBody List<PayrollItemUpdateReq> requests) {
         List<PayrollItemRes> response = payrollItemService.updatePayrollItems(requests);
-        return new ApiResponse<>(true, response, "항목 수정 성공");
+        return new ResponseEntity<>(new ApiResponse<>(true, response, "항목 수정 성공"), HttpStatus.OK);
     }
 
     // 급여 항목 삭제 
     @DeleteMapping
-    public ApiResponse<?> deletePayrollItems(@RequestBody List<UUID> ids) {
+    public ResponseEntity<?> deletePayrollItems(@RequestBody List<UUID> ids) {
         payrollItemService.deletePayrollItems(ids);
-        return new ApiResponse<>(true, null, "항목 삭제 성공");
+        return new ResponseEntity<>(new ApiResponse<>(true, null, "항목 삭제 성공"), HttpStatus.OK);
     }
 }
