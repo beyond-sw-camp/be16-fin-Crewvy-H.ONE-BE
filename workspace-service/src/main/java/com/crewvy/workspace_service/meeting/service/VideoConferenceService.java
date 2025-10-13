@@ -216,7 +216,7 @@ public class VideoConferenceService {
             videoConference.updateDescription(videoConferenceUpdateReq.getDescription());
 
         if (videoConferenceUpdateReq.getIsRecording() != null)
-            videoConference.updateIsRecording(videoConferenceUpdateReq.getIsRecording() ? Bool.TRUE : Bool.FALSE);
+            videoConference.updateIsRecording(Bool.fromBoolean(videoConferenceUpdateReq.getIsRecording()));
 
         if (videoConferenceUpdateReq.getScheduledStartTime() != null)
             videoConference.updateScheduledStartTime(LocalDateTime.parse(videoConferenceUpdateReq.getScheduledStartTime(), DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")));

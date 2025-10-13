@@ -26,7 +26,7 @@ public class VideoConferenceCreateReq {
         return VideoConference.builder()
                 .description(this.description)
                 .name(this.name)
-                .isRecording(this.isRecording ? Bool.TRUE : Bool.FALSE)
+                .isRecording(Bool.fromBoolean(this.isRecording))
                 .hostId(hostId)
                 .scheduledStartTime(scheduledStartTime)
                 .build();

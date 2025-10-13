@@ -24,7 +24,7 @@ public class VideoConferenceUpdateRes {
                 .name(videoConference.getName())
                 .description(videoConference.getDescription())
                 .scheduledStartTime(videoConference.getScheduledStartTime().toString())
-                .isRecording(videoConference.getIsRecording() == Bool.TRUE)
+                .isRecording(videoConference.getIsRecording().toBoolean())
 //                .inviteeIdList(videoConference.getVideoConferenceInviteeList().stream()
 //                        .map(VideoConferenceInvitee::getMemberId)
 //                        .toList())
