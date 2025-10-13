@@ -9,7 +9,7 @@ import java.util.Arrays;
 @AllArgsConstructor
 public enum VideoConferenceStatus {
     WAITING("VC001", "대기"),
-    ONGOING("VC002", "회의중"),
+    IN_PROGRESS("VC002", "회의중"),
     ENDED("VC003", "종료");
 
     private final String codeValue;
