@@ -97,6 +97,14 @@ public class PolicyService {
         return new PolicyResponse(policy);
     }
 
+    public void deletePolicy(UUID policyId) {
+        // 삭제하려는 정책이 존재하는지 먼저 확인
+        if (!policyRepository.existsById(policyId)) {
+            throw new BusinessException("ID에 해당하는 정책을 찾을 수 없습니다: " + policyId);
+        }
+        policyRepository.deleteById(policyId);
+    }
+
     /**
      * Map으로 받은 ruleDetails를 PolicyRuleDetails DTO로 변환하고 유효성을 검증합니다.
      */

@@ -41,9 +41,16 @@ public class PolicyController {
     }
     
     @PutMapping("/{policyId}")
-    public ApiResponse<PolicyResponse> updatePolicy(@PathVariable UUID policyId,
-                                                    @RequestBody @Valid PolicyUpdateRequest request) {
-        PolicyResponse response = policyService.updatePolicy(policyId, request);
-        return ApiResponse.success(response, "정책 수정 완료");
+        public ApiResponse<PolicyResponse> updatePolicy(
+                @PathVariable UUID policyId,
+                @RequestBody @Valid PolicyUpdateRequest request) {
+            PolicyResponse response = policyService.updatePolicy(policyId, request);
+            return ApiResponse.success(response, "정책 수정 완료");
+        }
+    
+        @DeleteMapping("/{policyId}")
+        public ApiResponse<Void> deletePolicy(@PathVariable UUID policyId) {
+            policyService.deletePolicy(policyId);
+            return ApiResponse.success(null, "정책 삭제 완료");
+        }
     }
-}
