@@ -23,13 +23,15 @@ public class ApprovalPolicy extends BaseEntity {
     @JoinColumn(name = "document_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private ApprovalDocument approvalDocument;
 
-    @Column(nullable = false)
     private UUID companyId;
 
     private UUID roleId;
 
     private UUID memberId;
 
-    @Column(nullable = false)
     private int lineIndex;
+
+    protected void setApprovalDocument(ApprovalDocument approvalDocument) {
+        this.approvalDocument = approvalDocument;
+    }
 }

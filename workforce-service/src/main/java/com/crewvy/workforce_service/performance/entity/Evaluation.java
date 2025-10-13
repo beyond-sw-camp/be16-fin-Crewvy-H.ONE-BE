@@ -26,7 +26,6 @@ public class Evaluation {
     @JoinColumn(name = "goal_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private Goal goal;
 
-    @Column(nullable = false)
     private UUID memberID;
 
     @Convert(converter = GradeConverter.class)

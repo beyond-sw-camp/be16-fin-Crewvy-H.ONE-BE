@@ -1,5 +1,6 @@
-package com.crewvy.workforce_service.approval.entity;
+package com.crewvy.workforce_service.approval.converter;
 
+import com.crewvy.workforce_service.approval.constant.LineStatus;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 
