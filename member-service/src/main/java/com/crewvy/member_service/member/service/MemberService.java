@@ -200,26 +200,6 @@ public class MemberService {
         roleRepository.save(role);
     }
 
-    // 역할 목록 조회
-    @Transactional(readOnly = true)
-    public List<RoleRes> getRole(UUID memberId, UUID memberPositionId) {
-        if (checkPermission(memberPositionId, "role", Action.READ, PermissionRange.COMPANY) == FALSE) {
-            throw new PermissionDeniedException("권한이 없습니다.");
-        }
-        Member member = memberRepository.findById(memberId).orElseThrow(()
-                -> new IllegalArgumentException("존재하지 않는 계정입니다."));
-        Company company = member.getCompany();
-        List<Role> roles = roleRepository.findAllByCompanyAndYnDel(company, Bool.TRUE);
-
-        return roles.stream().map(role -> {
-            List<MemberPosition> memberPositions = memberPositionRepository.findByRole(role);
-            List<RoleMemberRes> memberList = memberPositions.stream()
-                    .map(RoleMemberRes::fromEntity)
-                    .collect(Collectors.toList());
-            return RoleRes.fromEntity(role, memberList);
-        }).collect(Collectors.toList());
-    }
-
     // 직원 목록 조회
     @Transactional(readOnly = true)
     public List<MemberListRes> getMemberList(UUID memberId, UUID memberPositionId) {
@@ -289,36 +269,67 @@ public class MemberService {
         return MemberDetailRes.fromEntity(targetMember);
     }
 
-    // 역할별 권한 수정
+    // 역할 생성
     @CacheEvict(cacheManager = "permissionCacheManager", value = "permissions", allEntries = true)
-    public UUID updateRolePermission(UUID memberPositionId, UUID roleId, UpdateRolePermissionsReq req) {
-        if (checkPermission(memberPositionId, "role", Action.UPDATE, PermissionRange.COMPANY) == FALSE) {
+    public UUID createRole(UUID memberPositionId, RoleUpdateReq request) {
+        if (checkPermission(memberPositionId, "role", Action.CREATE, PermissionRange.COMPANY) == FALSE) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
-        Role role = roleRepository.findById(roleId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 역할입니다."));
+        MemberPosition creatorPosition = memberPositionRepository.findById(memberPositionId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 직책입니다."));
+        Company company = creatorPosition.getMember().getCompany();
 
-        rolePermissionRepository.deleteAllByRole(role);
+        Role role = Role.builder()
+                .name(request.getName())
+                .description(request.getDescription())
+                .company(company)
+                .build();
 
-        List<Permission> newPermissionList = permissionRepository.findAllById(req.getPermissionIds());
+        roleRepository.save(role); // Save the Role first
 
-        List<RolePermission> newRolePermissionList = newPermissionList.stream()
-                .map(permission -> RolePermission.builder()
-                        .role(role)
-                        .permission(permission)
-                        .build())
+        List<RolePermission> newRolePermissions = request.getPermissions().stream()
+                .map(pReq -> {
+                    Permission permission = permissionRepository.findById(pReq.getPermissionId())
+                            .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 권한입니다. ID: " + pReq.getPermissionId()));
+
+                    PermissionRange selectedRange = PermissionRange.valueOf(pReq.getSelectedRange());
+
+                    return RolePermission.builder()
+                            .role(role)
+                            .permission(permission)
+                            .permissionRange(selectedRange)
+                            .build();
+                })
                 .collect(Collectors.toList());
 
-        rolePermissionRepository.saveAll(newRolePermissionList);
+        rolePermissionRepository.saveAll(newRolePermissions);
 
-        role.updatePermission(newRolePermissionList);
-        roleRepository.save(role);
-
-        return role.getId();
+        role.updatePermission(newRolePermissions);
+        return roleRepository.save(role).getId();
     }
 
-    // 역할 수정
+    // 역할 목록 조회
+    @Transactional(readOnly = true)
+    public List<RoleRes> getRole(UUID memberId, UUID memberPositionId) {
+        if (checkPermission(memberPositionId, "role", Action.READ, PermissionRange.COMPANY) == FALSE) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+        Member member = memberRepository.findById(memberId).orElseThrow(()
+                -> new IllegalArgumentException("존재하지 않는 계정입니다."));
+        Company company = member.getCompany();
+        List<Role> roles = roleRepository.findAllByCompanyAndYnDel(company, Bool.TRUE);
+
+        return roles.stream().map(role -> {
+            List<MemberPosition> memberPositions = memberPositionRepository.findByRole(role);
+            List<RoleMemberRes> memberList = memberPositions.stream()
+                    .map(RoleMemberRes::fromEntity)
+                    .collect(Collectors.toList());
+            return RoleRes.fromEntity(role, memberList);
+        }).collect(Collectors.toList());
+    }
+
+    // 멤버의 역할 변경
     @CacheEvict(cacheManager = "permissionCacheManager", value = "permissions", allEntries = true)
     public void updateMemberRole(UUID adminMemberPositionId, UUID targetMemberPositionId, UpdateMemberRoleReq req) {
         if (checkPermission(adminMemberPositionId, "role", Action.UPDATE, PermissionRange.COMPANY) == FALSE) {
@@ -335,6 +346,78 @@ public class MemberService {
         memberPositionRepository.save(targetMemberPosition);
     }
 
+    // 역할 상세 조회
+    @Transactional(readOnly = true)
+    public RoleDetailRes getRoleById(UUID memberPositionId, UUID roleId) {
+        if (checkPermission(memberPositionId, "role", Action.READ, PermissionRange.COMPANY) == FALSE) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+        Role role = roleRepository.findById(roleId)
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 역할입니다."));
+
+        List<Permission> allPermissions = permissionRepository.findAllByPermissionRangeNot(PermissionRange.SYSTEM);
+
+        Map<String, PermissionRange> rolePermissionMap = role.getRolePermissionList().stream()
+                .collect(Collectors.toMap(
+                        rp -> rp.getPermission().getResource() + ":" + rp.getPermission().getAction(),
+                        RolePermission::getPermissionRange,
+                        (existing, replacement) -> existing.ordinal() > replacement.ordinal() ? existing : replacement
+                ));
+
+        Map<String, List<Permission>> groupedPermissions = allPermissions.stream()
+                .collect(Collectors.groupingBy(p -> p.getResource() + ":" + p.getAction()));
+
+        List<PermissionRes> permissionResList = groupedPermissions.entrySet().stream()
+                .map(entry -> {
+                    String groupKey = entry.getKey();
+                    List<Permission> permsInGroup = entry.getValue();
+                    Permission permission = permsInGroup.get(0);
+
+                    PermissionRange permissionRange = rolePermissionMap.getOrDefault(groupKey, PermissionRange.NONE);
+
+                    Map<PermissionRange, UUID> rangeToIdMap = permsInGroup.stream()
+                            .collect(Collectors.toMap(Permission::getPermissionRange, Permission::getId));
+
+                    return PermissionRes.fromEntity(permission, permissionRange, rangeToIdMap);
+                })
+                .collect(Collectors.toList());
+
+        return RoleDetailRes.fromEntity(role, permissionResList);
+    }
+
+    // 역할 수정
+    @CacheEvict(cacheManager = "permissionCacheManager", value = "permissions", allEntries = true)
+    public UUID updateRole(UUID memberPositionId, UUID roleId, RoleUpdateReq request) {
+        if (checkPermission(memberPositionId, "role", Action.UPDATE, PermissionRange.COMPANY) == FALSE) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+        Role role = roleRepository.findById(roleId)
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 역할입니다."));
+
+        role.updateDescription(request.getDescription());
+        role.updateName(request.getName());
+
+        List<RolePermission> newRolePermissions = request.getPermissions().stream()
+                .map(pReq -> {
+                    Permission permission = permissionRepository.findById(pReq.getPermissionId())
+                            .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 권한입니다. ID: " + pReq.getPermissionId()));
+
+                    PermissionRange selectedRange = PermissionRange.valueOf(pReq.getSelectedRange());
+
+                    return RolePermission.builder()
+                            .role(role)
+                            .permission(permission)
+                            .permissionRange(selectedRange)
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        rolePermissionRepository.saveAll(newRolePermissions);
+
+        role.updatePermission(newRolePermissions);
+        return roleRepository.save(role).getId();
+    }
+
     // 권한 확인
     @Cacheable(cacheManager = "permissionCacheManager", value = "permissions", key = "#memberPositionId.toString() + ':' + #resource + ':' + #action.name() + ':' + #range.name()")
     @Transactional(readOnly = true)
@@ -344,6 +427,27 @@ public class MemberService {
         } else {
             return TRUE;
         }
+    }
+
+    // 모든 권한 목록 조회
+    @Transactional(readOnly = true)
+    public List<PermissionRes> getAllPermission() {
+        List<Permission> permissionList = permissionRepository.findAllByPermissionRangeNot(PermissionRange.SYSTEM);
+
+        Map<String, List<Permission>> groupedPermissionList = permissionList.stream()
+                .collect(Collectors.groupingBy(p -> p.getResource() + ":" + p.getAction()));
+
+        return groupedPermissionList.entrySet().stream()
+                .map(entry -> {
+                    List<Permission> permsInGroup = entry.getValue();
+                    Permission permission = permsInGroup.get(0);
+
+                    Map<PermissionRange, UUID> rangeToIdMap = permsInGroup.stream()
+                            .collect(Collectors.toMap(Permission::getPermissionRange, Permission::getId));
+
+                    return PermissionRes.fromEntity(permission, PermissionRange.NONE, rangeToIdMap);
+                })
+                .collect(Collectors.toList());
     }
 
     // 권한 확인 (캐시 없음)
@@ -468,82 +572,6 @@ public class MemberService {
         MemberPosition memberPosition = createMemberPosition(savedMember, organization, title, role, LocalDateTime.now());
         savedMember.updateDefaultMemberPosition(memberPosition);
         return savedMember.getId();
-    }
-
-    @Transactional(readOnly = true)
-    public RoleDetailRes getRoleById(UUID roleId) {
-        Role role = roleRepository.findById(roleId)
-                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 역할입니다."));
-
-        List<Permission> allPermissions = permissionRepository.findAllByPermissionRangeNot(PermissionRange.SYSTEM);
-
-        Map<String, PermissionRange> rolePermissionMap = role.getRolePermissionList().stream()
-                .collect(Collectors.toMap(
-                        rp -> rp.getPermission().getResource() + ":" + rp.getPermission().getAction(),
-                        RolePermission::getPermissionRange,
-                        (existing, replacement) -> existing.ordinal() > replacement.ordinal() ? existing : replacement
-                ));
-
-        Map<String, List<Permission>> groupedPermissions = allPermissions.stream()
-                .collect(Collectors.groupingBy(p -> p.getResource() + ":" + p.getAction()));
-
-        List<PermissionRes> permissionResList = groupedPermissions.entrySet().stream()
-                .map(entry -> {
-                    String groupKey = entry.getKey();
-                    List<Permission> permsInGroup = entry.getValue();
-                    Permission firstPerm = permsInGroup.get(0);
-
-                    PermissionRange currentRange = rolePermissionMap.getOrDefault(groupKey, PermissionRange.NONE);
-
-                    Map<PermissionRange, UUID> rangeToIdMap = permsInGroup.stream()
-                            .collect(Collectors.toMap(Permission::getPermissionRange, Permission::getId));
-
-                    return PermissionRes.builder()
-                            .resource(firstPerm.getResource())
-                            .action(firstPerm.getAction().getCodeName())
-                            .description(firstPerm.getDescription())
-                            .currentRange(currentRange)
-                            .rangeToIdMap(rangeToIdMap)
-                            .build();
-                })
-                .collect(Collectors.toList());
-
-        return RoleDetailRes.builder()
-                .id(role.getId())
-                .name(role.getName())
-                .description(role.getDescription())
-                .permissions(permissionResList)
-                .build();
-    }
-
-    @Transactional
-    @CacheEvict(cacheManager = "permissionCacheManager", value = "permissions", allEntries = true)
-    public void updateRole(UUID roleId, RoleUpdateReq request) {
-        Role role = roleRepository.findById(roleId)
-                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 역할입니다."));
-
-        role.updateDescription(request.getDescription());
-        role.updateName(request.getName());
-
-        rolePermissionRepository.deleteAllByRole(role);
-
-        List<RolePermission> newRolePermissions = request.getPermissions().stream()
-                .map(pReq -> {
-                    Permission permission = permissionRepository.findById(pReq.getPermissionId())
-                            .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 권한입니다. ID: " + pReq.getPermissionId()));
-
-                    PermissionRange selectedRange = PermissionRange.valueOf(pReq.getSelectedRange());
-
-                    return RolePermission.builder()
-                            .role(role)
-                            .permission(permission)
-                            .permissionRange(selectedRange)
-                            .build();
-                })
-                .collect(Collectors.toList());
-
-        role.updatePermission(newRolePermissions);
-        roleRepository.save(role);
     }
 
     private PermissionRange mapFrontendRangeToBackendEnum(String frontendRange) {
