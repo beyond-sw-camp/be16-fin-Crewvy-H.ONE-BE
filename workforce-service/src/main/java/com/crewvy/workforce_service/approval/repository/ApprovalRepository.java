@@ -10,8 +10,8 @@ import java.util.UUID;
 
 @Repository
 public interface ApprovalRepository extends JpaRepository<Approval, UUID> {
-    List<Approval> findByMemberIdAndState(UUID memberId, ApprovalState state);
-    List<Approval> findByMemberIdAndStateIn(UUID memberId, List<ApprovalState> stateList);
+    List<Approval> findByMemberPositionIdAndState(UUID memberId, ApprovalState state);
+    List<Approval> findByMemberPositionIdAndStateIn(UUID memberId, List<ApprovalState> stateList);
 
     List<Approval> findByState(ApprovalState approvalState);
 
@@ -19,9 +19,9 @@ public interface ApprovalRepository extends JpaRepository<Approval, UUID> {
 
     int countByState(ApprovalState approvalState);
 
-    int countByMemberIdAndState(UUID memberId, ApprovalState approvalState);
+    int countByMemberPositionIdAndState(UUID memberId, ApprovalState approvalState);
 
-    int countByMemberIdAndStateIn(UUID memberId, List<ApprovalState> stateList);
+    int countByMemberPositionIdAndStateIn(UUID memberId, List<ApprovalState> stateList);
 
     int countByStateIn(List<ApprovalState> stateList);
 }

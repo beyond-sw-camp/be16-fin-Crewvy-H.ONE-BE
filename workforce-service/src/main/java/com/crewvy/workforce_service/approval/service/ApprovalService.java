@@ -53,7 +53,7 @@ public class ApprovalService {
             ApprovalPolicy approvalPolicy = ApprovalPolicy
                     .builder()
                     .roleId(dp.getRoleId())
-                    .memberId(dp.getMemberId())
+                    .memberPositionId(dp.getMemberPositionId())
                     .lineIndex(dp.getLineIndex())
                     .build();
             document.addApprovalPolicy(approvalPolicy);
@@ -87,7 +87,7 @@ public class ApprovalService {
     }
 
 //    결재 생성
-    public UUID createApproval(CreateApprovalDto dto) {
+    public UUID createApproval(CreateApprovalDto dto, UUID memberPositionId) {
         Approval approval = null;
         if(dto.getApprovalId() == null) {
             // 1. 결재 문서(부모) 생성
@@ -98,6 +98,7 @@ public class ApprovalService {
                     .title(dto.getTitle())
                     .contents(dto.getContents())
                     .state(ApprovalState.PENDING) // 💡 우선 '진행중'으로 설정
+                    .memberPositionId(memberPositionId)
                     .build();
         }
         else {
@@ -123,7 +124,7 @@ public class ApprovalService {
 
             ApprovalLine approvalLine = ApprovalLine.builder()
                     .approval(approval)
-                    .memberId(alDto.getMemberId())
+                    .memberPositionId(alDto.getMemberPositionId())
                     .lineIndex(alDto.getLineIndex())
                     .lineStatus(currentStatus)
                     .build();
@@ -143,7 +144,7 @@ public class ApprovalService {
     }
 
 //    결재 임시저장
-    public UUID draftApproval(CreateApprovalDto dto) {
+    public UUID draftApproval(CreateApprovalDto dto, UUID memberPositionId) {
         Approval approval = null;
         if(dto.getApprovalId() == null) {
             ApprovalDocument document = approvalDocumentRepository.findById(dto.getDocumentId()).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 문서입니다."));
@@ -152,6 +153,7 @@ public class ApprovalService {
                     .title(dto.getTitle())
                     .contents(dto.getContents())
                     .state(ApprovalState.DRAFT)
+                    .memberPositionId(memberPositionId)
                     .build();
         }
         else {
@@ -169,7 +171,7 @@ public class ApprovalService {
         for (ApprovalLineRequestDto alDto : dto.getLineDtoList()) {
             ApprovalLine approvalLine = ApprovalLine.builder()
                     .approval(approval)
-                    .memberId(alDto.getMemberId())
+                    .memberPositionId(alDto.getMemberPositionId())
                     .lineIndex(alDto.getLineIndex())
                     .lineStatus(LineStatus.WAITING)
                     .build();
@@ -187,9 +189,9 @@ public class ApprovalService {
     }
 
 //    결재 승인
-    public void approveApproval(UUID approvalId, UUID memberId) {
+    public void approveApproval(UUID approvalId, UUID memberPositionId) {
         Approval approval = approvalRepository.findById(approvalId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 결재입니다."));
-        ApprovalLine approvalLine = approvalLineRepository.findByApprovalAndMemberId(approval, memberId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 결재자입니다."));
+        ApprovalLine approvalLine = approvalLineRepository.findByApprovalAndMemberPositionId(approval, memberPositionId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 결재자입니다."));
         approvalLine.updateLineStatus(LineStatus.APPROVED);
 
         ApprovalLine lastIndex = approvalLineRepository.findFirstByApprovalOrderByLineIndexDesc(approval).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 결재라인입니다."));
@@ -201,7 +203,7 @@ public class ApprovalService {
 //    결재 반려
     public void rejectApproval(UUID approvalId, UUID memberId) {
         Approval approval = approvalRepository.findById(approvalId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 결재입니다."));
-        ApprovalLine approvalLine = approvalLineRepository.findByApprovalAndMemberId(approval, memberId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 결재자입니다."));
+        ApprovalLine approvalLine = approvalLineRepository.findByApprovalAndMemberPositionId(approval, memberId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 결재자입니다."));
         approvalLine.updateLineStatus(LineStatus.REJECTED);
         approval.updateState(ApprovalState.REJECTED);
     }
@@ -214,11 +216,13 @@ public class ApprovalService {
         List<ApprovalStepDto> lineList = new ArrayList<>();
         for(ApprovalLine a : approval.getApprovalLineList()) {
             ApprovalStepDto dto = ApprovalStepDto.builder()
+                    .approverId(a.getId())
 //                    .approverName()
 //                    .approverGrade()
                     .index(a.getLineIndex())
                     .status(a.getLineStatus())
                     .build();
+            lineList.add(dto);
         }
 
 //        결재 첨부파일
@@ -245,12 +249,12 @@ public class ApprovalService {
     }
 
 //    댓글 작성
-    public UUID createReply(UUID approvalId, ReplyRequestDto dto) {
+    public UUID createReply(UUID approvalId, ReplyRequestDto dto, UUID memberPositionId) {
         Approval approval = approvalRepository.findById(approvalId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 결재입니다."));
         ApprovalReply reply = ApprovalReply.builder()
                 .approval(approval)
                 .contents(dto.getContents())
-//                .memberId(memberId)
+                .memberPositionId(memberPositionId)
                 .build();
         approvalReplyRepository.save(reply);
         return reply.getId();
@@ -263,7 +267,9 @@ public class ApprovalService {
         for(ApprovalReply re : replyList) {
             ReplyResponseDto dto = ReplyResponseDto.builder()
                     .contents(re.getContents())
-                    .memberId(re.getMemberId())
+                    .memberPositionId(re.getMemberPositionId())
+//                    .memberName()
+//                    .memberGrade()
                     .build();
             dtoList.add(dto);
         }
@@ -271,9 +277,9 @@ public class ApprovalService {
     }
 
 //    결재 리스트 조회(내가 기안한 문서)
-    public List<ApprovalListDto> getApprovalList(/*UUID currentMemberId*/) {
-//        List<Approval> approvalList = approvalRepository.findByMemberIdAndState(currentMemberId, ApprovalState.PENDING);
-        List<Approval> approvalList = approvalRepository.findByState(ApprovalState.PENDING);
+    public List<ApprovalListDto> getApprovalList(UUID memberPositionId) {
+        List<Approval> approvalList = approvalRepository.findByMemberPositionIdAndState(memberPositionId, ApprovalState.PENDING);
+//        List<Approval> approvalList = approvalRepository.findByState(ApprovalState.PENDING);
 //        List<Approval> approvalList = approvalRepository.findAll();
         List<ApprovalListDto> dtoList  = new ArrayList<>();
         for(Approval a : approvalList) {
@@ -281,9 +287,9 @@ public class ApprovalService {
                     .approvalId(a.getId())
                     .title(a.getTitle())
                     .documentName(a.getApprovalDocument().getDocumentName())
-                    .requesterId(a.getMemberId()) // 기안자 ID -> 기안자명, 소속, 직급으로 대체 예정
+                    .requesterId(a.getMemberPositionId()) // 기안자 ID -> 기안자명, 소속, 직급으로 대체 예정
                     .status(a.getState())
-//                    .createAt(a.getCreateAt())
+                    .createAt(a.getCreatedAt())
                     .build();
             dtoList.add(dto);
         }
@@ -291,10 +297,10 @@ public class ApprovalService {
     }
 
 //    결재 대기 문서 리스트 조회(내가 결재해야할 문서)
-    public List<ApprovalListDto> getRequsetedApprovalList(UUID currentMemberId) {
+    public List<ApprovalListDto> getRequsetedApprovalList(UUID memberPositionId) {
         // 특정 사용자의 '대기(PENDING)' 상태인 결재 라인을 모두 찾기
-        List<ApprovalLine> pendingLines = approvalLineRepository.findByMemberIdAndLineStatus(
-                currentMemberId,
+        List<ApprovalLine> pendingLines = approvalLineRepository.findByMemberPositionIdAndLineStatus(
+                memberPositionId,
                 LineStatus.PENDING // '대기' 상태를 나타내는 ENUM
         );
 
@@ -304,9 +310,9 @@ public class ApprovalService {
                     .approvalId(a.getApproval().getId())
                     .title(a.getApproval().getTitle())
                     .documentName(a.getApproval().getApprovalDocument().getDocumentName())
-                    .requesterId(a.getApproval().getMemberId()) // 기안자 ID -> 기안자명, 소속, 직급으로 대체 예정
+                    .requesterId(a.getApproval().getMemberPositionId()) // 기안자 ID -> 기안자명, 소속, 직급으로 대체 예정
                     .status(a.getApproval().getState())
-//                    .createAt(a.getApproval().getCreateAt())
+                    .createAt(a.getApproval().getCreatedAt())
                     .build();
             listDto.add(approvalListDto);
         }
@@ -315,12 +321,12 @@ public class ApprovalService {
     }
 
 //    결재 완료 상태 문서 리스트 조회(내가 기안한 문서 중 완료 or 반려 상태인 문서들)
-    public List<ApprovalListDto> getCompletedApprovalList(/*UUID currentMemberId*/) {
+    public List<ApprovalListDto> getCompletedApprovalList(UUID memberPositionId) {
         List<ApprovalState> stateList = new ArrayList<>();
         stateList.add(ApprovalState.REJECTED);
         stateList.add(ApprovalState.APPROVED);
-//        List<Approval> approvalList = approvalRepository.findByMemberIdAndStateIn(currentMemberId, stateList);
-        List<Approval> approvalList = approvalRepository.findByStateIn(stateList);
+        List<Approval> approvalList = approvalRepository.findByMemberPositionIdAndStateIn(memberPositionId, stateList);
+//        List<Approval> approvalList = approvalRepository.findByStateIn(stateList);
 
         List<ApprovalListDto> dtoList = new ArrayList<>();
         for(Approval a : approvalList) {
@@ -328,9 +334,9 @@ public class ApprovalService {
                     .approvalId(a.getId())
                     .title(a.getTitle())
                     .documentName(a.getApprovalDocument().getDocumentName())
-                    .requesterId(a.getMemberId()) // 기안자 ID -> 기안자명, 소속, 직급으로 대체 예정
+                    .requesterId(a.getMemberPositionId()) // 기안자 ID -> 기안자명, 소속, 직급으로 대체 예정
                     .status(a.getState())
-//                    .createAt(a.getCreateAt())
+                    .createAt(a.getCreatedAt())
                     .build();
             dtoList.add(dto);
         }
@@ -338,18 +344,18 @@ public class ApprovalService {
     }
 
 //    임시 저장 상태 문서 리스트 조회
-    public List<ApprovalListDto> getDraftApprovalList(/*UUID currentMemberId*/) {
-//        List<Approval> approvalList = approvalRepository.findByMemberIdAndState(currentMemberId, ApprovalState.DRAFT);
-        List<Approval> approvalList = approvalRepository.findByState(ApprovalState.DRAFT);
+    public List<ApprovalListDto> getDraftApprovalList(UUID memberPositionId) {
+        List<Approval> approvalList = approvalRepository.findByMemberPositionIdAndState(memberPositionId, ApprovalState.DRAFT);
+//        List<Approval> approvalList = approvalRepository.findByState(ApprovalState.DRAFT);
         List<ApprovalListDto> dtoList = new ArrayList<>();
         for(Approval a : approvalList) {
             ApprovalListDto dto = ApprovalListDto.builder()
                     .approvalId(a.getId())
                     .title(a.getTitle())
                     .documentName(a.getApprovalDocument().getDocumentName())
-                    .requesterId(a.getMemberId()) // 기안자 ID -> 기안자명, 소속, 직급으로 대체 예정
+                    .requesterId(a.getMemberPositionId()) // 기안자 ID -> 기안자명, 소속, 직급으로 대체 예정
                     .status(a.getState())
-//                    .createAt(a.getCreateAt())
+                    .createAt(a.getCreatedAt())
                     .build();
             dtoList.add(dto);
         }
@@ -401,26 +407,26 @@ public class ApprovalService {
     }
 
 //    상단 통계용
-    public StatsResponseDto getStats(UUID memberId) {
-        int pending = approvalLineRepository.findByMemberIdAndLineStatus(
-                memberId,
+    public StatsResponseDto getStats(UUID memberPositionId) {
+        int pending = approvalLineRepository.findByMemberPositionIdAndLineStatus(
+                memberPositionId,
                 LineStatus.PENDING
         ).stream().map(ApprovalLine::getApproval).toList().size();
 
 
 //        진행중인 결재(내가 기안한)
-//        int request = approvalRepository.countByMemberIdAndState(memberId, ApprovalState.PENDING);
-        int request = approvalRepository.countByState(ApprovalState.PENDING);
+        int request = approvalRepository.countByMemberPositionIdAndState(memberPositionId, ApprovalState.PENDING);
+//        int request = approvalRepository.countByState(ApprovalState.PENDING);
 
 //        완료된 결재
         List<ApprovalState> stateList = new ArrayList<>();
         stateList.add(ApprovalState.REJECTED);
         stateList.add(ApprovalState.APPROVED);
-//        int complete = approvalRepository.countByMemberIdAndStateIn(memberId, stateList);
-        int complete = approvalRepository.countByStateIn(stateList);
+        int complete = approvalRepository.countByMemberPositionIdAndStateIn(memberPositionId, stateList);
+//        int complete = approvalRepository.countByStateIn(stateList);
 
-//        int draft = approvalRepository.countByMemberIdAndState(memberId, ApprovalState.DRAFT);
-        int draft = approvalRepository.countByState(ApprovalState.DRAFT);
+        int draft = approvalRepository.countByMemberPositionIdAndState(memberPositionId, ApprovalState.DRAFT);
+//        int draft = approvalRepository.countByState(ApprovalState.DRAFT);
 
         return StatsResponseDto.builder()
                 .pendingCount(pending)

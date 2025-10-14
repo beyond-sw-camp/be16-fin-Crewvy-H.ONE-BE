@@ -13,9 +13,9 @@ import java.util.UUID;
 @Repository
 public interface ApprovalLineRepository extends JpaRepository<ApprovalLine, UUID> {
     // memberId와 lineStatus를 기준으로 ApprovalLine 목록을 찾는 메서드
-    List<ApprovalLine> findByMemberIdAndLineStatus(UUID memberId, LineStatus lineStatus);
+    List<ApprovalLine> findByMemberPositionIdAndLineStatus(UUID memberId, LineStatus lineStatus);
 
-    Optional<ApprovalLine> findByApprovalAndMemberId(Approval approval, UUID memberId);
+    Optional<ApprovalLine> findByApprovalAndMemberPositionId(Approval approval, UUID memberId);
 
     Optional<ApprovalLine> findFirstByApprovalOrderByLineIndexDesc(Approval approval);
 }

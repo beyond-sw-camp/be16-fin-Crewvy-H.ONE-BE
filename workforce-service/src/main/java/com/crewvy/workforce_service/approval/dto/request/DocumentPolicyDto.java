@@ -13,6 +13,6 @@ import java.util.UUID;
 @Builder
 public class DocumentPolicyDto {
     private UUID roleId;
-    private UUID memberId;
+    private UUID memberPositionId;
     private int lineIndex;
 }
