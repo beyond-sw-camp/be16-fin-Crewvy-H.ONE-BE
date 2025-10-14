@@ -3,6 +3,7 @@ package com.crewvy.workspace_service.meeting.dto;
 import com.crewvy.workspace_service.meeting.entity.VideoConference;
 import com.crewvy.workspace_service.meeting.entity.VideoConferenceInvitee;
 import lombok.*;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -31,7 +32,7 @@ public class VideoConferenceListRes {
                 .actualStartTime(videoConference.getActualStartTime())
                 .status(videoConference.getStatus().getCodeName())
                 .isRecording(videoConference.getIsRecording().toBoolean())
-                .inviteeIdList(videoConference.getVideoConferenceInviteeList().stream().map(VideoConferenceInvitee::getMemberId).toList())
+                .inviteeIdList(videoConference.getVideoConferenceInviteeSet().stream().map(VideoConferenceInvitee::getMemberId).toList())
                 .build();
     }
 }

@@ -15,16 +15,26 @@ import java.util.UUID;
 
 @Repository
 public interface VideoConferenceRepository extends JpaRepository<VideoConference, UUID> {
-    Page<VideoConference> findByVideoConferenceInviteeList_MemberIdAndStatus(UUID memberId, VideoConferenceStatus status, Pageable pageable);
-    List<VideoConference> findByVideoConferenceInviteeList_MemberIdAndStatus(UUID memberId, VideoConferenceStatus status);
+    Page<VideoConference> findByVideoConferenceInviteeSet_MemberIdAndStatus(UUID memberId, VideoConferenceStatus status, Pageable pageable);
+    List<VideoConference> findByVideoConferenceInviteeSet_MemberIdAndStatus(UUID memberId, VideoConferenceStatus status);
 
-    @Query("select vc from VideoConference vc left join fetch vc.videoConferenceInviteeList vcil where vcil.memberId = :memberId and vc.status = :status")
+    @Query("select distinct vc from VideoConference vc " +
+            "join fetch vc.videoConferenceInviteeSet " +
+            "where vc.id in (" +
+            "select v.id from VideoConference v " +
+            "join v.videoConferenceInviteeSet i " +
+            "where i.memberId = :memberId and v.status = :status)")
     Page<VideoConference> findByVideoConferenceInviteeList_MemberIdAndStatusFetchInvitees(
             @Param("memberId") UUID memberId,
             @Param("status") VideoConferenceStatus status,
             Pageable pageable);
 
-    @Query("select vc from VideoConference vc left join fetch vc.videoConferenceInviteeList vcil where vcil.memberId = :memberId and vc.status = :status")
+    @Query("select distinct vc from VideoConference vc " +
+            "join fetch vc.videoConferenceInviteeSet " +
+            "where vc.id in (" +
+            "select v.id from VideoConference v " +
+            "join v.videoConferenceInviteeSet i " +
+            "where i.memberId = :memberId and v.status = :status)")
     List<VideoConference> findByVideoConferenceInviteeList_MemberIdAndStatusFetchInvitees(
             @Param("memberId") UUID memberId,
             @Param("status") VideoConferenceStatus status);
