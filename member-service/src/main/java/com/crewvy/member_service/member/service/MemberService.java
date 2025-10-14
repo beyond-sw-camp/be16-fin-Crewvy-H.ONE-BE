@@ -40,12 +40,13 @@ public class MemberService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final OrganizationRepository organizationRepository;
+    private final CompanyRepository companyRepository;
 
     public MemberService(MemberRepository memberRepository, MemberPositionRepository memberPositionRepository,
                          RoleRepository roleRepository, RolePermissionRepository rolePermissionRepository,
                          PermissionRepository permissionRepository, GradeRepository gradeRepository,
                          TitleRepository titleRepository, PasswordEncoder passwordEncoder,
-                         JwtTokenProvider jwtTokenProvider, OrganizationRepository organizationRepository) {
+                         JwtTokenProvider jwtTokenProvider, OrganizationRepository organizationRepository, CompanyRepository companyRepository) {
         this.memberRepository = memberRepository;
         this.memberPositionRepository = memberPositionRepository;
         this.roleRepository = roleRepository;
@@ -56,6 +57,7 @@ public class MemberService {
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.organizationRepository = organizationRepository;
+        this.companyRepository = companyRepository;
     }
 
     // 회원가입
@@ -505,7 +507,7 @@ public class MemberService {
                 .build();
         roleRepository.save(adminRole);
 
-        List<String> resources = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "payroll");
+        List<String> resources = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "salary");
         List<Action> actions = Arrays.asList(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE);
 
         List<RolePermission> permissions = resources.stream()
@@ -574,20 +576,32 @@ public class MemberService {
         return savedMember.getId();
     }
 
-    private PermissionRange mapFrontendRangeToBackendEnum(String frontendRange) {
-        switch (frontendRange) {
-            case "본인":
-                return PermissionRange.INDIVIDUAL;
-            case "부서":
-                return PermissionRange.DEPARTMENT;
-            case "전사":
-                return PermissionRange.COMPANY;
-            case "시스템관리자":
-                return PermissionRange.SYSTEM;
-            case "없음":
-                return null;
-            default:
-                throw new IllegalArgumentException("Unknown PermissionRange: " + frontendRange);
+    // memberIdList → 이름 List
+    @Transactional(readOnly = true)
+    public List<MemberNameListRes> getNameList(UUID memberPositionId, IdListReq idListReq) {
+        return memberRepository.findAllById(idListReq.getUuidList()).stream()
+                .map(MemberNameListRes::fromEntity).collect(Collectors.toList());
+    }
+
+    // 조멤직IdList → ( 이름, 부서, 직급 ) List
+    @Transactional(readOnly = true)
+    public List<MemberPositionListRes> getPositionList(UUID memberPositionId, IdListReq idListReq) {
+        return memberPositionRepository.findAllById(idListReq.getUuidList()).stream()
+                .map(MemberPositionListRes::fromEntity).collect(Collectors.toList());
+    }
+
+    // companyId → ( 사번, 이름, 부서, 직급, 계좌, 은행 ) List
+    @Transactional(readOnly = true)
+    public List<MemberSalaryListRes> getSalaryList(UUID memberPositionId, UUID companyId) {
+        if (checkPermission(memberPositionId, "salary", Action.READ, PermissionRange.COMPANY) == FALSE) {
+            throw new PermissionDeniedException("권한이 없습니다.");
         }
+        if (!memberRepository.findById(memberPositionId).orElseThrow(() ->
+                new EntityNotFoundException("존재하지 않는 계정입니다.")).getCompany().getId().equals(companyId)){
+            throw new PermissionDeniedException("다른 회사의 정보는 조회할 수 없습니다.");
+        }
+        return memberRepository.findByCompanyWithDetail(companyRepository.findById(companyId).orElseThrow(() ->
+                        new EntityNotFoundException("존재하지 않는 회사입니다."))).stream()
+                .map(mp -> MemberSalaryListRes.fromEntity(mp.getDefaultMemberPosition())).collect(Collectors.toList());
     }
 }
