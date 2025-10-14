@@ -49,6 +49,9 @@ dependencies {
 
 	// common 모듈을 의존성으로 추가
 	implementation project(':common')
+
+	// Spring Cloud OpenFeign 의존성
+	implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 }
 
 dependencyManagement {

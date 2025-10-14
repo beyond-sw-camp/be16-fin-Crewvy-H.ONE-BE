@@ -23,7 +23,7 @@ public class ApprovalReply extends BaseEntity {
     @JoinColumn(name = "approval_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private Approval approval;
 
-    private UUID memberId;
+    private UUID memberPositionId;
 
     @Column(columnDefinition = "TEXT")
     private String contents;

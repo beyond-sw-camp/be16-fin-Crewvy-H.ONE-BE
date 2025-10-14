@@ -6,7 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @AllArgsConstructor
@@ -18,6 +18,6 @@ public class ApprovalListDto {
     private String title;
     private String documentName;
     private UUID requesterId; // 기안자 ID (추후 기안자 이름, 소속, 직급으로 수정)
-    private LocalDate createAt; // 기안 일자
+    private LocalDateTime createAt; // 기안 일자
     private ApprovalState status; // 결재 상태
 }
