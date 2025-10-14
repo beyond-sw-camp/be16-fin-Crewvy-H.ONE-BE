@@ -26,4 +26,6 @@ public interface PermissionRepository extends JpaRepository<Permission, UUID> {
                           @Param("permissionRange") PermissionRange permissionRange);
 
     List<Permission> findByPermissionRange(PermissionRange permissionRange);
+
+    List<Permission> findAllByPermissionRangeNot(PermissionRange permissionRange);
 }

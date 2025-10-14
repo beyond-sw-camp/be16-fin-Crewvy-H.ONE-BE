@@ -39,6 +39,13 @@ public class OrganizationController {
                 organizationService.getOrganizationList(uuid), "조직 목록 조회 성공"), HttpStatus.OK);
     }
 
+    // 조직 트리 및 멤버 조회
+    @GetMapping("/tree-with-members")
+    public ResponseEntity<?> getOrganizationTreeWithMembers(@RequestHeader("X-User-UUID") UUID uuid) {
+        return new ResponseEntity<>(ApiResponse.success(
+                organizationService.getOrganizationTreeWithMembers(uuid), "조직 트리 및 멤버 조회 성공"), HttpStatus.OK);
+    }
+
     // 조직 이름 수정
     @PutMapping("/{id}")
     public ResponseEntity<?> updateOrganization(@RequestHeader("X-User-UUID") UUID uuid,

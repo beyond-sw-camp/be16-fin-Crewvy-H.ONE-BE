@@ -6,10 +6,13 @@ import com.crewvy.member_service.member.constant.PermissionRange;
 import com.crewvy.member_service.member.dto.request.CreateOrganizationReq;
 import com.crewvy.member_service.member.dto.request.UpdateOrganizationReq;
 import com.crewvy.member_service.member.dto.response.OrganizationTreeRes;
+import com.crewvy.member_service.member.dto.response.OrganizationTreeWithMembersRes;
 import com.crewvy.member_service.member.entity.Company;
 import com.crewvy.member_service.member.entity.Member;
+import com.crewvy.member_service.member.entity.MemberPosition;
 import com.crewvy.member_service.member.entity.Organization;
 import com.crewvy.member_service.member.repository.CompanyRepository;
+import com.crewvy.member_service.member.repository.MemberPositionRepository;
 import com.crewvy.member_service.member.repository.MemberRepository;
 import com.crewvy.member_service.member.repository.OrganizationRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -32,14 +35,16 @@ public class OrganizationService {
     private final CompanyRepository companyRepository;
     private final MemberRepository memberRepository;
     private final MemberService memberService;
+    private final MemberPositionRepository memberPositionRepository;
 
     public OrganizationService(OrganizationRepository organizationRepository,
                                CompanyRepository companyRepository, MemberRepository memberRepository,
-                               MemberService memberService) {
+                               MemberService memberService, MemberPositionRepository memberPositionRepository) {
         this.organizationRepository = organizationRepository;
         this.companyRepository = companyRepository;
         this.memberRepository = memberRepository;
         this.memberService = memberService;
+        this.memberPositionRepository = memberPositionRepository;
     }
 
     // 회사 생성
@@ -98,6 +103,23 @@ public class OrganizationService {
                 .collect(Collectors.toList());
     }
 
+    // 조직 트리 및 멤버 조회
+    @Transactional(readOnly = true)
+    public List<OrganizationTreeWithMembersRes> getOrganizationTreeWithMembers(UUID memberId) {
+        Member member = memberRepository.findById(memberId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 계정입니다."));
+        Company company = member.getCompany();
+
+        // Fetch all organizations for the company, including their member positions and members
+        List<Organization> organizations = organizationRepository.findByCompanyOrderByDisplayOrderAsc(company);
+        List<MemberPosition> allMemberPositions = memberPositionRepository.findByCompany(company);
+
+        // Build the tree structure
+        return organizations.stream()
+                .filter(o -> o.getParent() == null) // Find root organizations
+                .map(o -> new OrganizationTreeWithMembersRes(o, allMemberPositions))
+                .collect(Collectors.toList());
+    }
+
     // 조직 수정
     public UUID updateOrganization(UUID memberId, UUID memberPositionId, UUID organizationId, UpdateOrganizationReq updateOrganizationReq) {
         if (memberService.checkPermission(memberPositionId, "organization", Action.UPDATE, PermissionRange.COMPANY) == FALSE) {
@@ -136,13 +158,11 @@ public class OrganizationService {
     // 조직 순서 변경
     @Transactional
     public void reorderOrganization(List<UUID> organizationIds) {
-        log.info("Reordering organizations: {}", organizationIds);
         List<Organization> organizationsToUpdate = new ArrayList<>();
         for (int i = 0; i < organizationIds.size(); i++) {
             int displayOrder = i;
             UUID id = organizationIds.get(i);
             organizationRepository.findById(id).ifPresent(organization -> {
-                log.info("Updating organization {} with displayOrder {}", id, displayOrder);
                 organization.updateDisplayOrder(displayOrder);
                 organizationsToUpdate.add(organization);
             });

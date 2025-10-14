@@ -94,8 +94,8 @@ public class MemberController {
     // 직책 수정
     @PutMapping("/title/{titleId}")
     public ResponseEntity<?> updateTitle(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                           @PathVariable UUID titleId,
-                                           @RequestBody UpdateTitleReq updateTitleReq) {
+                                         @PathVariable UUID titleId,
+                                         @RequestBody UpdateTitleReq updateTitleReq) {
         memberService.updateTitle(memberPositionId, titleId, updateTitleReq);
         return new ResponseEntity<>(ApiResponse.success(null, "직책 수정 성공"), HttpStatus.OK);
     }
@@ -103,7 +103,7 @@ public class MemberController {
     // 직책 삭제
     @DeleteMapping("/title/{titleId}")
     public ResponseEntity<?> deleteTitle(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                           @PathVariable UUID titleId) {
+                                         @PathVariable UUID titleId) {
         memberService.deleteTitle(memberPositionId, titleId);
         return new ResponseEntity<>(ApiResponse.success(null, "직책 삭제 성공"), HttpStatus.OK);
     }
@@ -119,8 +119,8 @@ public class MemberController {
     // 직급 수정
     @PutMapping("/grade/{gradeId}")
     public ResponseEntity<?> updateGrade(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                           @PathVariable UUID gradeId,
-                                           @RequestBody UpdateGradeReq updateGradeReq) {
+                                         @PathVariable UUID gradeId,
+                                         @RequestBody UpdateGradeReq updateGradeReq) {
         memberService.updateGrade(memberPositionId, gradeId, updateGradeReq);
         return new ResponseEntity<>(ApiResponse.success(null, "직급 수정 성공"), HttpStatus.OK);
     }
@@ -128,23 +128,23 @@ public class MemberController {
     // 직급 삭제
     @DeleteMapping("/grade/{gradeId}")
     public ResponseEntity<?> deleteGrade(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                           @PathVariable UUID gradeId) {
+                                         @PathVariable UUID gradeId) {
         memberService.deleteGrade(memberPositionId, gradeId);
         return new ResponseEntity<>(ApiResponse.success(null, "직급 삭제 성공"), HttpStatus.OK);
     }
 
-    // 역할 삭제
-    @DeleteMapping("/role/{roleId}")
-    public ResponseEntity<?> deleteRole(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                          @PathVariable UUID roleId) {
-        memberService.deleteRole(memberPositionId, roleId);
-        return new ResponseEntity<>(ApiResponse.success(null, "역할 삭제 성공"), HttpStatus.OK);
+    // 역할 생성
+    @PostMapping("/role-create")
+    public ResponseEntity<?> createRole(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                        @RequestBody @Valid RoleUpdateReq roleUpdateReq) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.createRole(memberPositionId, roleUpdateReq), "역할 생성 성공"), HttpStatus.CREATED);
     }
 
     // 역할 목록 조회
     @GetMapping("/role")
     public ResponseEntity<?> getRole(@RequestHeader("X-User-UUID") UUID uuid,
-                                      @RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+                                     @RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
         return new ResponseEntity<>(ApiResponse.success(
                 memberService.getRole(uuid, memberPositionId), "역할 목록 조회 성공"), HttpStatus.OK);
     }
@@ -153,33 +153,17 @@ public class MemberController {
     @GetMapping("/role/{roleId}")
     public ResponseEntity<?> getRoleDetail(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                            @PathVariable UUID roleId) {
-        if (memberService.checkPermission(memberPositionId, "role", Action.READ, PermissionRange.COMPANY) == FALSE) {
-            throw new PermissionDeniedException("권한이 없습니다.");
-        }
         return new ResponseEntity<>(ApiResponse.success(
-                memberService.getRoleById(roleId), "역할 상세 조회 성공"), HttpStatus.OK);
+                memberService.getRoleById(memberPositionId, roleId), "역할 상세 조회 성공"), HttpStatus.OK);
     }
 
     // 역할 수정
-    @PutMapping("/role/{roleId}")
+    @PutMapping("/role/{roleId}/update")
     public ResponseEntity<?> updateRole(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                         @PathVariable UUID roleId,
-                                        @RequestBody RoleUpdateReq roleUpdateReq) {
-        if (memberService.checkPermission(memberPositionId, "role", Action.UPDATE, PermissionRange.COMPANY) == FALSE) {
-            throw new PermissionDeniedException("권한이 없습니다.");
-        }
-        memberService.updateRole(roleId, roleUpdateReq);
-        return new ResponseEntity<>(ApiResponse.success(null,
-                "역할 수정 성공"), HttpStatus.OK);
-    }
-
-    // 역할의 권한 목록 수정
-    @PutMapping("/role/{roleId}/permission")
-    public ResponseEntity<?> updateRolePermissions(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                                   @PathVariable UUID roleId,
-                                                   @RequestBody @Valid UpdateRolePermissionsReq req) {
+                                        @RequestBody @Valid RoleUpdateReq roleUpdateReq) {
         return new ResponseEntity<>(ApiResponse.success(
-                memberService.updateRolePermission(memberPositionId, roleId, req), "역할별 권한 수정 성공"), HttpStatus.OK);
+                memberService.updateRole(memberPositionId, roleId, roleUpdateReq), "역할 수정 성공"), HttpStatus.OK);
     }
 
     // 멤버의 역할 변경
@@ -189,6 +173,14 @@ public class MemberController {
                                               @RequestBody @Valid UpdateMemberRoleReq req) {
         memberService.updateMemberRole(adminMemberPositionId, targetMemberPositionId, req);
         return new ResponseEntity<>(ApiResponse.success(null, "멤버 역할 변경 성공"), HttpStatus.OK);
+    }
+
+    // 역할 삭제
+    @DeleteMapping("/role/{roleId}/delete")
+    public ResponseEntity<?> deleteRole(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                        @PathVariable UUID roleId) {
+        memberService.deleteRole(memberPositionId, roleId);
+        return new ResponseEntity<>(ApiResponse.success(null, "역할 삭제 성공"), HttpStatus.OK);
     }
 
     // 직원 리스트 조회
@@ -216,5 +208,12 @@ public class MemberController {
                                              @RequestParam PermissionRange range) {
         return new ResponseEntity<>(ApiResponse.success(
                 memberService.checkPermission(memberPositionId, resource, action, range), "권한 확인 성공"), HttpStatus.OK);
+    }
+
+    // 모든 권한 목록 조회
+    @GetMapping("/permission")
+    public ResponseEntity<?> getAllPermission() {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.getAllPermission(), "전체 권한 목록 조회 성공"), HttpStatus.OK);
     }
 }

@@ -66,8 +66,48 @@ public class AutoCreateAdmin implements ApplicationRunner {
                         .resource(resource)
                         .action(action)
                         .permissionRange(PermissionRange.SYSTEM)
-                        .description(String.format("[%s]에 대한 %s 최상위 권한", resource, action.getCodeName())).build();
+                        .description(String.format("[%s]에 대한 %s 권한", resource, action.getCodeName())).build();
                 permissionList.add(sysPermission);
+            }
+        }
+
+        List<String> noneResourceList = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "payroll");
+        for (String resource : noneResourceList) {
+            for (Action action : Action.values()) {
+                Permission nonePermission = Permission.builder()
+                        .name(String.format("%s:%s:COMPANY", resource, action))
+                        .resource(resource)
+                        .action(action)
+                        .permissionRange(PermissionRange.COMPANY)
+                        .description(String.format("[%s]에 대한 %s 권한", resource, action.getCodeName())).build();
+                permissionList.add(nonePermission);
+            }
+        }
+
+        List<String> departmentResourceList = Arrays.asList("member");
+        for (String resource : departmentResourceList) {
+            for (Action action : Action.values()) {
+                Permission departmentPermission = Permission.builder()
+                        .name(String.format("%s:%s:DEPARTMENT", resource, action))
+                        .resource(resource)
+                        .action(action)
+                        .permissionRange(PermissionRange.DEPARTMENT)
+                        .description(String.format("[%s]에 대한 %s 권한", resource, action.getCodeName())).build();
+                permissionList.add(departmentPermission);
+            }
+        }
+
+
+        List<String> defaultResourceList = Arrays.asList("member", "organization", "attendance", "payroll");
+        for (String resource : defaultResourceList) {
+            for (Action action : Action.values()) {
+                Permission comPermission = Permission.builder()
+                        .name(String.format("%s:%s:INDIVIDUAL", resource, action))
+                        .resource(resource)
+                        .action(action)
+                        .permissionRange(PermissionRange.INDIVIDUAL)
+                        .description(String.format("[%s]에 대한 %s 권한", resource, action.getCodeName())).build();
+                permissionList.add(comPermission);
             }
         }
 
@@ -75,27 +115,15 @@ public class AutoCreateAdmin implements ApplicationRunner {
         for (String resource : adminResourceList) {
             for (Action action : Action.values()) {
                 Permission comPermission = Permission.builder()
-                        .name(String.format("%s:%s:COMPANY", resource, action))
+                        .name(String.format("%s:%s:NONE", resource, action))
                         .resource(resource)
                         .action(action)
-                        .permissionRange(PermissionRange.COMPANY)
-                        .description(String.format("[%s]에 대한 %s 회사 전체 권한", resource, action.getCodeName())).build();
+                        .permissionRange(PermissionRange.NONE)
+                        .description(String.format("[%s]에 대한 %s 권한", resource, action.getCodeName())).build();
                 permissionList.add(comPermission);
             }
         }
 
-        List<String> defaultResourceList = Arrays.asList("member", "organization", "attendance", "payroll");
-        for (String resource : defaultResourceList) {
-            for (Action action : Action.values()) {
-                Permission comPermission = Permission.builder()
-                        .name(String.format("%s:%s:COMPANY", resource, action))
-                        .resource(resource)
-                        .action(action)
-                        .permissionRange(PermissionRange.INDIVIDUAL)
-                        .description(String.format("[%s]에 대한 %s 회사 전체 권한", resource, action.getCodeName())).build();
-                permissionList.add(comPermission);
-            }
-        }
         permissionRepository.saveAll(permissionList);
     }
 
