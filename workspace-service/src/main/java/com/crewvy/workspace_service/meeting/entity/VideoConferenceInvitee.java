@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -25,4 +26,16 @@ public class VideoConferenceInvitee extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "video_conference_id", nullable = false, foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private VideoConference videoConference;
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        VideoConferenceInvitee that = (VideoConferenceInvitee) o;
+        return memberId.equals(that.memberId) && videoConference.getId().equals(that.videoConference.getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(memberId, videoConference.getId());
+    }
 }

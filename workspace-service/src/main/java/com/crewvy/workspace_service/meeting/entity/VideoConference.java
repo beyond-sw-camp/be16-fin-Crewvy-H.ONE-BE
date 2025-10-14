@@ -11,9 +11,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 @Entity
 @Getter
@@ -71,7 +69,7 @@ public class VideoConference extends BaseEntity {
 
     @Builder.Default
     @OneToMany(mappedBy = "videoConference", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<VideoConferenceInvitee> videoConferenceInviteeList = new ArrayList<>();
+    private Set<VideoConferenceInvitee> videoConferenceInviteeSet = new HashSet<>();
 
     @Builder.Default
     @OneToMany(mappedBy = "videoConference", cascade = CascadeType.ALL, orphanRemoval = true)
