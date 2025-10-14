@@ -1,8 +1,6 @@
 package com.crewvy.member_service.member.controller;
 
 import com.crewvy.common.dto.ApiResponse;
-import com.crewvy.common.entity.Bool;
-import com.crewvy.common.exception.PermissionDeniedException;
 import com.crewvy.member_service.member.constant.Action;
 import com.crewvy.member_service.member.constant.PermissionRange;
 import com.crewvy.member_service.member.dto.request.*;
@@ -14,8 +12,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
-
-import static java.lang.Boolean.FALSE;
 
 @RestController
 @RequestMapping("/member")
@@ -215,5 +211,30 @@ public class MemberController {
     public ResponseEntity<?> getAllPermission() {
         return new ResponseEntity<>(ApiResponse.success(
                 memberService.getAllPermission(), "전체 권한 목록 조회 성공"), HttpStatus.OK);
+    }
+
+    // 타 모듈에서 사용하는 컨트롤러
+    // memberIdList → 이름 List
+    @GetMapping("/name-list")
+    public ResponseEntity<?> getNameList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                         @RequestBody IdListReq idListReq) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.getNameList(memberPositionId,idListReq), "이름 목록 조회 성공"), HttpStatus.OK);
+    }
+
+    // 조멤직IdList → ( 이름, 부서, 직급 ) List
+    @GetMapping("/position-list")
+    public ResponseEntity<?> getPositionList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                             @RequestBody IdListReq idListReq) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.getPositionList(memberPositionId,idListReq), "이름 목록 조회 성공"), HttpStatus.OK);
+    }
+
+    // companyId → ( 사번, 이름, 부서, 직급, 계좌, 은행 ) List
+    @GetMapping("/salary-list")
+    public ResponseEntity<?> getSalaryList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                           @RequestParam UUID companyId) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.getSalaryList(memberPositionId,companyId), "이름 목록 조회 성공"), HttpStatus.OK);
     }
 }
