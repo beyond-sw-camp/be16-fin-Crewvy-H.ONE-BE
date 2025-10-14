@@ -10,4 +10,6 @@ public class BreakRuleDto {
     private String type;
     // 'AUTO'일 경우, 8시간 근무 시 차감할 기본 휴게 시간(분)
     private Integer defaultBreakMinutesFor8Hours;
+    // 법정 최소 휴게 시간(분)
+    private Integer mandatoryBreakMinutes;
 }
