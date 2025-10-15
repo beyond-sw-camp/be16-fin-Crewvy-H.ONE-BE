@@ -196,6 +196,14 @@ public class MemberController {
                 memberService.getMemberDetail(uuid, memberPositionId, memberId), "직원 상세 조회 성공"), HttpStatus.OK);
     }
 
+    // 마이페이지
+    @GetMapping("/mypage")
+    public ResponseEntity<?> myPage(@RequestHeader("X-User-UUID") UUID uuid,
+                                    @RequestHeader("X-User-MemberPositionId") UUID memberPositionId){
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.myPage(uuid, memberPositionId), "마이페이지 조회 성공"), HttpStatus.OK);
+    }
+
     // 권한 확인
     @GetMapping("/check-permission")
     public ResponseEntity<?> checkPermission(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,

@@ -30,35 +30,39 @@ import static java.lang.Boolean.TRUE;
 @Transactional
 public class MemberService {
 
+    private final CompanyRepository companyRepository;
+    private final OrganizationRepository organizationRepository;
     private final MemberRepository memberRepository;
     private final MemberPositionRepository memberPositionRepository;
     private final RoleRepository roleRepository;
     private final RolePermissionRepository rolePermissionRepository;
-    private final PermissionRepository permissionRepository;
     private final GradeRepository gradeRepository;
+    private final GradeHistoryRepository gradeHistoryRepository;
     private final TitleRepository titleRepository;
+    private final PermissionRepository permissionRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
-    private final OrganizationRepository organizationRepository;
-    private final CompanyRepository companyRepository;
 
-    public MemberService(MemberRepository memberRepository, MemberPositionRepository memberPositionRepository,
-                         RoleRepository roleRepository, RolePermissionRepository rolePermissionRepository,
-                         PermissionRepository permissionRepository, GradeRepository gradeRepository,
-                         TitleRepository titleRepository, PasswordEncoder passwordEncoder,
-                         JwtTokenProvider jwtTokenProvider, OrganizationRepository organizationRepository, CompanyRepository companyRepository) {
+    public MemberService(CompanyRepository companyRepository, OrganizationRepository organizationRepository
+            , MemberRepository memberRepository, MemberPositionRepository memberPositionRepository
+            , RoleRepository roleRepository, RolePermissionRepository rolePermissionRepository
+            , GradeRepository gradeRepository, GradeHistoryRepository gradeHistoryRepository
+            , TitleRepository titleRepository, PermissionRepository permissionRepository
+            , PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider) {
+        this.companyRepository = companyRepository;
+        this.organizationRepository = organizationRepository;
         this.memberRepository = memberRepository;
         this.memberPositionRepository = memberPositionRepository;
         this.roleRepository = roleRepository;
         this.rolePermissionRepository = rolePermissionRepository;
-        this.permissionRepository = permissionRepository;
         this.gradeRepository = gradeRepository;
+        this.gradeHistoryRepository = gradeHistoryRepository;
         this.titleRepository = titleRepository;
+        this.permissionRepository = permissionRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
-        this.organizationRepository = organizationRepository;
-        this.companyRepository = companyRepository;
     }
+
 
     // 회원가입
     public Member createAdminMember(CreateAdminReq createAdminReq, Company company) {
@@ -269,6 +273,25 @@ public class MemberService {
         }
 
         return MemberDetailRes.fromEntity(targetMember);
+    }
+
+    // 마이페이지
+    public MyPageRes myPage(UUID uuid, UUID memberPositionId){
+        if (checkPermission(memberPositionId, "member", Action.READ, PermissionRange.INDIVIDUAL) == FALSE &&
+                checkPermission(memberPositionId, "member", Action.READ, PermissionRange.DEPARTMENT) == FALSE &&
+                checkPermission(memberPositionId, "member", Action.READ, PermissionRange.COMPANY) == FALSE) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+
+        Member member = memberRepository.findById(uuid).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 계정입니다."));
+        System.out.println(1);
+        GradeHistory gradeHistory = gradeHistoryRepository.findByMemberAndIsActive(member, Bool.TRUE)
+                .orElseThrow(() -> new EntityNotFoundException("사용중인 직급이 없습니다."));
+        System.out.println(2);
+        Grade grade = gradeRepository.findById(gradeHistory.getGrade().getId()).orElseThrow(()
+                -> new EntityNotFoundException("존재하지 않는 직급입니다."));
+        System.out.println(3);
+        return MyPageRes.fromEntity(member, grade);
     }
 
     // 역할 생성
@@ -561,6 +584,16 @@ public class MemberService {
         Company company = admin.getCompany();
         String encodePassword = passwordEncoder.encode(createMemberReq.getPassword());
         Member savedMember = memberRepository.save(createMemberReq.memberToEntity(encodePassword, company));
+
+        Grade grade = gradeRepository.findById(createMemberReq.getGradeId()).orElseThrow(()
+                -> new IllegalArgumentException("존재하지 않는 직급입니다."));
+
+        GradeHistory gradeHistory = GradeHistory.builder()
+                .member(savedMember)
+                .grade(grade)
+                .isActive(Bool.TRUE)
+                .build();
+        gradeHistoryRepository.save(gradeHistory);
 
         Organization organization = organizationRepository.findById(createMemberReq.getOrganizationId()).orElseThrow(()
                 -> new IllegalArgumentException("존재하지 않는 조직입니다."));

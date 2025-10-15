@@ -1,6 +1,7 @@
 package com.crewvy.member_service.member.entity;
 
 import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.common.entity.Bool;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,5 +29,6 @@ public class GradeHistory extends BaseEntity {
     private Grade grade;
 
     @Column(nullable = false)
-    private boolean isActive;
+    @Enumerated(EnumType.STRING)
+    private Bool isActive;
 }

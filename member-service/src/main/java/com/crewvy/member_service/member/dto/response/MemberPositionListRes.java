@@ -15,17 +15,17 @@ import java.util.UUID;
 public class MemberPositionListRes {
     private UUID memberId;
     private UUID memberPositionId;
-    private String memberName;
     private String organizationName;
     private String titleName;
+    private String memberName;
 
     public static MemberPositionListRes fromEntity(MemberPosition memberPosition){
         return MemberPositionListRes.builder()
                 .memberId(memberPosition.getMember().getId())
                 .memberPositionId(memberPosition.getId())
-                .memberName(memberPosition.getMember().getName())
                 .organizationName(memberPosition.getOrganization().getName())
                 .titleName(memberPosition.getTitle().getName())
+                .memberName(memberPosition.getMember().getName())
                 .build();
     }
 }
