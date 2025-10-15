@@ -28,8 +28,9 @@ public class Role extends BaseEntity {
 
     private String description;
 
-    @Builder.Default
     @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
     private Bool ynDel = Bool.TRUE;
 
     @ManyToOne(fetch = FetchType.LAZY)
