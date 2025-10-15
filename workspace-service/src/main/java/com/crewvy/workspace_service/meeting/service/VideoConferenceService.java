@@ -28,9 +28,6 @@ import reactor.core.publisher.Mono;
 
 import java.util.*;
 
-// TODO : jwt가 이메일에서 UUID으로 변경되면 더미가 아니라 진짜 요청한 유저의 UUID를 넣어야 함
-//  new UUID(123, 123) -> 진짜 UUID
-
 @Slf4j
 @Service
 @Transactional
@@ -60,10 +57,11 @@ public class VideoConferenceService {
         this.messageRepository = messageRepository;
     }
 
-    public OpenViduSessionRes createVideoConference(VideoConferenceCreateReq videoConferenceCreateReq) {
-        VideoConference videoConference = videoConferenceCreateReq.toEntity(new UUID(123, 123));
+    public OpenViduSessionRes createVideoConference(UUID memberId, VideoConferenceCreateReq videoConferenceCreateReq) {
+        VideoConference videoConference = videoConferenceCreateReq.toEntity(memberId);
+        videoConferenceRepository.save(videoConference);
 
-        videoConferenceCreateReq.getInviteeIdList().add(new UUID(123, 123));
+        videoConferenceCreateReq.getInviteeIdList().add(memberId);
         addInvitee(videoConference, videoConferenceCreateReq.getInviteeIdList());
 
         Session session;
@@ -76,51 +74,32 @@ public class VideoConferenceService {
         }
 
         videoConference.startVideoConference(session.getSessionId());
-        videoConferenceRepository.save(videoConference);
 
-        return OpenViduSessionRes.builder().sessionId(session.getSessionId()).token(token).build();
+        return OpenViduSessionRes.builder().sessionId(session.getSessionId()).token(token).videoConferenceId(videoConference.getId()).build();
     }
 
-    public VideoConferenceBookRes bookVideoConference(VideoConferenceCreateReq videoConferenceCreateReq) {
-        VideoConference videoConference = videoConferenceCreateReq.toEntity(new UUID(123, 123));
-
-        videoConferenceCreateReq.getInviteeIdList().add(new UUID(123, 123));
-        addInvitee(videoConference, videoConferenceCreateReq.getInviteeIdList());
-
+    public VideoConferenceBookRes bookVideoConference(UUID memberId, VideoConferenceCreateReq videoConferenceCreateReq) {
+        VideoConference videoConference = videoConferenceCreateReq.toEntity(memberId);
         videoConferenceRepository.save(videoConference);
+
+        videoConferenceCreateReq.getInviteeIdList().add(memberId);
+        addInvitee(videoConference, videoConferenceCreateReq.getInviteeIdList());
 
         return VideoConferenceBookRes.fromEntity(videoConference);
     }
 
     public Page<VideoConferenceListRes> findAllMyVideoConference(UUID memberId, VideoConferenceStatus videoConferenceStatus, Pageable pageable) {
-
-//        // TODO : 회의 시작 후 아무도 참여 안 하고 1시간 정도 흘러서 OpenVidu GC가 세션 정리한 경우가 있어서 일단 만들었는 데 필요한지 고민 해봐야할 듯
-//        if (videoConferenceStatus == VideoConferenceStatus.IN_PROGRESS) {
-//            try {
-//                openVidu.fetch();
-//            } catch (OpenViduJavaClientException | OpenViduHttpException e) {
-//                throw new RuntimeException(e);
-//            }
-//            videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatusFetchInvitees(new UUID(123, 123), videoConferenceStatus)
-//                    .forEach(videoConference -> {
-//                        if (openVidu.getActiveSession(videoConference.getSessionId()) == null) videoConference.endVideoConference();
-//                    });
-//        }
-
-//        return videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatus(new UUID(123, 123), videoConferenceStatus, pageable)
-//                .map(VideoConferenceListRes::fromEntity);
-
-        return videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatusFetchInvitees(new UUID(123, 123), videoConferenceStatus, pageable)
+        return videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatusFetchInvitees(memberId, videoConferenceStatus, pageable)
                 .map(VideoConferenceListRes::fromEntity);
     }
 
-    public OpenViduSessionRes joinVideoConference(UUID videoConferenceId) {
+    public OpenViduSessionRes joinVideoConference(UUID memberId, UUID videoConferenceId) {
         VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 화상회의 입니다."));
 
         if (videoConference.getStatus() != VideoConferenceStatus.IN_PROGRESS)
             throw new VideoConferenceNotInProgressException("진행 중인 화상회의가 아닙니다.");
 
-        if (videoConference.getVideoConferenceInviteeList().stream().noneMatch(invitee -> invitee.getMemberId().equals(new UUID(123, 123))))
+        if (videoConference.getVideoConferenceInviteeSet().stream().noneMatch(invitee -> invitee.getMemberId().equals(memberId)))
             throw new UserNotInvitedException("초대 받지 않은 화상회의입니다.");
 
         Session session = fetchAndGetActiveSession(videoConference);
@@ -128,7 +107,7 @@ public class VideoConferenceService {
         // 이미 접속 중인 유저 재 참여 방지
         boolean isAlreadyJoined = session
                 .getActiveConnections().stream()
-                .anyMatch(c -> c.getClientData().split(":")[0].equals(new UUID(123, 123).toString()));
+                .anyMatch(c -> c.getClientData().split(":")[0].equals(memberId.toString()));
         if (isAlreadyJoined) throw new UserAlreadyJoinedException("이미 참여 중인 화상회의입니다.");
 
         String token;
@@ -141,13 +120,13 @@ public class VideoConferenceService {
         return OpenViduSessionRes.builder().sessionId(session.getSessionId()).token(token).build();
     }
 
-    public OpenViduSessionRes startVideoConference(UUID videoConferenceId) {
+    public OpenViduSessionRes startVideoConference(UUID memberId, UUID videoConferenceId) {
         VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 화상회의 입니다."));
 
         if (videoConference.getStatus() != VideoConferenceStatus.WAITING)
             throw new VideoConferenceNotWaitingException("대기 중인 화상회의가 아닙니다.");
 
-        if (!videoConference.getHostId().equals(new UUID(123, 123)))
+        if (!videoConference.getHostId().equals(memberId))
             throw new UserNotHostException("화상회의의 호스트가 아닙니다.");
 
         String token;
@@ -166,14 +145,14 @@ public class VideoConferenceService {
         return OpenViduSessionRes.builder().sessionId(sessionId).token(token).build();
     }
 
-    public void sendMessage(UUID videoConferenceId, ChatMessageReq chatMessageReq) {
+    public void sendMessage(UUID memberId, UUID videoConferenceId, ChatMessageReq chatMessageReq) {
         VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId)
                 .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 화상회의 입니다."));
 
         if (videoConference.getStatus() != VideoConferenceStatus.IN_PROGRESS)
             throw new VideoConferenceNotInProgressException("진행 중인 화상회의가 아닙니다.");
 
-        if (!new UUID(123, 123).equals(chatMessageReq.getSenderId()))
+        if (!memberId.equals(chatMessageReq.getSenderId()))
             throw new InvalidSenderException("보내는 사람 ID가 올바르지 않습니다");
 
         Message message = Message.builder()
@@ -185,6 +164,9 @@ public class VideoConferenceService {
         messageRepository.save(message);
 
         Session session = fetchAndGetActiveSession(videoConference);
+
+        if (session.getActiveConnections().stream().noneMatch(c -> c.getClientData().split(":")[0].equals(memberId.toString())))
+            throw new InvalidSenderException("참여 중인 화상회의가 아닙니다.");
 
         String data;
         try {
@@ -201,10 +183,26 @@ public class VideoConferenceService {
         sendOpenViduSignal(session.getSessionId(), signalReq);
     }
 
-    public VideoConferenceUpdateRes updateVideoConference(UUID videoConferenceId, VideoConferenceUpdateReq videoConferenceUpdateReq) {
+    public Page<ChatMessageRes> findMessages(UUID memberId, UUID videoConferenceId, Pageable pageable) {
+        VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId)
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 화상회의 입니다."));
+
+        if (videoConference.getStatus() != VideoConferenceStatus.IN_PROGRESS)
+            throw new VideoConferenceNotInProgressException("진행 중인 화상회의가 아닙니다.");
+
+        Session session = fetchAndGetActiveSession(videoConference);
+
+        if (session.getActiveConnections().stream().noneMatch(c -> c.getClientData().split(":")[0].equals(memberId.toString())))
+            throw new InvalidSenderException("참여 중인 화상회의가 아닙니다.");
+
+        return messageRepository.findByVideoConference(videoConference, pageable)
+                .map(ChatMessageRes::fromEntity);
+    }
+
+    public VideoConferenceUpdateRes updateVideoConference(UUID memberId, UUID videoConferenceId, VideoConferenceUpdateReq videoConferenceUpdateReq) {
         VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 화상회의 입니다."));
 
-        if (!videoConference.getHostId().equals(new UUID(123, 123)))
+        if (!videoConference.getHostId().equals(memberId))
             throw new UserNotHostException("화상회의의 호스트가 아닙니다.");
 
         if (videoConferenceUpdateReq.getName() != null)
@@ -219,43 +217,25 @@ public class VideoConferenceService {
         if (videoConferenceUpdateReq.getScheduledStartTime() != null)
             videoConference.updateScheduledStartTime(videoConferenceUpdateReq.getScheduledStartTime());
 
-        videoConference.getVideoConferenceInviteeList().clear();
-        videoConferenceUpdateReq.getInviteeIdList().add(new UUID(123, 123));
+        videoConference.getVideoConferenceInviteeSet().clear();
+        videoConferenceUpdateReq.getInviteeIdList().add(memberId);
         addInvitee(videoConference, videoConferenceUpdateReq.getInviteeIdList());
 
         return VideoConferenceUpdateRes.fromEntity(videoConference);
     }
 
-    public void deleteVideoConference(UUID videoConferenceId) {
+    public void deleteVideoConference(UUID memberId, UUID videoConferenceId) {
         VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 화상회의 입니다."));
 
         if (videoConference.getStatus() != VideoConferenceStatus.WAITING)
             throw new VideoConferenceNotWaitingException("이미 회의가 진행 중이거나 종료되었습니다.");
 
-        if (!videoConference.getHostId().equals(new UUID(123, 123)))
+        if (!videoConference.getHostId().equals(memberId))
             throw new UserNotHostException("화상회의의 호스트가 아닙니다.");
 
         // TODO : soft-delete?
         videoConferenceRepository.delete(videoConference);
     }
-
-//    public void leaveVideoConference(UUID videoConferenceId) {
-//        VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 화상회의 입니다."));
-//
-//        if (videoConference.getStatus() != VideoConferenceStatus.IN_PROGRESS)
-//            throw new VideoConferenceNotInProgressException("진행 중인 회의가 아닙니다.");
-//
-//        Session session = fetchAndGetActiveSession(videoConference);
-//        Connection connection = session.getActiveConnections().stream()
-//                .filter(c -> c.getClientData().startsWith(new UUID(123, 123).toString())).findFirst()
-//                .orElseThrow(() -> new EntityNotFoundException("참여 중인 회의가 아닙니다."));
-//
-//        try {
-//            session.forceDisconnect(connection);
-//        } catch (OpenViduJavaClientException | OpenViduHttpException e) {
-//            throw new RuntimeException(e);
-//        }
-//    }
 
     private Session fetchAndGetActiveSession(VideoConference videoConference) {
         try {
@@ -273,7 +253,7 @@ public class VideoConferenceService {
     private void addInvitee(VideoConference videoConference, List<UUID> inviteeIdList) {
         inviteeIdList.stream()
                 .map(id -> VideoConferenceInvitee.builder().memberId(id).videoConference(videoConference).build())
-                .forEach(videoConference.getVideoConferenceInviteeList()::add);
+                .forEach(videoConference.getVideoConferenceInviteeSet()::add);
     }
 
     private void sendOpenViduSignal(String sessionId, SignalReq signalReq) {

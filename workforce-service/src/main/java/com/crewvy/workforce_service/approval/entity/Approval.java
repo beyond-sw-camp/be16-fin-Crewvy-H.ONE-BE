@@ -29,7 +29,7 @@ public class Approval extends BaseEntity {
     @JoinColumn(name = "document_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private ApprovalDocument approvalDocument;
 
-    private UUID memberId;
+    private UUID memberPositionId;
 
     private String title;
 

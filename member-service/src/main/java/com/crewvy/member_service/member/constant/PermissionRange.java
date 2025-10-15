@@ -8,6 +8,7 @@ import java.util.Arrays;
 @Getter
 @AllArgsConstructor
 public enum PermissionRange {
+    NONE("PR000", "없음"),
     INDIVIDUAL("PR001", "개인"),
     DEPARTMENT("PR002", "부서"),
     COMPANY("PR003", "전사"),

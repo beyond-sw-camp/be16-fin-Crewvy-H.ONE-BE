@@ -13,5 +13,7 @@ import java.util.UUID;
 @Data
 public class ReplyResponseDto {
     private String contents;
-    private UUID memberId;
+    private UUID memberPositionId;
+    private String memberName;
+    private String memberGrade;
 }

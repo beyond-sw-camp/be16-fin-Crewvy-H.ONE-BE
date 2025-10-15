@@ -26,7 +26,7 @@ public class ApprovalLine{
     @JoinColumn(name = "approval_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private Approval approval;
 
-    private UUID memberId;
+    private UUID memberPositionId;
 
     @Convert(converter = LineStatusConverter.class)
     private LineStatus lineStatus;

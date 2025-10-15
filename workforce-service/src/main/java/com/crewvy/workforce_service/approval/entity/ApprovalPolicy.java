@@ -27,7 +27,7 @@ public class ApprovalPolicy extends BaseEntity {
 
     private UUID roleId;
 
-    private UUID memberId;
+    private UUID memberPositionId;
 
     private int lineIndex;
 

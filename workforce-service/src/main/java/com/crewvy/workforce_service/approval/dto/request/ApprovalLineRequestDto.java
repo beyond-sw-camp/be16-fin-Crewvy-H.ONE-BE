@@ -12,6 +12,6 @@ import java.util.UUID;
 @Data
 @Builder
 public class ApprovalLineRequestDto {
-    private UUID memberId;
+    private UUID memberPositionId;
     private int lineIndex;
 }

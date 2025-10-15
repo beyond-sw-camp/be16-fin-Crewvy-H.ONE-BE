@@ -50,8 +50,10 @@ public class ApprovalController {
     }
 
     @PostMapping("/create-approval")
-    public ResponseEntity<?> createApproval(@RequestBody CreateApprovalDto dto) {
-        UUID approvalId = approvalService.createApproval(dto);
+    public ResponseEntity<?> createApproval(@RequestBody CreateApprovalDto dto,
+                                            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId
+    ) {
+        UUID approvalId = approvalService.createApproval(dto, memberPositionId);
         return new ResponseEntity<>(
                 ApiResponse.success(approvalId, "결재 생성"),
                 HttpStatus.CREATED
@@ -59,8 +61,10 @@ public class ApprovalController {
     }
 
     @PostMapping("/draft-approval")
-    public ResponseEntity<?> draftApproval(@RequestBody CreateApprovalDto dto) {
-        UUID approvalId = approvalService.draftApproval(dto);
+    public ResponseEntity<?> draftApproval(@RequestBody CreateApprovalDto dto,
+                                           @RequestHeader("X-User-MemberPositionId") UUID memberPositionId
+    ) {
+        UUID approvalId = approvalService.draftApproval(dto, memberPositionId);
         return new ResponseEntity<>(
                 ApiResponse.success(approvalId, "임시저장"),
                 HttpStatus.CREATED
@@ -77,8 +81,11 @@ public class ApprovalController {
     }
 
     @PostMapping("/create-reply/{approvalId}")
-    public ResponseEntity<?> createReply(@PathVariable UUID approvalId, @RequestBody ReplyRequestDto dto) {
-        UUID replyId = approvalService.createReply(approvalId, dto);
+    public ResponseEntity<?> createReply(@PathVariable UUID approvalId,
+                                         @RequestBody ReplyRequestDto dto,
+                                         @RequestHeader("X-User-MemberPositionId") UUID memberPositionId
+    ) {
+        UUID replyId = approvalService.createReply(approvalId, dto, memberPositionId);
         return new ResponseEntity<>(
                 ApiResponse.success(replyId, "댓글 생성"),
                 HttpStatus.CREATED
@@ -104,8 +111,8 @@ public class ApprovalController {
     }
 
     @GetMapping("/find-approval-list")
-    public ResponseEntity<?> findApprovalList() {
-        List<ApprovalListDto> approvalList = approvalService.getApprovalList();
+    public ResponseEntity<?> findApprovalList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+        List<ApprovalListDto> approvalList = approvalService.getApprovalList(memberPositionId);
         return new ResponseEntity<>(
                 ApiResponse.success(approvalList, "결재내역 리스트 조회"),
                 HttpStatus.OK
@@ -113,8 +120,8 @@ public class ApprovalController {
     }
 
     @GetMapping("/find-draft-list")
-    public ResponseEntity<?> findDraftList() {
-        List<ApprovalListDto> approvalList = approvalService.getDraftApprovalList();
+    public ResponseEntity<?> findDraftList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+        List<ApprovalListDto> approvalList = approvalService.getDraftApprovalList(memberPositionId);
         return new ResponseEntity<>(
                 ApiResponse.success(approvalList, "임시저장 리스트 조회"),
                 HttpStatus.OK
@@ -122,8 +129,8 @@ public class ApprovalController {
     }
 
     @GetMapping("/find-complete-list")
-    public ResponseEntity<?> findCompleteList() {
-        List<ApprovalListDto> approvalList = approvalService.getCompletedApprovalList();
+    public ResponseEntity<?> findCompleteList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+        List<ApprovalListDto> approvalList = approvalService.getCompletedApprovalList(memberPositionId);
         return new ResponseEntity<>(
                 ApiResponse.success(approvalList, "결재 완료 리스트 조회"),
                 HttpStatus.OK
@@ -131,9 +138,8 @@ public class ApprovalController {
     }
 
     @GetMapping("/find-pending-list")
-    public ResponseEntity<?> findPendingList() {
-        UUID memberId = null;
-        List<ApprovalListDto> approvalList = approvalService.getRequsetedApprovalList(memberId);
+    public ResponseEntity<?> findPendingList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+        List<ApprovalListDto> approvalList = approvalService.getRequsetedApprovalList(memberPositionId);
         return new ResponseEntity<>(
                 ApiResponse.success(approvalList, "승인 대기 리스트 조회"),
                 HttpStatus.OK
@@ -153,9 +159,8 @@ public class ApprovalController {
     }
 
     @GetMapping("/stats")
-    public ResponseEntity<?> getStats() {
-        UUID memberId = null;
-        StatsResponseDto dto = approvalService.getStats(memberId);
+    public ResponseEntity<?> getStats(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+        StatsResponseDto dto = approvalService.getStats(memberPositionId);
         return new ResponseEntity<>(
                 ApiResponse.success(dto, "통계 조회"),
                 HttpStatus.OK
