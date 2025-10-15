@@ -19,8 +19,8 @@ public class PerformanceController {
     private final PerformanceService performanceService;
 
     @GetMapping("/team-goal")
-    public ResponseEntity<?> getTeamGoal() {
-        List<TeamGoalResponseDto> teamGoalResponseDtoList = performanceService.getTeamGoal();
+    public ResponseEntity<?> getTeamGoal(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+        List<TeamGoalResponseDto> teamGoalResponseDtoList = performanceService.getTeamGoal(memberPositionId);
         return new ResponseEntity<>(
                 ApiResponse.success(teamGoalResponseDtoList, "팀 목표 조회"),
                 HttpStatus.OK

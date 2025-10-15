@@ -2,13 +2,15 @@
 package com.crewvy.common.dto;
 
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Getter
+@NoArgsConstructor
 public class ApiResponse<T> {
 
-    private final boolean success;
-    private final T data;
-    private final String message;
+    private boolean success;
+    private T data;
+    private String message;
 
     public ApiResponse(boolean success, T data, String message) {
         this.success = success;

@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -225,7 +226,7 @@ public class MemberController {
     // 조멤직IdList → ( 이름, 부서, 직급 ) List
     @GetMapping("/position-list")
     public ResponseEntity<?> getPositionList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                             @RequestBody IdListReq idListReq) {
+                                             @RequestParam List<UUID> idListReq) {
         return new ResponseEntity<>(ApiResponse.success(
                 memberService.getPositionList(memberPositionId,idListReq), "이름 목록 조회 성공"), HttpStatus.OK);
     }
