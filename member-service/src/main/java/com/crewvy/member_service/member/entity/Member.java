@@ -8,6 +8,7 @@ import com.crewvy.member_service.member.constant.MemberStatus;
 import com.crewvy.member_service.member.converter.AccountStatusConverter;
 import com.crewvy.member_service.member.converter.EmploymentTypeConverter;
 import com.crewvy.member_service.member.converter.MemberStatusConverter;
+import com.crewvy.member_service.member.dto.request.MyPageEditReq;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,7 +24,7 @@ import java.util.UUID;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@Builder(toBuilder = true)
 public class Member extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -104,4 +105,19 @@ public class Member extends BaseEntity {
     public void updateDefaultMemberPosition(MemberPosition newMemberPosition){
         this.defaultMemberPosition = newMemberPosition;
     }
+
+    public void updateMember(MyPageEditReq myPageEditReq, String encodePw){
+        this.phoneNumber = myPageEditReq.getPhoneNumber();
+        this.emergencyContact = myPageEditReq.getEmergencyContact();
+        this.extensionNumber = myPageEditReq.getExtensionNumber();
+        this.telNumber = myPageEditReq.getTelNumber();
+        this.address = myPageEditReq.getAddress();
+        this.isPhoneNumberPublic = Bool.fromBoolean(myPageEditReq.getIsPhoneNumberPublic());
+        this.isAddressDisclosure = Bool.fromBoolean(myPageEditReq.getIsAddressDisclosure());
+        this.bank = myPageEditReq.getBank();
+        this.bankAccount = myPageEditReq.getBankAccount();
+        this.password = encodePw;
+    }
+
+
 }

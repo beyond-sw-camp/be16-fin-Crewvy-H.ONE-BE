@@ -2,6 +2,7 @@ package com.crewvy.member_service.member.dto.response;
 
 import com.crewvy.member_service.member.entity.Grade;
 import com.crewvy.member_service.member.entity.Member;
+import com.crewvy.member_service.member.entity.MemberPosition;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -18,8 +19,8 @@ public class MyPageRes {
     private String profileUrl;
     private String memberName;
     private String memberStatusName;
-    private String defaultOrganizationName;
-    private String defaultTitleName;
+    private String organizationName;
+    private String titleName;
     private String email;
     private String phoneNumber;
     private boolean isPhoneNumberPublic;
@@ -31,21 +32,25 @@ public class MyPageRes {
     private String sabun;
     private LocalDate joinDate;
     private String lengthOfService;
+    private String employmentTypeName;
+    private String defaultPosition;
     private String extensionNumber;     // 내선전화
     private String telNumber;           // 일반전화
 
     private String bank;
     private String bankAccount;
 
-    public static MyPageRes fromEntity(Member member, Grade grade) {
+    public static MyPageRes fromEntity(Member member, MemberPosition memberPosition, Grade grade) {
         Period period = Period.between(member.getJoinDate(), LocalDate.now());
+        String defaultPosition = member.getDefaultMemberPosition().getOrganization().getName() + " / "
+                + member.getDefaultMemberPosition().getTitle().getName();
 
         return MyPageRes.builder()
                 .profileUrl(member.getProfileUrl())
                 .memberName(member.getName())
                 .memberStatusName(member.getMemberStatus().getCodeName())
-                .defaultOrganizationName(member.getDefaultMemberPosition().getOrganization().getName())
-                .defaultTitleName(member.getDefaultMemberPosition().getTitle().getName())
+                .organizationName(memberPosition.getOrganization().getName())
+                .titleName(memberPosition.getTitle().getName())
                 .email(member.getEmail())
                 .phoneNumber(member.getPhoneNumber())
                 .isPhoneNumberPublic(member.getIsPhoneNumberPublic().toBoolean())
@@ -56,6 +61,8 @@ public class MyPageRes {
                 .sabun(member.getSabun())
                 .joinDate(member.getJoinDate())
                 .lengthOfService(String.format("%d년 %d개월 %d일.", period.getYears(), period.getMonths(), period.getDays()))
+                .employmentTypeName(member.getEmploymentType().getCodeName())
+                .defaultPosition(defaultPosition)
                 .extensionNumber(member.getExtensionNumber())
                 .telNumber(member.getTelNumber())
                 .bank(member.getBank())

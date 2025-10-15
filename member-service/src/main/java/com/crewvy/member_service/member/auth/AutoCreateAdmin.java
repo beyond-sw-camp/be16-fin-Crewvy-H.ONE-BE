@@ -11,6 +11,8 @@ import com.crewvy.member_service.member.repository.*;
 import com.crewvy.member_service.member.service.MemberService;
 import com.crewvy.member_service.member.service.OnboardingService;
 import com.crewvy.member_service.member.service.OrganizationService;
+import com.crewvy.common.entity.Bool;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -39,6 +41,7 @@ public class AutoCreateAdmin implements ApplicationRunner {
     private final MemberService memberService;
     private final OrganizationService organizationService;
     private final RolePermissionRepository rolePermissionRepository;
+    private final GradeHistoryRepository gradeHistoryRepository;
 
     @Override
     @Transactional
@@ -135,6 +138,22 @@ public class AutoCreateAdmin implements ApplicationRunner {
                 .name("김대표").build();
         UUID adminId = onboardingService.createAdminAndInitialSetup(adminReq);
         Member admin = memberRepository.findById(adminId).orElseThrow();
+
+        admin = admin.toBuilder()
+                .phoneNumber("010-1111-1111")
+                .emergencyContact("010-2222-2222")
+                .address("서울시 강남구")
+                .bank("H.ONE 은행")
+                .bankAccount("111-222-333333")
+                .profileUrl(null)
+                .sabun("ADMIN0001")
+                .joinDate(LocalDate.now())
+                .extensionNumber("1000")
+                .telNumber("02-111-1111")
+                .employmentType(EmploymentType.FULL)
+                .build();
+        memberRepository.save(admin);
+
         Company company = admin.getCompany();
         UUID adminPositionId = admin.getDefaultMemberPosition().getId();
         Organization topLevelOrg = admin.getDefaultMemberPosition().getOrganization();

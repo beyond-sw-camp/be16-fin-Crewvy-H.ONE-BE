@@ -276,22 +276,62 @@ public class MemberService {
     }
 
     // 마이페이지
-    public MyPageRes myPage(UUID uuid, UUID memberPositionId){
+    public MyPageRes myPage(UUID uuid, UUID memberPositionId) {
         if (checkPermission(memberPositionId, "member", Action.READ, PermissionRange.INDIVIDUAL) == FALSE &&
                 checkPermission(memberPositionId, "member", Action.READ, PermissionRange.DEPARTMENT) == FALSE &&
                 checkPermission(memberPositionId, "member", Action.READ, PermissionRange.COMPANY) == FALSE) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
-        Member member = memberRepository.findById(uuid).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 계정입니다."));
-        System.out.println(1);
-        GradeHistory gradeHistory = gradeHistoryRepository.findByMemberAndIsActive(member, Bool.TRUE)
-                .orElseThrow(() -> new EntityNotFoundException("사용중인 직급이 없습니다."));
-        System.out.println(2);
+        Member member = memberRepository.findById(uuid).orElseThrow(()
+                -> new EntityNotFoundException("존재하지 않는 계정입니다."));
+        MemberPosition memberPosition = memberPositionRepository.findById(memberPositionId).orElseThrow(()
+                -> new EntityNotFoundException("존재하지 않는 memberPosition입니다."));
+        GradeHistory gradeHistory = gradeHistoryRepository.findByMemberAndIsActive(member, Bool.TRUE).orElseThrow(()
+                -> new EntityNotFoundException("사용중인 직급이 없습니다."));
         Grade grade = gradeRepository.findById(gradeHistory.getGrade().getId()).orElseThrow(()
                 -> new EntityNotFoundException("존재하지 않는 직급입니다."));
-        System.out.println(3);
-        return MyPageRes.fromEntity(member, grade);
+        return MyPageRes.fromEntity(member, memberPosition, grade);
+    }
+
+    public void updateMyPage(UUID memberId, UUID memberPositionId, MyPageEditReq myPageEditReq) {
+        if (checkPermission(memberPositionId, "member", Action.UPDATE, PermissionRange.INDIVIDUAL) == FALSE &&
+                checkPermission(memberPositionId, "member", Action.UPDATE, PermissionRange.DEPARTMENT) == FALSE &&
+                checkPermission(memberPositionId, "member", Action.UPDATE, PermissionRange.COMPANY) == FALSE) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 계정입니다."));
+
+        String encodePw = member.getPassword();
+        String currentPassword = myPageEditReq.getCurrentPassword();
+        String newPassword = myPageEditReq.getNewPassword();
+        String confirmPassword = myPageEditReq.getConfirmPassword();
+
+        if (currentPassword != null && !currentPassword.isBlank()) {
+            if (!passwordEncoder.matches(currentPassword, encodePw)) {
+                throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
+            }
+        }
+
+        if (newPassword != null && !newPassword.isBlank()) {
+            if (!newPassword.equals(confirmPassword)) {
+                throw new IllegalArgumentException("새로운 비밀번호가 일치하지 않습니다.");
+            }
+
+            if (newPassword.length() < 8) {
+                throw new IllegalArgumentException("새로운 비밀번호가 너무 짧습니다.");
+            }
+
+            if (passwordEncoder.matches(newPassword, encodePw)) {
+                throw new IllegalArgumentException("기존 비밀번호와 동일한 비밀번호로 변경할 수 없습니다.");
+            }
+
+            encodePw = passwordEncoder.encode(newPassword);
+        }
+
+        member.updateMember(myPageEditReq, encodePw);
     }
 
     // 역할 생성
@@ -515,7 +555,7 @@ public class MemberService {
         return memberPositionRepository.save(memberPosition);
     }
 
-    // member_position 생성(AutoCreate)
+    // member_position 생성
     public void createAndAssignDefaultPosition(Member member, Organization organization, Title title, Role role) {
         MemberPosition memberPosition = createMemberPosition(member, organization, title, role, LocalDateTime.now());
         member.updateDefaultMemberPosition(memberPosition);
@@ -630,7 +670,7 @@ public class MemberService {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
         if (!memberRepository.findById(memberPositionId).orElseThrow(() ->
-                new EntityNotFoundException("존재하지 않는 계정입니다.")).getCompany().getId().equals(companyId)){
+                new EntityNotFoundException("존재하지 않는 계정입니다.")).getCompany().getId().equals(companyId)) {
             throw new PermissionDeniedException("다른 회사의 정보는 조회할 수 없습니다.");
         }
         return memberRepository.findByCompanyWithDetail(companyRepository.findById(companyId).orElseThrow(() ->
