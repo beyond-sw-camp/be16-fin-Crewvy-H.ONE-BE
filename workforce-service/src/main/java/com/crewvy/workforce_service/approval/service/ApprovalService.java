@@ -1,6 +1,7 @@
 package com.crewvy.workforce_service.approval.service;
 
 import com.crewvy.common.S3.S3Uploader;
+import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.approval.constant.ApprovalState;
 import com.crewvy.workforce_service.approval.constant.LineStatus;
 import com.crewvy.workforce_service.approval.dto.request.*;
@@ -10,16 +11,17 @@ import com.crewvy.workforce_service.approval.repository.ApprovalDocumentReposito
 import com.crewvy.workforce_service.approval.repository.ApprovalLineRepository;
 import com.crewvy.workforce_service.approval.repository.ApprovalReplyRepository;
 import com.crewvy.workforce_service.approval.repository.ApprovalRepository;
+import com.crewvy.workforce_service.feignClient.MemberClient;
+import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
+import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +32,7 @@ public class ApprovalService {
     private final ApprovalLineRepository approvalLineRepository;
     private final ApprovalReplyRepository approvalReplyRepository;
     private final S3Uploader s3Uploader;
+    private final MemberClient memberClient;
 
 //    문서 양식 생성
     public UUID uploadDocument(UploadDocumentDto dto) {
@@ -210,40 +213,60 @@ public class ApprovalService {
 
 //    결재 상세 조회
     public ApprovalResponseDto getApproval(UUID id) {
-        Approval approval = approvalRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("결재 내역이 없습니다."));
+        // 1. N+1 문제 방지를 위해 Fetch Join으로 연관 엔티티를 한 번에 조회합니다.
+        Approval approval = approvalRepository.findByIdWithDetails(id)
+                .orElseThrow(() -> new EntityNotFoundException("결재 내역이 없습니다."));
 
-//        결재 라인
-        List<ApprovalStepDto> lineList = new ArrayList<>();
-        for(ApprovalLine a : approval.getApprovalLineList()) {
-            ApprovalStepDto dto = ApprovalStepDto.builder()
-                    .approverId(a.getId())
-//                    .approverName()
-//                    .approverGrade()
-                    .index(a.getLineIndex())
-                    .status(a.getLineStatus())
-                    .build();
-            lineList.add(dto);
+        // 2. positionMap을 final로 선언하고, 할당은 if-else 블록 안에서 한 번만 하도록 변경
+        final Map<UUID, PositionDto> positionMap;
+        List<UUID> mpidList = approval.getApprovalLineList().stream()
+                .map(ApprovalLine::getMemberPositionId)
+                .distinct()
+                .toList();
+
+        if (!mpidList.isEmpty()) {
+            ApiResponse<List<PositionDto>> response = memberClient.getPositionList(approval.getMemberPositionId(), new IdListReq(mpidList));
+            if (response.isSuccess() && response.getData() != null) {
+                positionMap = response.getData().stream()
+                        .collect(Collectors.toMap(PositionDto::getMemberPositionId, position -> position));
+            } else {
+                positionMap = Collections.emptyMap(); // API 호출 실패 시 빈 맵 할당
+            }
+        } else {
+            positionMap = Collections.emptyMap(); // 결재 라인이 없을 시 빈 맵 할당
         }
 
-//        결재 첨부파일
-        List<AttachmentResponseDto> attachmentList = new ArrayList<>();
-        for(Attachment a : approval.getAttachmentList()) {
-            AttachmentResponseDto dto = AttachmentResponseDto.builder()
-                    .attachmentId(a.getId())
-                    .attachmentUrl(a.getUrl())
-                    .build();
-            attachmentList.add(dto);
-        }
+        // 3. 결재 라인 DTO 리스트를 Stream으로 생성합니다. (이제 에러 없이 동작)
+        List<ApprovalStepDto> lineDtoList = approval.getApprovalLineList().stream()
+                .sorted(Comparator.comparing(ApprovalLine::getLineIndex)) // 순서 보장을 위해 정렬
+                .map(line -> {
+                    PositionDto position = positionMap.get(line.getMemberPositionId());
+                    return ApprovalStepDto.builder()
+                            .approverId(line.getId())
+                            .approverName(position != null ? position.getMemberName() : null)
+                            .approverPosition(position != null ? position.getTitleName() : null)
+                            .approverOrganization(position != null ? position.getOrganizationName() : null)
+                            .index(line.getLineIndex())
+                            .status(line.getLineStatus())
+                            .build();
+                })
+                .toList();
 
+        // 4. 첨부파일 DTO 리스트를 Stream으로 생성합니다.
+        List<AttachmentResponseDto> attachmentList = approval.getAttachmentList().stream()
+                .map(attachment -> AttachmentResponseDto.builder()
+                        .attachmentId(attachment.getId())
+                        .attachmentUrl(attachment.getUrl())
+                        .build())
+                .toList();
+
+        // 5. 최종 응답 DTO를 조립하여 반환합니다.
         return ApprovalResponseDto.builder()
                 .approvalId(approval.getId())
                 .title(approval.getTitle())
                 .contents(approval.getContents())
-                .document(DocumentResponseDto.builder()
-                        .documentName(approval.getApprovalDocument().getDocumentName())
-                        .metadata(approval.getApprovalDocument().getMetadata())
-                        .build())
-                .lineList(lineList)
+                .document(DocumentResponseDto.from(approval.getApprovalDocument()))
+                .lineList(lineDtoList)
                 .attachmentList(attachmentList)
                 .build();
     }
@@ -262,104 +285,241 @@ public class ApprovalService {
 
 //    댓글 조회
     public List<ReplyResponseDto> getReply(UUID approvalId) {
+        // 1. 특정 결재 문서에 달린 댓글(Reply) 목록을 모두 조회합니다.
         List<ApprovalReply> replyList = approvalReplyRepository.findByApprovalId(approvalId);
-        List<ReplyResponseDto> dtoList = new ArrayList<>();
-        for(ApprovalReply re : replyList) {
-            ReplyResponseDto dto = ReplyResponseDto.builder()
-                    .contents(re.getContents())
-                    .memberPositionId(re.getMemberPositionId())
-//                    .memberName()
-//                    .memberGrade()
-                    .build();
-            dtoList.add(dto);
+
+        // 2. 댓글 작성자들의 Position 정보를 조회하기 위해 Map을 준비합니다.
+        Map<UUID, PositionDto> positionMap = new HashMap<>();
+        if (!replyList.isEmpty()) {
+            // 댓글 목록에서 작성자(memberPositionId) ID들을 추출합니다.
+            List<UUID> mpidList = replyList.stream()
+                    .map(ApprovalReply::getMemberPositionId)
+                    .distinct()
+                    .toList();
+
+            // FeignClient를 호출합니다.
+            ApiResponse<List<PositionDto>> response = memberClient.getPositionList(approvalId, new IdListReq(mpidList));
+
+            if (response.isSuccess() && response.getData() != null) {
+                // 3. 빠른 조회를 위해 PositionDto 리스트를 Map으로 변환합니다.
+                positionMap = response.getData().stream()
+                        .collect(Collectors.toMap(PositionDto::getMemberPositionId, position -> position));
+            }
         }
-        return dtoList;
+
+        // 4. Stream을 사용하여 Reply 엔티티를 ReplyResponseDto로 변환합니다.
+        final Map<UUID, PositionDto> finalPositionMap = positionMap; // 람다에서 사용하기 위해 final 변수로 복사
+        return replyList.stream().map(reply -> {
+            // Map에서 현재 댓글의 작성자 ID와 일치하는 PositionDto를 찾습니다.
+            PositionDto position = finalPositionMap.get(reply.getMemberPositionId());
+
+            // ReplyResponseDto를 만들 때, 찾은 PositionDto의 데이터를 함께 넣어줍니다.
+            return ReplyResponseDto.builder()
+                    .contents(reply.getContents())
+                    .memberPositionId(reply.getMemberPositionId())
+                    .memberName(position != null ? position.getMemberName() : null)
+                    .memberPosition(position != null ? position.getTitleName() : null)
+                    .memberOrganization(position != null ? position.getOrganizationName() : null)
+                    .createdAt(reply.getCreatedAt()) // 생성일자도 추가하면 좋습니다.
+                    .build();
+        }).toList();
     }
 
 //    결재 리스트 조회(내가 기안한 문서)
     public List<ApprovalListDto> getApprovalList(UUID memberPositionId) {
-        List<Approval> approvalList = approvalRepository.findByMemberPositionIdAndState(memberPositionId, ApprovalState.PENDING);
-//        List<Approval> approvalList = approvalRepository.findByState(ApprovalState.PENDING);
-//        List<Approval> approvalList = approvalRepository.findAll();
-        List<ApprovalListDto> dtoList  = new ArrayList<>();
-        for(Approval a : approvalList) {
-            ApprovalListDto dto = ApprovalListDto.builder()
-                    .approvalId(a.getId())
-                    .title(a.getTitle())
-                    .documentName(a.getApprovalDocument().getDocumentName())
-                    .requesterId(a.getMemberPositionId()) // 기안자 ID -> 기안자명, 소속, 직급으로 대체 예정
-                    .status(a.getState())
-                    .createAt(a.getCreatedAt())
-                    .build();
-            dtoList.add(dto);
+        // 1. N+1 문제가 해결된 쿼리로 결재 목록 조회
+        List<Approval> approvalList = approvalRepository.findByMemberPositionIdAndStateWithDocument(memberPositionId, ApprovalState.PENDING);
+
+        // 2. 기안자 정보를 가져오기 위해 Map 준비
+        final Map<UUID, PositionDto> positionMap;
+        if (!approvalList.isEmpty()) {
+            // 기안자들의 ID 목록 추출
+            List<UUID> requesterIds = approvalList.stream()
+                    .map(Approval::getMemberPositionId)
+                    .distinct()
+                    .toList();
+
+            // FeignClient로 한 번에 정보 조회
+            ApiResponse<List<PositionDto>> response = memberClient.getPositionList(memberPositionId, new IdListReq(requesterIds));
+
+            if (response.isSuccess() && response.getData() != null) {
+                positionMap = response.getData().stream()
+                        .collect(Collectors.toMap(PositionDto::getMemberPositionId, position -> position));
+            } else {
+                positionMap = Collections.emptyMap();
+            }
+        } else {
+            positionMap = Collections.emptyMap();
         }
-        return dtoList;
+
+        // 3. Stream API를 사용하여 최종 DTO 리스트 생성
+        return approvalList.stream()
+                .map(approval -> {
+                    // Map에서 현재 결재 문서의 기안자 정보를 빠르게 조회
+                    PositionDto requesterPosition = positionMap.get(approval.getMemberPositionId());
+
+                    return ApprovalListDto.builder()
+                            .approvalId(approval.getId())
+                            .title(approval.getTitle())
+                            .documentName(approval.getApprovalDocument().getDocumentName())
+                            .status(approval.getState())
+                            .createAt(approval.getCreatedAt())
+                            // ID 대신 조회해온 이름, 직책, 부서 정보로 대체
+                            .requesterId(approval.getMemberPositionId())
+                            .requesterName(requesterPosition != null ? requesterPosition.getMemberName() : null)
+                            .requesterPosition(requesterPosition != null ? requesterPosition.getTitleName() : null)
+                            .requesterOrganization(requesterPosition != null ? requesterPosition.getOrganizationName() : null)
+                            .build();
+                })
+                .toList();
     }
 
 //    결재 대기 문서 리스트 조회(내가 결재해야할 문서)
     public List<ApprovalListDto> getRequsetedApprovalList(UUID memberPositionId) {
-        // 특정 사용자의 '대기(PENDING)' 상태인 결재 라인을 모두 찾기
-        List<ApprovalLine> pendingLines = approvalLineRepository.findByMemberPositionIdAndLineStatus(
+        // 1. 최적화된 쿼리로 '내가 결재할' 라인 목록을 조회 (Approval, Document 정보 포함)
+        List<ApprovalLine> pendingLines = approvalLineRepository.findPendingLinesWithDetails(
                 memberPositionId,
-                LineStatus.PENDING // '대기' 상태를 나타내는 ENUM
+                LineStatus.PENDING
         );
 
-        List<ApprovalListDto> listDto = new ArrayList<>();
-        for(ApprovalLine a : pendingLines) {
-            ApprovalListDto approvalListDto = ApprovalListDto.builder()
-                    .approvalId(a.getApproval().getId())
-                    .title(a.getApproval().getTitle())
-                    .documentName(a.getApproval().getApprovalDocument().getDocumentName())
-                    .requesterId(a.getApproval().getMemberPositionId()) // 기안자 ID -> 기안자명, 소속, 직급으로 대체 예정
-                    .status(a.getApproval().getState())
-                    .createAt(a.getApproval().getCreatedAt())
-                    .build();
-            listDto.add(approvalListDto);
+        // 2. 각 결재 문서의 '기안자' 정보를 가져오기 위해 Map 준비
+        final Map<UUID, PositionDto> positionMap;
+        if (!pendingLines.isEmpty()) {
+            // 부모 Approval 객체에서 기안자(requester) ID 목록 추출
+            List<UUID> requesterIds = pendingLines.stream()
+                    .map(line -> line.getApproval().getMemberPositionId())
+                    .distinct()
+                    .toList();
+
+            // FeignClient로 한 번에 정보 조회
+            ApiResponse<List<PositionDto>> response = memberClient.getPositionList(memberPositionId, new IdListReq(requesterIds));
+
+            if (response.isSuccess() && response.getData() != null) {
+                positionMap = response.getData().stream()
+                        .collect(Collectors.toMap(PositionDto::getMemberPositionId, position -> position));
+            } else {
+                positionMap = Collections.emptyMap();
+            }
+        } else {
+            return Collections.emptyList();
         }
 
-        return listDto;
+        // 3. Stream API를 사용하여 최종 DTO 리스트 생성
+        return pendingLines.stream()
+                .map(line -> {
+                    Approval approval = line.getApproval(); // JOIN FETCH로 가져온 부모 엔티티
+                    PositionDto requesterPosition = positionMap.get(approval.getMemberPositionId());
+
+                    return ApprovalListDto.builder()
+                            .approvalId(approval.getId())
+                            .title(approval.getTitle())
+                            .documentName(approval.getApprovalDocument().getDocumentName())
+                            .status(approval.getState())
+                            .createAt(approval.getCreatedAt())
+                            .requesterId(approval.getMemberPositionId())
+                            .requesterName(requesterPosition != null ? requesterPosition.getMemberName() : null)
+                            .requesterPosition(requesterPosition != null ? requesterPosition.getTitleName() : null)
+                            .requesterOrganization(requesterPosition != null ? requesterPosition.getOrganizationName() : null)
+                            .build();
+                })
+                .toList();
     }
 
 //    결재 완료 상태 문서 리스트 조회(내가 기안한 문서 중 완료 or 반려 상태인 문서들)
     public List<ApprovalListDto> getCompletedApprovalList(UUID memberPositionId) {
-        List<ApprovalState> stateList = new ArrayList<>();
-        stateList.add(ApprovalState.REJECTED);
-        stateList.add(ApprovalState.APPROVED);
-        List<Approval> approvalList = approvalRepository.findByMemberPositionIdAndStateIn(memberPositionId, stateList);
-//        List<Approval> approvalList = approvalRepository.findByStateIn(stateList);
+        // 1. 조회할 상태 목록을 정의합니다.
+        List<ApprovalState> targetStates = List.of(ApprovalState.REJECTED, ApprovalState.APPROVED);
 
-        List<ApprovalListDto> dtoList = new ArrayList<>();
-        for(Approval a : approvalList) {
-            ApprovalListDto dto = ApprovalListDto.builder()
-                    .approvalId(a.getId())
-                    .title(a.getTitle())
-                    .documentName(a.getApprovalDocument().getDocumentName())
-                    .requesterId(a.getMemberPositionId()) // 기안자 ID -> 기안자명, 소속, 직급으로 대체 예정
-                    .status(a.getState())
-                    .createAt(a.getCreatedAt())
-                    .build();
-            dtoList.add(dto);
+        // 2. 최적화된 쿼리로 '완료' 또는 '반려' 상태의 결재 목록 조회
+        List<Approval> approvalList = approvalRepository.findByMemberPositionIdAndStateInWithDocument(memberPositionId, targetStates);
+
+        // 3. 기안자 정보를 가져오기 위해 Map 준비
+        final Map<UUID, PositionDto> positionMap;
+        if (!approvalList.isEmpty()) {
+            List<UUID> requesterIds = approvalList.stream()
+                    .map(Approval::getMemberPositionId)
+                    .distinct()
+                    .toList();
+
+            ApiResponse<List<PositionDto>> response = memberClient.getPositionList(memberPositionId, new IdListReq(requesterIds));
+
+            if (response.isSuccess() && response.getData() != null) {
+                positionMap = response.getData().stream()
+                        .collect(Collectors.toMap(PositionDto::getMemberPositionId, position -> position));
+            } else {
+                positionMap = Collections.emptyMap();
+            }
+        } else {
+            return Collections.emptyList();
         }
-        return dtoList;
+
+        // 4. Stream API를 사용하여 최종 DTO 리스트 생성
+        return approvalList.stream()
+                .map(approval -> {
+                    PositionDto requesterPosition = positionMap.get(approval.getMemberPositionId());
+
+                    return ApprovalListDto.builder()
+                            .approvalId(approval.getId())
+                            .title(approval.getTitle())
+                            .documentName(approval.getApprovalDocument().getDocumentName())
+                            .status(approval.getState())
+                            .createAt(approval.getCreatedAt())
+                            .requesterId(approval.getMemberPositionId())
+                            .requesterName(requesterPosition != null ? requesterPosition.getMemberName() : null)
+                            .requesterPosition(requesterPosition != null ? requesterPosition.getTitleName() : null)
+                            .requesterOrganization(requesterPosition != null ? requesterPosition.getOrganizationName() : null)
+                            .build();
+                })
+                .toList();
     }
 
 //    임시 저장 상태 문서 리스트 조회
     public List<ApprovalListDto> getDraftApprovalList(UUID memberPositionId) {
-        List<Approval> approvalList = approvalRepository.findByMemberPositionIdAndState(memberPositionId, ApprovalState.DRAFT);
-//        List<Approval> approvalList = approvalRepository.findByState(ApprovalState.DRAFT);
-        List<ApprovalListDto> dtoList = new ArrayList<>();
-        for(Approval a : approvalList) {
-            ApprovalListDto dto = ApprovalListDto.builder()
-                    .approvalId(a.getId())
-                    .title(a.getTitle())
-                    .documentName(a.getApprovalDocument().getDocumentName())
-                    .requesterId(a.getMemberPositionId()) // 기안자 ID -> 기안자명, 소속, 직급으로 대체 예정
-                    .status(a.getState())
-                    .createAt(a.getCreatedAt())
-                    .build();
-            dtoList.add(dto);
+        // 1. 최적화된 쿼리로 '임시저장(DRAFT)' 상태의 결재 목록 조회
+        List<Approval> approvalList = approvalRepository.findByMemberPositionIdAndStateWithDocument(memberPositionId, ApprovalState.DRAFT);
+
+        // 2. 기안자 정보를 가져오기 위해 Map 준비
+        final Map<UUID, PositionDto> positionMap;
+        if (!approvalList.isEmpty()) {
+            // 기안자들의 ID 목록 추출
+            List<UUID> requesterIds = approvalList.stream()
+                    .map(Approval::getMemberPositionId)
+                    .distinct()
+                    .toList();
+
+            // FeignClient로 한 번에 정보 조회
+            ApiResponse<List<PositionDto>> response = memberClient.getPositionList(memberPositionId, new IdListReq(requesterIds));
+
+            if (response.isSuccess() && response.getData() != null) {
+                positionMap = response.getData().stream()
+                        .collect(Collectors.toMap(PositionDto::getMemberPositionId, position -> position));
+            } else {
+                positionMap = Collections.emptyMap();
+            }
+        } else {
+            // 조회된 결재 목록이 없으면 바로 빈 리스트를 반환
+            return Collections.emptyList();
         }
-        return dtoList;
+
+        // 3. Stream API를 사용하여 최종 DTO 리스트 생성
+        return approvalList.stream()
+                .map(approval -> {
+                    // Map에서 현재 결재 문서의 기안자 정보를 빠르게 조회
+                    PositionDto requesterPosition = positionMap.get(approval.getMemberPositionId());
+
+                    return ApprovalListDto.builder()
+                            .approvalId(approval.getId())
+                            .title(approval.getTitle())
+                            .documentName(approval.getApprovalDocument().getDocumentName())
+                            .status(approval.getState())
+                            .createAt(approval.getCreatedAt())
+                            .requesterId(approval.getMemberPositionId())
+                            .requesterName(requesterPosition != null ? requesterPosition.getMemberName() : null)
+                            .requesterPosition(requesterPosition != null ? requesterPosition.getTitleName() : null)
+                            .requesterOrganization(requesterPosition != null ? requesterPosition.getOrganizationName() : null)
+                            .build();
+                })
+                .toList();
     }
 
 //    첨부파일 등록 및 수정

@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @AllArgsConstructor
@@ -15,5 +16,7 @@ public class ReplyResponseDto {
     private String contents;
     private UUID memberPositionId;
     private String memberName;
-    private String memberGrade;
+    private String memberPosition;
+    private String memberOrganization;
+    private LocalDateTime createdAt;
 }
