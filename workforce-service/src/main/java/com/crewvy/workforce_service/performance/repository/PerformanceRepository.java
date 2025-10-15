@@ -12,4 +12,6 @@ import java.util.UUID;
 public interface PerformanceRepository extends JpaRepository<Goal, UUID> {
 
     List<Goal> findByTeamGoal(TeamGoal teamGoal);
+
+    List<Goal> findByMemberPositionId(UUID memberPositionId);
 }

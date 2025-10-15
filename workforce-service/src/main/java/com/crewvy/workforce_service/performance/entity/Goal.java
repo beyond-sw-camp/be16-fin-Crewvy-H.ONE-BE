@@ -31,7 +31,7 @@ public class Goal extends BaseEntity {
     @JoinColumn(name = "teamgoal_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private TeamGoal teamGoal;
 
-    private UUID memberId;
+    private UUID memberPositionId;
 
     private String title;
 

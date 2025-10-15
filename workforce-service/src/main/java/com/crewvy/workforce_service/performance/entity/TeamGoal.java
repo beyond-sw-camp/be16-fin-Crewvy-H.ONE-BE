@@ -22,7 +22,7 @@ public class TeamGoal extends BaseEntity {
 
     private UUID organizationId;
 
-    private UUID memberId;
+    private UUID memberPositionId;
 
     private String title;
 
