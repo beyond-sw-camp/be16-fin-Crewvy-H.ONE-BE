@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.attendance.controller;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.attendance.dto.request.PolicyCreateRequest;
+import com.crewvy.workforce_service.attendance.dto.request.PolicyIdListRequest;
 import com.crewvy.workforce_service.attendance.dto.request.PolicyUpdateRequest;
 import com.crewvy.workforce_service.attendance.dto.response.PolicyResponse;
 import com.crewvy.workforce_service.attendance.dto.response.PolicyTypeResponse;
@@ -58,19 +59,20 @@ public class PolicyController {
         return new ResponseEntity<>(ApiResponse.success(null, "정책 삭제 완료"), HttpStatus.OK);
     }
 
-    @PatchMapping("/{policyId}/activate")
-    public ResponseEntity<ApiResponse<PolicyResponse>> activatePolicy(@PathVariable UUID policyId) {
-        PolicyResponse response = policyService.activatePolicy(policyId);
-        return new ResponseEntity<>(ApiResponse.success(response, "정책 활성화 완료"), HttpStatus.OK);
+    @PatchMapping("/activate")
+    public ResponseEntity<ApiResponse<Void>> activatePolicies(@RequestBody @Valid PolicyIdListRequest request) {
+        policyService.activatePolicies(request.getPolicyIds());
+        return new ResponseEntity<>(ApiResponse.success(null, "정책 활성화 완료"), HttpStatus.OK);
     }
 
-    @PatchMapping("/{policyId}/deactivate")
-    public ResponseEntity<ApiResponse<PolicyResponse>> deactivatePolicy(@PathVariable UUID policyId) {
-        PolicyResponse response = policyService.deactivatePolicy(policyId);
-        return new ResponseEntity<>(ApiResponse.success(response, "정책 비활성화 완료"), HttpStatus.OK);
+    @PatchMapping("/deactivate")
+    public ResponseEntity<ApiResponse<Void>> deactivatePolicies(@RequestBody @Valid PolicyIdListRequest request) {
+        policyService.deactivatePolicies(request.getPolicyIds());
+        return new ResponseEntity<>(ApiResponse.success(null, "정책 비활성화 완료"), HttpStatus.OK);
     }
+
     @GetMapping("/types")
-    public ResponseEntity<ApiResponse<List<PolicyTypeResponse>>> findPolicyTypes(@RequestParam("companyId") UUID companyId) {
+    public ResponseEntity<ApiResponse<List<PolicyTypeResponse>>> findPolicyTypes(@RequestHeader("X-Company-Id") UUID companyId) {
         List<PolicyTypeResponse> response = policyService.findPolicyTypesByCompany(companyId);
         return new ResponseEntity<>(ApiResponse.success(response, "정책 유형 목록 조회"), HttpStatus.OK);
     }

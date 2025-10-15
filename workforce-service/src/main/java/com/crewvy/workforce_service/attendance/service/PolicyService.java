@@ -97,30 +97,21 @@ public class PolicyService {
         policyRepository.deleteById(policyId);
     }
 
-    public PolicyResponse activatePolicy(UUID policyId) {
-        Policy policyToActivate = policyRepository.findById(policyId)
-                .orElseThrow(() -> new BusinessException("ID에 해당하는 정책을 찾을 수 없습니다: " + policyId));
-
-        policyRepository.findByCompanyIdAndPolicyTypePolicyTypeIdAndIsActiveTrue(
-                policyToActivate.getCompanyId(),
-                policyToActivate.getPolicyType().getPolicyTypeId()
-        ).forEach(Policy::deactivate);
-
-        policyToActivate.activate();
-        return new PolicyResponse(policyToActivate);
+    public void activatePolicies(List<UUID> policyIds) {
+        List<Policy> policiesToActivate = policyRepository.findAllById(policyIds);
+        if (policiesToActivate.size() != policyIds.size()) {
+            throw new BusinessException("요청된 ID 목록에 존재하지 않는 정책이 포함되어 있습니다.");
+        }
+        // 요청된 모든 정책을 활성화 상태로 변경
+        policiesToActivate.forEach(Policy::activate);
     }
 
-    public PolicyResponse deactivatePolicy(UUID policyId) {
-        Policy policyFromActivate = policyRepository.findById(policyId)
-                .orElseThrow(() -> new BusinessException("ID에 해당하는 정책을 찾을 수 없습니다: " + policyId));
-
-        policyRepository.findByCompanyIdAndPolicyTypePolicyTypeIdAndIsActiveFalse(
-                policyFromActivate.getCompanyId(),
-                policyFromActivate.getPolicyType().getPolicyTypeId()
-        ).forEach(Policy::activate);
-
-        policyFromActivate.deactivate();
-        return new PolicyResponse(policyFromActivate);
+    public void deactivatePolicies(List<UUID> policyIds) {
+        List<Policy> policiesToDeactivate = policyRepository.findAllById(policyIds);
+        if (policiesToDeactivate.size() != policyIds.size()) {
+            throw new BusinessException("요청된 ID 목록에 존재하지 않는 정책이 포함되어 있습니다.");
+        }
+        policiesToDeactivate.forEach(Policy::deactivate);
     }
 
     private PolicyRuleDetails convertAndValidateRuleDetails(Map<String, Object> ruleDetailsMap, PolicyTypeCode typeCode) {
