@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 public interface PolicyRepository extends JpaRepository<Policy, UUID> {
@@ -16,4 +17,6 @@ public interface PolicyRepository extends JpaRepository<Policy, UUID> {
            "AND (p.effectiveTo IS NULL OR p.effectiveTo >= :currentDate)")
     Page<Policy> findActivePolicies(@Param("companyId") UUID companyId, @Param("currentDate") LocalDate currentDate, Pageable pageable);
     Page<Policy> findByCompanyId(UUID companyId, Pageable pageable);
+    List<Policy> findByCompanyIdAndPolicyTypePolicyTypeIdAndIsActiveTrue(UUID companyId, UUID policyTypeId);
+    List<Policy> findByCompanyIdAndPolicyTypePolicyTypeIdAndIsActiveFalse(UUID companyId, UUID policyTypeId);
 }
