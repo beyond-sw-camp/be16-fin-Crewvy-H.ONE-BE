@@ -585,8 +585,8 @@ public class MemberService {
 
     // 조멤직IdList → ( 이름, 부서, 직급 ) List
     @Transactional(readOnly = true)
-    public List<MemberPositionListRes> getPositionList(UUID memberPositionId, List<UUID> idListReq) {
-        return memberPositionRepository.findAllById(idListReq).stream()
+    public List<MemberPositionListRes> getPositionList(UUID memberPositionId, IdListReq idListReq) {
+        return memberPositionRepository.findAllById(idListReq.getUuidList()).stream()
                 .map(MemberPositionListRes::fromEntity).collect(Collectors.toList());
     }
 

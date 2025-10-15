@@ -224,11 +224,11 @@ public class MemberController {
     }
 
     // 조멤직IdList → ( 이름, 부서, 직급 ) List
-    @GetMapping("/position-list")
+    @PostMapping("/position-list")
     public ResponseEntity<?> getPositionList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                             @RequestParam List<UUID> idListReq) {
+                                             @RequestBody IdListReq idListReq) {
         return new ResponseEntity<>(ApiResponse.success(
-                memberService.getPositionList(memberPositionId,idListReq), "이름 목록 조회 성공"), HttpStatus.OK);
+                memberService.getPositionList(memberPositionId, idListReq), "이름 목록 조회 성공"), HttpStatus.OK);
     }
 
     // companyId → ( 사번, 이름, 부서, 직급, 계좌, 은행 ) List

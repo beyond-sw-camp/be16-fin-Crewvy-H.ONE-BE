@@ -3,6 +3,7 @@ package com.crewvy.workforce_service.performance.service;
 import com.crewvy.common.S3.S3Uploader;
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.feignClient.MemberClient;
+import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
 import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
 import com.crewvy.workforce_service.performance.constant.GoalStatus;
 import com.crewvy.workforce_service.performance.dto.*;
@@ -14,6 +15,7 @@ import com.crewvy.workforce_service.performance.repository.EvaluationRepository;
 import com.crewvy.workforce_service.performance.repository.PerformanceRepository;
 import com.crewvy.workforce_service.performance.repository.TeamGoalRepository;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.persistence.Id;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,10 +37,10 @@ public class PerformanceService {
 //    팀 목표 리스트
     public List<TeamGoalResponseDto> getTeamGoal(UUID memberPositionId) {
         List<TeamGoal> teamGoalList = teamGoalRepository.findAll();
-        List<UUID> mpidList = teamGoalList.stream()
+        IdListReq mpidList = new IdListReq(teamGoalList.stream()
                         .map(TeamGoal::getMemberPositionId)
                         .distinct()
-                        .toList();
+                        .toList());
         ApiResponse<List<PositionDto>> response = memberClient.getPositionList(memberPositionId, mpidList);
 
         Map<UUID, PositionDto> positionMap = response.getData().stream()
@@ -74,10 +76,10 @@ public class PerformanceService {
         final Map<UUID, PositionDto> positionMap;
 
         if (!subGoalList.isEmpty()) {
-            List<UUID> mpidList = subGoalList.stream()
+            IdListReq mpidList = new IdListReq(subGoalList.stream()
                     .map(Goal::getMemberPositionId)
                     .distinct()
-                    .toList();
+                    .toList());
 
             ApiResponse<List<PositionDto>> response = memberClient.getPositionList(teamGoal.getMemberPositionId(), mpidList);
 
@@ -151,7 +153,7 @@ public class PerformanceService {
         // 3. FeignClient를 호출하여 담당자(Position) 정보를 조회합니다.
         ApiResponse<List<PositionDto>> response = memberClient.getPositionList(
                 goal.getMemberPositionId(), // 헤더에 들어갈 ID
-                List.of(goal.getMemberPositionId()) // 쿼리 파라미터로 보낼 ID 리스트 (요소가 하나)
+                new IdListReq(List.of(goal.getMemberPositionId())) // 쿼리 파라미터로 보낼 ID 리스트 (요소가 하나)
         );
 
         PositionDto positionInfo = null;
