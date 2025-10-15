@@ -19,8 +19,8 @@ public class PerformanceController {
     private final PerformanceService performanceService;
 
     @GetMapping("/team-goal")
-    public ResponseEntity<?> getTeamGoal() {
-        List<TeamGoalResponseDto> teamGoalResponseDtoList = performanceService.getTeamGoal();
+    public ResponseEntity<?> getTeamGoal(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+        List<TeamGoalResponseDto> teamGoalResponseDtoList = performanceService.getTeamGoal(memberPositionId);
         return new ResponseEntity<>(
                 ApiResponse.success(teamGoalResponseDtoList, "팀 목표 조회"),
                 HttpStatus.OK
@@ -37,8 +37,10 @@ public class PerformanceController {
     }
 
     @PostMapping("/create-team-goal")
-    public ResponseEntity<?> createTeamGoal(@RequestBody CreateTeamGoalDto dto) {
-        UUID newTeamGoalId = performanceService.createTeamGoal(dto);
+    public ResponseEntity<?> createTeamGoal(@RequestBody CreateTeamGoalDto dto,
+                                            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId
+    ) {
+        UUID newTeamGoalId = performanceService.createTeamGoal(dto, memberPositionId);
         return new ResponseEntity<>(
                 ApiResponse.success(newTeamGoalId, "팀 목표 생성"),
                 HttpStatus.CREATED
@@ -55,8 +57,8 @@ public class PerformanceController {
     }
 
     @GetMapping("/get-my-goal")
-    public ResponseEntity<?> getMyGoal() {
-        List<GoalResponseDto> dtoList = performanceService.getMyGoal();
+    public ResponseEntity<?> getMyGoal(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+        List<GoalResponseDto> dtoList = performanceService.getMyGoal(memberPositionId);
         return new ResponseEntity<>(
                 ApiResponse.success(dtoList, "내 목표 조회"),
                 HttpStatus.OK
@@ -64,8 +66,10 @@ public class PerformanceController {
     }
 
     @PostMapping("/create-my-goal")
-    public ResponseEntity<?> createMyGoal(@RequestBody CreateMyGoalDto dto) {
-        UUID goalId = performanceService.createMyGoal(dto);
+    public ResponseEntity<?> createMyGoal(@RequestBody CreateMyGoalDto dto,
+                                          @RequestHeader("X-User-MemberPositionId") UUID memberPositionId
+    ) {
+        UUID goalId = performanceService.createMyGoal(dto, memberPositionId);
         return new ResponseEntity<>(
                 ApiResponse.success(goalId, "내 목표 생성"),
                 HttpStatus.CREATED
@@ -82,8 +86,10 @@ public class PerformanceController {
     }
 
     @PostMapping("/create-evaluation")
-    public ResponseEntity<?> createEvaluation(CreateEvaluationDto dto) {
-        UUID evaluationId = performanceService.createEvaluation(dto);
+    public ResponseEntity<?> createEvaluation(CreateEvaluationDto dto,
+                                              @RequestHeader("X-User-MemberPositionId") UUID memberPositionId
+    ) {
+        UUID evaluationId = performanceService.createEvaluation(dto, memberPositionId);
         return new ResponseEntity<>(
                 ApiResponse.success(evaluationId, "평가 생성"),
                 HttpStatus.CREATED
