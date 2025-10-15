@@ -1,6 +1,7 @@
 package com.crewvy.workforce_service.attendance.constant;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -27,6 +28,11 @@ public enum PolicyTypeCode {
     private final String codeValue;
     private final String codeName;
     private final boolean isBalanceDeductible;
+
+    @JsonValue
+    public String getCodeValue() {
+        return codeValue;
+    }
 
     @JsonCreator
     public static PolicyTypeCode fromCode(String code) {
