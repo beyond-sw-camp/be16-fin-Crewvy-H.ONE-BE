@@ -40,6 +40,7 @@ public class PerformanceService {
                     .contents(t.getContents())
                     .startDate(t.getStartDate())
                     .endDate(t.getEndDate())
+                    .memberPositionId(t.getMemberPositionId())
                     .build();
             dtoList.add(dto);
         }
@@ -55,6 +56,7 @@ public class PerformanceService {
                 .contents(teamGoal.getContents())
                 .startDate(teamGoal.getStartDate())
                 .endDate(teamGoal.getEndDate())
+                .memberPositionId(teamGoal.getMemberPositionId())
                 .build();
 
         for(Goal g : subGoalList) {
@@ -62,6 +64,7 @@ public class PerformanceService {
                     .goalId(g.getId())
                     .title(g.getTitle())
                     .contents(g.getContents())
+                    .memberPositionId(g.getMemberPositionId())
                     .startDate(g.getStartDate())
                     .endDate(g.getEndDate())
                     .status(g.getStatus())
@@ -72,12 +75,13 @@ public class PerformanceService {
     }
 
     //    팀 목표 생성
-    public UUID createTeamGoal(CreateTeamGoalDto dto) {
+    public UUID createTeamGoal(CreateTeamGoalDto dto, UUID memberPositionId) {
         TeamGoal newTeamGoal = TeamGoal.builder()
                 .title(dto.getTitle())
                 .contents(dto.getContents())
                 .startDate(dto.getStartDate())
                 .endDate(dto.getEndDate())
+                .memberPositionId(memberPositionId)
                 .build();
         teamGoalRepository.save(newTeamGoal);
 
@@ -102,6 +106,7 @@ public class PerformanceService {
                 .goalId(goal.getId())
                 .title(goal.getTitle())
                 .contents(goal.getContents())
+                .memberPositionId(goal.getMemberPositionId())
                 .startDate(goal.getStartDate())
                 .endDate(goal.getEndDate())
                 .status(goal.getStatus())
@@ -113,18 +118,20 @@ public class PerformanceService {
     }
 
     //    내 목표 조회
-    public List<GoalResponseDto> getMyGoal() {
-//        List<Goal> goalList = performanceRepository.findByMemberId();
-        List<Goal> goalList = performanceRepository.findAll();
+    public List<GoalResponseDto> getMyGoal(UUID memberPositionId) {
+        List<Goal> goalList = performanceRepository.findByMemberPositionId(memberPositionId);
+//        List<Goal> goalList = performanceRepository.findAll();
         List<GoalResponseDto> dtoList = new ArrayList<>();
         for(Goal g : goalList) {
             GoalResponseDto dto = GoalResponseDto.builder()
                     .goalId(g.getId())
                     .title(g.getTitle())
                     .contents(g.getContents())
+                    .memberPositionId(g.getMemberPositionId())
                     .status(g.getStatus())
                     .startDate(g.getStartDate())
                     .endDate(g.getEndDate())
+                    .teamGoalTitle(g.getTeamGoal().getTitle())
                     .build();
             dtoList.add(dto);
         }
@@ -133,7 +140,7 @@ public class PerformanceService {
     }
 
     //    내 목표 생성
-    public UUID createMyGoal(CreateMyGoalDto dto) {
+    public UUID createMyGoal(CreateMyGoalDto dto, UUID memberPositionId) {
         TeamGoal teamGoal = teamGoalRepository.findById(dto.getTeamGoalId()).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 팀목표 입니다."));
 
         Goal newGoal = Goal.builder()
@@ -144,6 +151,7 @@ public class PerformanceService {
                 .status(GoalStatus.REQUESTED)
                 .teamGoal(teamGoal)
                 .gradingSystem(dto.getGradingSystem())
+                .memberPositionId(memberPositionId)
                 .build();
 
         performanceRepository.save(newGoal);
@@ -161,13 +169,14 @@ public class PerformanceService {
     }
 
     //    평가 생성
-    public UUID createEvaluation(CreateEvaluationDto dto) {
+    public UUID createEvaluation(CreateEvaluationDto dto, UUID memberPositionId) {
         Goal goal = performanceRepository.findById(dto.getGoalId()).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 목표입니다."));
 
         Evaluation evaluation = Evaluation.builder()
                 .goal(goal)
                 .grade(dto.getGrade())
                 .type(dto.getType())
+                .memberPositionId(memberPositionId)
                 .comment(dto.getComment())
                 .build();
 
