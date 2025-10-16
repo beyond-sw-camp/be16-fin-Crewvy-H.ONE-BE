@@ -1,12 +1,11 @@
 package com.crewvy.member_service.member.dto.response;
 
+import com.crewvy.common.entity.Bool;
 import com.crewvy.member_service.member.entity.GradeHistory;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import com.crewvy.common.entity.Bool;
 
 import java.time.LocalDate;
 import java.util.UUID;

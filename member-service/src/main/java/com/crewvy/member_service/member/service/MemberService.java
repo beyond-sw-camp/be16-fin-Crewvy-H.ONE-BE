@@ -7,7 +7,6 @@ import com.crewvy.member_service.member.constant.Action;
 import com.crewvy.member_service.member.constant.PermissionRange;
 import com.crewvy.member_service.member.dto.request.*;
 import com.crewvy.member_service.member.dto.response.*;
-import com.crewvy.member_service.member.dto.response.MemberEditRes;
 import com.crewvy.member_service.member.entity.*;
 import com.crewvy.member_service.member.repository.*;
 import jakarta.persistence.EntityNotFoundException;

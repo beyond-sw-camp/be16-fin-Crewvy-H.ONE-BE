@@ -3,19 +3,13 @@ package com.crewvy.member_service.member.dto.request;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
-import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
-@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class GradeHistoryReq {
-    private UUID gradeHistoryId;
-    private UUID gradeId;
-    private LocalDate promotionDate;
-    private Boolean isActive;
-
+public class ReorderReq {
+    private List<UUID> idList;
 }

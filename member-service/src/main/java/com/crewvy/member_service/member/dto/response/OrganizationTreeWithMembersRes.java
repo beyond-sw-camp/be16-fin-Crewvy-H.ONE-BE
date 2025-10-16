@@ -1,7 +1,7 @@
 package com.crewvy.member_service.member.dto.response;
 
-import com.crewvy.member_service.member.entity.Organization;
 import com.crewvy.member_service.member.entity.MemberPosition;
+import com.crewvy.member_service.member.entity.Organization;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 

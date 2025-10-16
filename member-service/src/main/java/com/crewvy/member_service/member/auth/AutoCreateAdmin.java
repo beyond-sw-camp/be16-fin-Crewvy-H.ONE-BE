@@ -11,8 +11,6 @@ import com.crewvy.member_service.member.repository.*;
 import com.crewvy.member_service.member.service.MemberService;
 import com.crewvy.member_service.member.service.OnboardingService;
 import com.crewvy.member_service.member.service.OrganizationService;
-import com.crewvy.common.entity.Bool;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;

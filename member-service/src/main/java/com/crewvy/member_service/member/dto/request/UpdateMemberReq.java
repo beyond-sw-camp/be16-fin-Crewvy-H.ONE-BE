@@ -2,7 +2,6 @@ package com.crewvy.member_service.member.dto.request;
 
 import com.crewvy.member_service.member.dto.response.MemberPositionRes;
 import com.crewvy.member_service.member.dto.response.OrganizationRes;
-import com.crewvy.member_service.member.entity.GradeHistory;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

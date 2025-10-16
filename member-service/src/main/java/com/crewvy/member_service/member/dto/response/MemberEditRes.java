@@ -1,10 +1,6 @@
 package com.crewvy.member_service.member.dto.response;
 
-import com.crewvy.member_service.member.entity.Member;
-import com.crewvy.member_service.member.entity.Organization;
-import com.crewvy.member_service.member.entity.Grade;
-import com.crewvy.member_service.member.entity.Title;
-import com.crewvy.member_service.member.entity.Role;
+import com.crewvy.member_service.member.entity.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
