@@ -13,6 +13,7 @@ import jakarta.persistence.EntityNotFoundException;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,7 @@ import static java.lang.Boolean.TRUE;
 
 @Service
 @Transactional
+@Slf4j
 public class MemberService {
 
     private final CompanyRepository companyRepository;
@@ -118,7 +120,7 @@ public class MemberService {
         Member member = memberRepository.findById(memberId).orElseThrow(()
                 -> new IllegalArgumentException("존재하지 않는 계정입니다."));
         Company company = member.getCompany();
-        return titleRepository.findAllByCompany(company).stream()
+        return titleRepository.findAllByCompanyOrderByDisplayOrderAsc(company).stream() // displayOrder로 정렬
                 .map(TitleRes::fromEntity)
                 .collect(Collectors.toList());
     }
@@ -134,6 +136,47 @@ public class MemberService {
 
         title.updateName(updateTitleReq.getName());
         titleRepository.save(title);
+    }
+
+    // 직책 순서 업데이트
+    public void reorderTitles(UUID memberPositionId, ReorderReq reorderReq) {
+        log.info("reorderTitles called with memberPositionId: {}, titleIds: {}", memberPositionId, reorderReq.getIdList());
+        if (checkPermission(memberPositionId, "title", Action.UPDATE, PermissionRange.COMPANY) == FALSE) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+
+        MemberPosition requesterPosition = memberPositionRepository.findById(memberPositionId)
+                .orElseThrow(() -> {
+                    log.error("MemberPosition not found for ID: {}", memberPositionId);
+                    return new EntityNotFoundException("존재하지 않는 직책입니다.");
+                });
+        Company company = requesterPosition.getMember().getCompany();
+        log.info("Requester Company ID: {}", company.getId());
+
+        List<Title> titles = titleRepository.findAllById(reorderReq.getIdList());
+        if (titles.size() != reorderReq.getIdList().size()) {
+            log.warn("Some titles not found for IDs: {}", reorderReq.getIdList());
+            // 여기에서 특정 ID가 없는 경우에 대한 추가적인 예외 처리를 할 수 있습니다。
+            // 예를 들어, throw new IllegalArgumentException("요청된 일부 직책이 존재하지 않습니다。");
+        }
+        Map<UUID, Title> titleMap = titles.stream().collect(Collectors.toMap(Title::getId, title -> title));
+
+        for (int i = 0; i < reorderReq.getIdList().size(); i++) {
+            UUID titleId = reorderReq.getIdList().get(i);
+            Title title = titleMap.get(titleId);
+            if (title != null) {
+                if (title.getCompany().equals(company)) {
+                    title.updateDisplayOrder(i);
+                    titleRepository.save(title);
+                    log.info("Updated title ID: {} to displayOrder: {}", title.getId(), i);
+                } else {
+                    log.warn("Title ID: {} belongs to a different company. Requester Company ID: {}, Title Company ID: {}", title.getId(), company.getId(), title.getCompany().getId());
+                    throw new PermissionDeniedException("다른 회사의 직책을 수정할 권한이 없습니다。");
+                }
+            } else {
+                log.warn("Title ID: {} not found in map.", titleId);
+            }
+        }
     }
 
     // 직책 삭제
@@ -165,7 +208,7 @@ public class MemberService {
         Member member = memberRepository.findById(memberId).orElseThrow(()
                 -> new IllegalArgumentException("존재하지 않는 계정입니다."));
         Company company = member.getCompany();
-        return gradeRepository.findAllByCompany(company).stream()
+        return gradeRepository.findAllByCompanyOrderByDisplayOrderAsc(company).stream() // displayOrder로 정렬
                 .map(GradeRes::fromEntity)
                 .collect(Collectors.toList());
     }
@@ -181,6 +224,47 @@ public class MemberService {
 
         grade.updateName(updateGradeReq.getName());
         gradeRepository.save(grade);
+    }
+
+    // 직급 순서 업데이트
+    public void reorderGrades(UUID memberPositionId, ReorderReq reorderReq) {
+        log.info("reorderGrades called with memberPositionId: {}, gradeIds: {}", memberPositionId, reorderReq.getIdList());
+        if (checkPermission(memberPositionId, "grade", Action.UPDATE, PermissionRange.COMPANY) == FALSE) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+
+        MemberPosition requesterPosition = memberPositionRepository.findById(memberPositionId)
+                .orElseThrow(() -> {
+                    log.error("MemberPosition not found for ID: {}", memberPositionId);
+                    return new EntityNotFoundException("존재하지 않는 직책입니다.");
+                });
+        Company company = requesterPosition.getMember().getCompany();
+        log.info("Requester Company ID: {}", company.getId());
+
+        List<Grade> grades = gradeRepository.findAllById(reorderReq.getIdList());
+        if (grades.size() != reorderReq.getIdList().size()) {
+            log.warn("Some grades not found for IDs: {}", reorderReq.getIdList());
+            // 여기에서 특정 ID가 없는 경우에 대한 추가적인 예외 처리를 할 수 있습니다。
+            // 예를 들어, throw new IllegalArgumentException("요청된 일부 직급이 존재하지 않습니다。");
+        }
+        Map<UUID, Grade> gradeMap = grades.stream().collect(Collectors.toMap(Grade::getId, grade -> grade));
+
+        for (int i = 0; i < reorderReq.getIdList().size(); i++) {
+            UUID gradeId = reorderReq.getIdList().get(i);
+            Grade grade = gradeMap.get(gradeId);
+            if (grade != null) {
+                if (grade.getCompany().equals(company)) {
+                    grade.updateDisplayOrder(i);
+                    gradeRepository.save(grade);
+                    log.info("Updated grade ID: {} to displayOrder: {}", grade.getId(), i);
+                } else {
+                    log.warn("Grade ID: {} belongs to a different company. Requester Company ID: {}, Grade Company ID: {}", grade.getId(), company.getId(), grade.getCompany().getId());
+                    throw new PermissionDeniedException("다른 회사의 직급을 수정할 권한이 없습니다。");
+                }
+            } else {
+                log.warn("Grade ID: {} not found in map.", gradeId);
+            }
+        }
     }
 
     // 직급 삭제
@@ -311,20 +395,19 @@ public class MemberService {
         member.updateBasicInfo(updateMemberReq, encodePw);
 
         Set<GradeHistory> currentGradeHistorySet = new LinkedHashSet<>(member.getGradeHistorySet());
-        Set<UUID> updatedGradeHistoryIds = new LinkedHashSet<>();
-        List<GradeHistory> processedGradeHistories = new ArrayList<>(); // isActive 설정을 위해 처리된 목록
+        Set<UUID> newGradeHistoryIdSet = new LinkedHashSet<>();
+        List<GradeHistory> processedGradeHistoryList = new ArrayList<>();
 
         if (updateMemberReq.getGradeHistoryReqList() != null) {
             for (GradeHistoryReq req : updateMemberReq.getGradeHistoryReqList()) {
                 GradeHistory gradeHistory = null;
-
                 if (req.getGradeHistoryId() != null) { // 기존 gradeHistory 업데이트
                     gradeHistory = currentGradeHistorySet.stream()
                             .filter(gh -> gh.getId().equals(req.getGradeHistoryId()))
                             .findFirst()
                             .orElse(null);
                     if (gradeHistory != null) {
-                        updatedGradeHistoryIds.add(gradeHistory.getId());
+                        newGradeHistoryIdSet.add(gradeHistory.getId());
                     }
                 }
 
@@ -343,24 +426,24 @@ public class MemberService {
                 gradeHistory.update(grade, req.getPromotionDate()); // isActive 파라미터 제거
                 gradeHistory.updateYnDel(Bool.FALSE); // ynDel 초기화
                 gradeHistoryRepository.save(gradeHistory); // 변경된 gradeHistory 저장
-                processedGradeHistories.add(gradeHistory);
+                processedGradeHistoryList.add(gradeHistory);
             }
         }
 
         // 삭제 처리: 프론트엔드에서 넘어오지 않은 기존 gradeHistory는 ynDel = TRUE
         currentGradeHistorySet.stream()
-                .filter(gh -> !updatedGradeHistoryIds.contains(gh.getId()))
+                .filter(gh -> !newGradeHistoryIdSet.contains(gh.getId()))
                 .forEach(gh -> {
                     gh.updateYnDel(Bool.FALSE);
                     gradeHistoryRepository.save(gh);
                 });
 
         // isActive 설정 로직: promotionDate가 가장 최근인 얘의 isActive를 TRUE로, 나머지는 FALSE로
-        processedGradeHistories.stream()
+        processedGradeHistoryList.stream()
                 .filter(gh -> gh.getYnDel() == Bool.FALSE) // 삭제되지 않은 항목만 대상으로
                 .max(Comparator.comparing(GradeHistory::getPromotionDate))
                 .ifPresent(latestGradeHistory -> {
-                    processedGradeHistories.forEach(gh -> {
+                    processedGradeHistoryList.forEach(gh -> {
                         if (gh.getYnDel() == Bool.FALSE) { // 삭제되지 않은 항목만 isActive 설정
                             gh.updateIsActive(gh.getId().equals(latestGradeHistory.getId()) ? Bool.TRUE : Bool.FALSE);
                             gradeHistoryRepository.save(gh);

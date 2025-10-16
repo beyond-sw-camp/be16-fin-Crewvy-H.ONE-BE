@@ -2,6 +2,7 @@ package com.crewvy.member_service.member.controller;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.member_service.member.dto.request.CreateOrganizationReq;
+import com.crewvy.member_service.member.dto.request.ReorderReq;
 import com.crewvy.member_service.member.dto.request.UpdateOrganizationReq;
 import com.crewvy.member_service.member.service.OrganizationService;
 import jakarta.validation.Valid;
@@ -21,7 +22,6 @@ public class OrganizationController {
     public OrganizationController(OrganizationService organizationService) {
         this.organizationService = organizationService;
     }
-
 
     // 조직 생성
     @PostMapping("/create")
@@ -56,6 +56,13 @@ public class OrganizationController {
                 organizationService.updateOrganization(uuid, memberPositionId, id, updateOrganizationReq), "조직 수정 성공"), HttpStatus.OK);
     }
 
+    // 조직 순서 변경
+    @PutMapping("/reorder")
+    public ResponseEntity<?> reorderOrganization(@RequestBody ReorderReq reorderReq) {
+        organizationService.reorderOrganization(reorderReq.getIdList());
+        return new ResponseEntity<>(ApiResponse.success(null, "조직 순서 변경 성공"), HttpStatus.OK);
+    }
+
     // 조직 삭제
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteOrganization(@RequestHeader("X-User-UUID") UUID uuid,
@@ -63,12 +70,5 @@ public class OrganizationController {
                                                 @PathVariable UUID id) {
         organizationService.deleteOrganization(uuid, memberPositionId, id);
         return new ResponseEntity<>(ApiResponse.success(null, "조직 삭제 성공"), HttpStatus.OK);
-    }
-
-    // 조직 순서 변경
-    @PutMapping("/reorder")
-    public ResponseEntity<?> reorderOrganization(@RequestBody List<UUID> organizationIds) {
-        organizationService.reorderOrganization(organizationIds);
-        return new ResponseEntity<>(ApiResponse.success(null, "조직 순서 변경 성공"), HttpStatus.OK);
     }
 }
