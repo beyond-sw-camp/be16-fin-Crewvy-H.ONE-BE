@@ -62,6 +62,40 @@ public class MemberController {
 //                true, memberService.generateNewAt(generateNewAtReq), "Access token 재발급 성공"), HttpStatus.OK);
 //    }
 
+    // 직원 리스트 조회
+    @GetMapping("/list")
+    public ResponseEntity<?> memberList(@RequestHeader("X-User-UUID") UUID uuid,
+                                        @RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.getMemberList(uuid, memberPositionId), "직원 목록 조회 성공"), HttpStatus.OK);
+    }
+
+    // 직원 정보 수정 페이지
+    @GetMapping("/{memberId}/editpage")
+    public ResponseEntity<?> getMemberEditPage(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                               @PathVariable UUID memberId) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.getMemberEditPage(memberPositionId, memberId), "직원 수정 정보 조회 성공"), HttpStatus.OK);
+    }
+
+    // 직원 정보 수정
+    @PutMapping("/{memberId}/update")
+    public ResponseEntity<?> updateMember(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                          @PathVariable UUID memberId,
+                                          @RequestBody @Valid UpdateMemberReq updateMemberReq) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.updateMember(memberPositionId, memberId, updateMemberReq), "직원 정보 수정 성공"), HttpStatus.OK);
+    }
+
+    // 직원 상세 조회
+    @GetMapping("/detail/{memberId}")
+    public ResponseEntity<?> memberList(@RequestHeader("X-User-UUID") UUID uuid,
+                                        @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                        @PathVariable UUID memberId) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.getMemberDetail(uuid, memberPositionId, memberId), "직원 상세 조회 성공"), HttpStatus.OK);
+    }
+
     // 직책 생성
     @PostMapping("/create-title")
     public ResponseEntity<?> createTitle(@RequestHeader("X-User-UUID") UUID uuid,
@@ -187,46 +221,20 @@ public class MemberController {
         return new ResponseEntity<>(ApiResponse.success(null, "멤버 역할 변경 성공"), HttpStatus.OK);
     }
 
+    // 역할 순서 변경
+    @PutMapping("/role/reorder")
+    public ResponseEntity<?> reorderRole(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                         @RequestBody ReorderReq reorderReq) {
+        memberService.reorderRoles(memberPositionId, reorderReq);
+        return new ResponseEntity<>(ApiResponse.success(null, "역할 순서 변경 성공"), HttpStatus.OK);
+    }
+
     // 역할 삭제
     @DeleteMapping("/role/{roleId}/delete")
     public ResponseEntity<?> deleteRole(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                         @PathVariable UUID roleId) {
         memberService.deleteRole(memberPositionId, roleId);
         return new ResponseEntity<>(ApiResponse.success(null, "역할 삭제 성공"), HttpStatus.OK);
-    }
-
-    // 직원 리스트 조회
-    @GetMapping("/list")
-    public ResponseEntity<?> memberList(@RequestHeader("X-User-UUID") UUID uuid,
-                                        @RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
-        return new ResponseEntity<>(ApiResponse.success(
-                memberService.getMemberList(uuid, memberPositionId), "직원 목록 조회 성공"), HttpStatus.OK);
-    }
-
-    // 직원 정보 수정 페이지
-    @GetMapping("/{memberId}/editpage")
-    public ResponseEntity<?> getMemberEditPage(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                               @PathVariable UUID memberId) {
-        return new ResponseEntity<>(ApiResponse.success(
-                memberService.getMemberEditPage(memberPositionId, memberId), "직원 수정 정보 조회 성공"), HttpStatus.OK);
-    }
-
-    // 직원 정보 수정
-    @PutMapping("/{memberId}/update")
-    public ResponseEntity<?> updateMember(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                          @PathVariable UUID memberId,
-                                          @RequestBody @Valid UpdateMemberReq updateMemberReq) {
-        return new ResponseEntity<>(ApiResponse.success(
-                memberService.updateMember(memberPositionId, memberId, updateMemberReq), "직원 정보 수정 성공"), HttpStatus.OK);
-    }
-
-    // 직원 상세 조회
-    @GetMapping("/detail/{memberId}")
-    public ResponseEntity<?> memberList(@RequestHeader("X-User-UUID") UUID uuid,
-                                        @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                        @PathVariable UUID memberId) {
-        return new ResponseEntity<>(ApiResponse.success(
-                memberService.getMemberDetail(uuid, memberPositionId, memberId), "직원 상세 조회 성공"), HttpStatus.OK);
     }
 
     // 마이페이지
