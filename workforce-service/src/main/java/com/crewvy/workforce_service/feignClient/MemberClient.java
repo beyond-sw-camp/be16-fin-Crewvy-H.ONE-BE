@@ -16,4 +16,13 @@ public interface MemberClient {
                                                     @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                                     @RequestBody IdListReq idListReq
     );
+
+    // 권한 확인
+    @GetMapping("/member/check-permission")
+    ApiResponse<Boolean> checkPermission(
+            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+            @RequestParam("resource") String resource,
+            @RequestParam("action") String action,
+            @RequestParam("range") String range
+    );
 }

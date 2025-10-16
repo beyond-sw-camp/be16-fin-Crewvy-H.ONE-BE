@@ -18,6 +18,7 @@ import com.crewvy.workforce_service.attendance.repository.DailyAttendanceReposit
 import com.crewvy.workforce_service.attendance.repository.PolicyRepository;
 import com.crewvy.workforce_service.attendance.repository.RequestRepository;
 import com.crewvy.workforce_service.attendance.util.DistanceCalculator;
+import com.crewvy.workforce_service.feignClient.MemberClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -41,8 +42,11 @@ public class AttendanceService {
     private final DailyAttendanceRepository dailyAttendanceRepository;
     private final RequestRepository requestRepository;
     private final PolicyRepository policyRepository;
+    private final MemberClient memberClient;
 
-    public ApiResponse<?> recordEvent(UUID memberId, UUID companyId, EventRequest request, String clientIp) {
+    public ApiResponse<?> recordEvent(UUID memberId, UUID memberPositionId, UUID companyId, EventRequest request, String clientIp) {
+        checkPermissionOrThrow(memberPositionId, "CREATE", "INDIVIDUAL", "근태를 기록할 권한이 없습니다.");
+
         // 인증/검증이 필요한 이벤트 그룹
         List<EventType> validationRequiredEvents = List.of(EventType.CLOCK_IN, EventType.CLOCK_OUT);
 
@@ -59,6 +63,13 @@ public class AttendanceService {
                 return ApiResponse.success(clockOutResponse, "퇴근 등록 완료.");
             default:
                 throw new BusinessException("지원하지 않는 이벤트 타입입니다.");
+        }
+    }
+
+    private void checkPermissionOrThrow(UUID memberPositionId, String action, String range, String errorMessage) {
+        ApiResponse<Boolean> response = memberClient.checkPermission(memberPositionId, "attendance", action, range);
+        if (response == null || !Boolean.TRUE.equals(response.getData())) {
+            throw new BusinessException(errorMessage);
         }
     }
 

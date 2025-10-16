@@ -21,16 +21,15 @@ public class AttendanceController {
 
     @PostMapping("/events")
     public ResponseEntity<ApiResponse<?>> recordEvent(
-            // TODO: [MSA 연동] 실제 운영 시 아래 @RequestHeader로 전환하고, @RequestParam은 삭제.
-            // --- 독립적인 테스트를 위한 임시 파라미터 ---
-            @RequestParam("memberId") UUID memberId,
-            @RequestParam("companyId") UUID companyId,
+            @RequestHeader("X-User-UUID") UUID memberId,
+            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+            @RequestHeader("X-User-CompanyId") UUID companyId,
             @RequestBody @Valid EventRequest request,
             HttpServletRequest httpServletRequest) {
 
         String clientIp = getClientIp(httpServletRequest);
 
-        Object response = attendanceService.recordEvent(memberId, companyId, request, clientIp);
+        Object response = attendanceService.recordEvent(memberId, memberPositionId, companyId, request, clientIp);
         return new ResponseEntity<>(ApiResponse.success(response), HttpStatus.OK);
     }
 
