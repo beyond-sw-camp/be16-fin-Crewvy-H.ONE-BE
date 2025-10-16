@@ -39,6 +39,7 @@ public class AutoCreateAdmin implements ApplicationRunner {
     private final MemberService memberService;
     private final OrganizationService organizationService;
     private final RolePermissionRepository rolePermissionRepository;
+    private final GradeHistoryRepository gradeHistoryRepository;
 
     @Override
     @Transactional
@@ -135,6 +136,22 @@ public class AutoCreateAdmin implements ApplicationRunner {
                 .name("김대표").build();
         UUID adminId = onboardingService.createAdminAndInitialSetup(adminReq);
         Member admin = memberRepository.findById(adminId).orElseThrow();
+
+        admin = admin.toBuilder()
+                .phoneNumber("010-1111-1111")
+                .emergencyContact("010-2222-2222")
+                .address("서울시 강남구")
+                .bank("H.ONE 은행")
+                .bankAccount("111-222-333333")
+                .profileUrl(null)
+                .sabun("ADMIN0001")
+                .joinDate(LocalDate.now())
+                .extensionNumber("1000")
+                .telNumber("02-111-1111")
+                .employmentType(EmploymentType.FULL)
+                .build();
+        memberRepository.save(admin);
+
         Company company = admin.getCompany();
         UUID adminPositionId = admin.getDefaultMemberPosition().getId();
         Organization topLevelOrg = admin.getDefaultMemberPosition().getOrganization();
@@ -174,6 +191,8 @@ public class AutoCreateAdmin implements ApplicationRunner {
                 .build();
         titleRepository.save(systemAdminTitle);
 
+        Grade defaultGrade = gradeRepository.findByNameAndCompany(company.getCompanyName() + " 관리자", company).orElseThrow();
+
         CreateMemberReq systemAdminMemberReq = CreateMemberReq.builder()
                 .email("sysadmin@h.one")
                 .password("sysadmin1234")
@@ -181,7 +200,7 @@ public class AutoCreateAdmin implements ApplicationRunner {
                 .organizationId(topLevelOrg.getId())
                 .titleId(systemAdminTitle.getId())
                 .roleId(systemAdminRole.getId())
-                .gradeId(null)
+                .gradeId(defaultGrade.getId())
                 .employmentType(EmploymentType.FULL.getCodeValue())
                 .sabun("SYS0001")
                 .phoneNumber("010-0000-0000")
@@ -222,7 +241,7 @@ public class AutoCreateAdmin implements ApplicationRunner {
         userRole.updatePermission(userRolePermissions);
         roleRepository.save(userRole);
 
-        Grade defaultGrade = gradeRepository.findByNameAndCompany(company.getCompanyName() + " 관리자", company).orElseThrow();
+        Grade employeeGrade = gradeRepository.save(Grade.builder().name("사원").company(company).build());
 
         // 일반 직원 10명 생성 및 배정
         List<String> names = Arrays.asList("김민준", "이서준", "박도윤", "최시우", "정하준", "강지호", "윤은우", "임선우", "한유찬", "오이안");
@@ -238,7 +257,7 @@ public class AutoCreateAdmin implements ApplicationRunner {
                     .organizationId(teamId)
                     .titleId(teamMemberTitle.getId())
                     .roleId(userRole.getId())
-                    .gradeId(defaultGrade.getId())
+                    .gradeId(employeeGrade.getId())
                     .employmentType(EmploymentType.FULL.getCodeValue())
                     .sabun(sabun)
                     .phoneNumber(phoneNumber)

@@ -9,7 +9,8 @@ import java.util.Arrays;
 @AllArgsConstructor
 public enum MemberStatus {
     WORKING("MS001", "재직"),
-    LEAVE("MS002", "휴직");
+    LEAVE("MS002", "휴직"),
+    DETACHMENT("MS003", "파견");
 
     private final String codeValue;
     private final String codeName;

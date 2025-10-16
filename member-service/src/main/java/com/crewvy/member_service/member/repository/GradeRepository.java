@@ -11,4 +11,5 @@ import java.util.UUID;
 public interface GradeRepository extends JpaRepository<Grade, UUID> {
     Optional<Grade> findByNameAndCompany(String s, Company company);
     List<Grade> findAllByCompany(Company company);
+    List<Grade> findAllByCompanyOrderByDisplayOrderAsc(Company company); // displayOrder로 정렬 추가
 }

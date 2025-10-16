@@ -4,11 +4,7 @@ import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.workforce_service.reservation.constant.ReservationStatus;
 import com.crewvy.workforce_service.reservation.converter.ReservationStatusConverter;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
