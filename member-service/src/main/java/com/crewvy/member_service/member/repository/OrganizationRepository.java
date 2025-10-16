@@ -10,4 +10,6 @@ import java.util.UUID;
 public interface OrganizationRepository extends JpaRepository<Organization, UUID> {
     List<Organization> findByCompanyOrderByDisplayOrderAsc(Company company);
     List<Organization> findByParentIdOrderByDisplayOrderAsc(UUID parentId);
+
+    List<Organization> findAllByCompany(Company company);
 }

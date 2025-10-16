@@ -38,7 +38,8 @@ public class MemberPosition extends BaseEntity {
     private Role role;
 
     @Column(nullable = false)
-    private LocalDateTime startDate;
+    @Builder.Default
+    private LocalDateTime startDate = LocalDateTime.now()                               ;
 
     private LocalDateTime endDate;
 
@@ -47,7 +48,27 @@ public class MemberPosition extends BaseEntity {
     @Builder.Default
     private Bool isActive = Bool.TRUE;
 
-    public void updateRole(Role newRole){
-        this.role = newRole;
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private Bool ynDel = Bool.FALSE;
+
+    public void updateMember(Member member) {
+        this.member = member;
+    }
+
+    public void update(Organization organization, Title title, Role role, LocalDateTime startDate) {
+        this.organization = organization;
+        this.title = title;
+        this.role = role;
+        this.startDate = startDate;
+    }
+
+    public void updateRole(Role newRole) {
+        role = newRole;
+    }
+
+    public void delete() {
+        this.ynDel = Bool.TRUE;
     }
 }

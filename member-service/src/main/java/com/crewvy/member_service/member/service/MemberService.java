@@ -7,6 +7,7 @@ import com.crewvy.member_service.member.constant.Action;
 import com.crewvy.member_service.member.constant.PermissionRange;
 import com.crewvy.member_service.member.dto.request.*;
 import com.crewvy.member_service.member.dto.response.*;
+import com.crewvy.member_service.member.dto.response.MemberEditRes;
 import com.crewvy.member_service.member.entity.*;
 import com.crewvy.member_service.member.repository.*;
 import jakarta.persistence.EntityNotFoundException;
@@ -17,10 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static java.lang.Boolean.FALSE;
@@ -62,7 +60,6 @@ public class MemberService {
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
     }
-
 
     // 회원가입
     public Member createAdminMember(CreateAdminReq createAdminReq, Company company) {
@@ -246,8 +243,9 @@ public class MemberService {
     // 직원 상세 조회
     @Transactional(readOnly = true)
     public MemberDetailRes getMemberDetail(UUID uuid, UUID memberPositionId, UUID memberId) {
-        if (checkPermission(memberPositionId, "member", Action.READ, PermissionRange.COMPANY) == FALSE &&
-                checkPermission(memberPositionId, "member", Action.READ, PermissionRange.SYSTEM) == FALSE) {
+        if (checkPermission(memberPositionId, "member", Action.READ, PermissionRange.DEPARTMENT) == FALSE
+                && checkPermission(memberPositionId, "member", Action.READ, PermissionRange.COMPANY) == FALSE
+                && checkPermission(memberPositionId, "member", Action.READ, PermissionRange.SYSTEM) == FALSE) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
         PermissionRange permissionRange = getHighestPermissionRangeForRead(memberPositionId);
@@ -275,6 +273,164 @@ public class MemberService {
         return MemberDetailRes.fromEntity(targetMember);
     }
 
+    // 직원 수정을 위한 상세 조회
+    @Transactional(readOnly = true)
+    public MemberEditRes getMemberEditPage(UUID memberPositionId, UUID memberId) {
+        if (checkPermission(memberPositionId, "member", Action.UPDATE, PermissionRange.COMPANY) == FALSE) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+
+        Member member = memberRepository.findByIdWithDetail(memberId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 계정입니다."));
+
+        MemberPosition requesterPosition = memberPositionRepository.findById(memberPositionId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 직책입니다."));
+        Company company = requesterPosition.getMember().getCompany();
+
+        List<Grade> allGrade = gradeRepository.findAllByCompany(company);
+        List<Organization> allOrganization = organizationRepository.findAllByCompany(company);
+        List<Title> allTitle = titleRepository.findAllByCompany(company);
+        List<Role> allRole = roleRepository.findAllByCompanyAndYnDel(company, Bool.TRUE);
+
+        return MemberEditRes.toEntity(member, allGrade, allOrganization, allTitle, allRole);
+    }
+
+    // 직원 정보 수정
+    public UUID updateMember(UUID memberPositionId, UUID memberId, UpdateMemberReq updateMemberReq) {
+        if (checkPermission(memberPositionId, "member", Action.UPDATE, PermissionRange.COMPANY) == FALSE) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+
+        // 기본 정보 수정
+        Member member = memberRepository.findById(memberId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 계정입니다."));
+        String encodePw = member.getPassword();
+
+        if (updateMemberReq.getNewPw() != null && !updateMemberReq.getNewPw().isBlank()) {
+            encodePw = passwordEncoder.encode(updateMemberReq.getNewPw());
+        }
+
+        member.updateBasicInfo(updateMemberReq, encodePw);
+
+        Set<GradeHistory> currentGradeHistorySet = new LinkedHashSet<>(member.getGradeHistorySet());
+        Set<UUID> updatedGradeHistoryIds = new LinkedHashSet<>();
+        List<GradeHistory> processedGradeHistories = new ArrayList<>(); // isActive 설정을 위해 처리된 목록
+
+        if (updateMemberReq.getGradeHistoryReqList() != null) {
+            for (GradeHistoryReq req : updateMemberReq.getGradeHistoryReqList()) {
+                GradeHistory gradeHistory = null;
+
+                if (req.getGradeHistoryId() != null) { // 기존 gradeHistory 업데이트
+                    gradeHistory = currentGradeHistorySet.stream()
+                            .filter(gh -> gh.getId().equals(req.getGradeHistoryId()))
+                            .findFirst()
+                            .orElse(null);
+                    if (gradeHistory != null) {
+                        updatedGradeHistoryIds.add(gradeHistory.getId());
+                    }
+                }
+
+                if (gradeHistory == null) { // 새로운 gradeHistory 생성
+                    gradeHistory = new GradeHistory();
+                    gradeHistory.updateMember(member);
+                    gradeHistory.updateIsActive(Bool.TRUE); // isActive 기본값 설정
+                }
+
+                Grade grade = null;
+                if (req.getGradeId() != null) {
+                    grade = gradeRepository.findById(req.getGradeId()).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 직급입니다."));
+                } else {
+                    throw new IllegalArgumentException("직급 ID는 null일 수 없습니다.");
+                }
+                gradeHistory.update(grade, req.getPromotionDate()); // isActive 파라미터 제거
+                gradeHistory.updateYnDel(Bool.FALSE); // ynDel 초기화
+                gradeHistoryRepository.save(gradeHistory); // 변경된 gradeHistory 저장
+                processedGradeHistories.add(gradeHistory);
+            }
+        }
+
+        // 삭제 처리: 프론트엔드에서 넘어오지 않은 기존 gradeHistory는 ynDel = TRUE
+        currentGradeHistorySet.stream()
+                .filter(gh -> !updatedGradeHistoryIds.contains(gh.getId()))
+                .forEach(gh -> {
+                    gh.updateYnDel(Bool.FALSE);
+                    gradeHistoryRepository.save(gh);
+                });
+
+        // isActive 설정 로직: promotionDate가 가장 최근인 얘의 isActive를 TRUE로, 나머지는 FALSE로
+        processedGradeHistories.stream()
+                .filter(gh -> gh.getYnDel() == Bool.FALSE) // 삭제되지 않은 항목만 대상으로
+                .max(Comparator.comparing(GradeHistory::getPromotionDate))
+                .ifPresent(latestGradeHistory -> {
+                    processedGradeHistories.forEach(gh -> {
+                        if (gh.getYnDel() == Bool.FALSE) { // 삭제되지 않은 항목만 isActive 설정
+                            gh.updateIsActive(gh.getId().equals(latestGradeHistory.getId()) ? Bool.TRUE : Bool.FALSE);
+                            gradeHistoryRepository.save(gh);
+                        }
+                    });
+                });
+
+        Set<MemberPosition> currentPositionSet = new LinkedHashSet<>(member.getMemberPositionList());
+        Set<UUID> updatedMemberPositionIds = new LinkedHashSet<>();
+
+        if (updateMemberReq.getPositionUpdateReqList() != null) {
+            for (PositionUpdateReq req : updateMemberReq.getPositionUpdateReqList()) {
+                MemberPosition memberPosition = null;
+
+                if (req.getMemberPositionId() != null) { // 기존 memberPosition 업데이트
+                    memberPosition = currentPositionSet.stream()
+                            .filter(mp -> mp.getId().equals(req.getMemberPositionId()))
+                            .findFirst()
+                            .orElse(null);
+                    if (memberPosition != null) {
+                        updatedMemberPositionIds.add(memberPosition.getId());
+                    }
+                }
+
+                if (memberPosition == null) { // 새로운 memberPosition 생성
+                    memberPosition = new MemberPosition();
+                    memberPosition.updateMember(member);
+                }
+
+                Organization organization = null;
+                if (req.getOrganizationId() != null) {
+                    organization = organizationRepository.findById(req.getOrganizationId())
+                            .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 조직입니다."));
+                } else {
+                    throw new IllegalArgumentException("조직 ID는 null일 수 없습니다.");
+                }
+
+                Title title = null;
+                if (req.getTitleId() != null) {
+                    title = titleRepository.findById(req.getTitleId())
+                            .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 직책입니다."));
+                } else {
+                    throw new IllegalArgumentException("직책 ID는 null일 수 없습니다.");
+                }
+
+                Role role = null;
+                if (req.getRoleId() != null) {
+                    role = roleRepository.findById(req.getRoleId())
+                            .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 역할입니다."));
+                } else {
+                    throw new IllegalArgumentException("역할 ID는 null일 수 없습니다.");
+                }
+
+                memberPosition.update(organization, title, role, req.getStartDate());
+                memberPosition.delete();
+                memberPositionRepository.save(memberPosition);
+            }
+        }
+
+        // 삭제 처리: 프론트엔드에서 넘어오지 않은 기존 memberPosition은 ynDel = TRUE
+        currentPositionSet.stream()
+                .filter(mp -> !updatedMemberPositionIds.contains(mp.getId()))
+                .forEach(mp -> {
+                    mp.delete(); // ynDel = TRUE
+                    memberPositionRepository.save(mp);
+                });
+        return member.getId();
+    }
+
     // 마이페이지
     public MyPageRes myPage(UUID uuid, UUID memberPositionId) {
         if (checkPermission(memberPositionId, "member", Action.READ, PermissionRange.INDIVIDUAL) == FALSE &&
@@ -294,6 +450,7 @@ public class MemberService {
         return MyPageRes.fromEntity(member, memberPosition, grade);
     }
 
+    // 내 정보 수정
     public void updateMyPage(UUID memberId, UUID memberPositionId, MyPageEditReq myPageEditReq) {
         if (checkPermission(memberPositionId, "member", Action.UPDATE, PermissionRange.INDIVIDUAL) == FALSE &&
                 checkPermission(memberPositionId, "member", Action.UPDATE, PermissionRange.DEPARTMENT) == FALSE &&
@@ -331,7 +488,7 @@ public class MemberService {
             encodePw = passwordEncoder.encode(newPassword);
         }
 
-        member.updateMember(myPageEditReq, encodePw);
+        member.updateMyPage(myPageEditReq, encodePw);
     }
 
     // 역할 생성

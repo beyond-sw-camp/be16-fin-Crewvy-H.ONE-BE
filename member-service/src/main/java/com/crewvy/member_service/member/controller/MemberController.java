@@ -187,6 +187,23 @@ public class MemberController {
                 memberService.getMemberList(uuid, memberPositionId), "직원 목록 조회 성공"), HttpStatus.OK);
     }
 
+    // 직원 정보 수정 페이지
+    @GetMapping("/{memberId}/editpage")
+    public ResponseEntity<?> getMemberEditPage(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                              @PathVariable UUID memberId) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.getMemberEditPage(memberPositionId, memberId), "직원 수정 정보 조회 성공"), HttpStatus.OK);
+    }
+
+    // 직원 정보 수정
+    @PutMapping("/{memberId}/update")
+    public ResponseEntity<?> updateMember(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                          @PathVariable UUID memberId,
+                                          @RequestBody @Valid UpdateMemberReq updateMemberReq) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.updateMember(memberPositionId, memberId, updateMemberReq), "직원 정보 수정 성공"), HttpStatus.OK);
+    }
+
     // 직원 상세 조회
     @GetMapping("/detail/{memberId}")
     public ResponseEntity<?> memberList(@RequestHeader("X-User-UUID") UUID uuid,
