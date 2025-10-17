@@ -229,6 +229,8 @@ public class AutoCreateAdmin implements ApplicationRunner {
                         .ifPresent(userPermissionList::add);
             }
         }
+        permissionRepository.findByResourceAndActionAndPermissionRange("member", Action.UPDATE, PermissionRange.INDIVIDUAL)
+                .ifPresent(userPermissionList::add);
 
         List<RolePermission> userRolePermissions = userPermissionList.stream()
                 .map(permission -> RolePermission.builder()

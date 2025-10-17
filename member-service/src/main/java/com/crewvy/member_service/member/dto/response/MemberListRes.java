@@ -1,5 +1,6 @@
 package com.crewvy.member_service.member.dto.response;
 
+import com.crewvy.common.entity.Bool;
 import com.crewvy.member_service.member.constant.MemberStatus;
 import com.crewvy.member_service.member.entity.MemberPosition;
 import lombok.AllArgsConstructor;
@@ -21,11 +22,12 @@ public class MemberListRes {
     private LocalDate joinDate;
     private String titleName;
     private String organizationName;
-    private MemberStatus memberStatus;
+    private String memberStatus;
     private String email;
     private String phoneNumber;
+    private String extensionNumber;
 
-    public static MemberListRes fromEntity(MemberPosition memberPosition){
+    public static MemberListRes fromEntity(MemberPosition memberPosition) {
         return MemberListRes.builder()
                 .id(memberPosition.getMember().getId())
                 .name(memberPosition.getMember().getName())
@@ -33,9 +35,10 @@ public class MemberListRes {
                 .joinDate(memberPosition.getMember().getJoinDate())
                 .titleName(memberPosition.getTitle().getName())
                 .organizationName(memberPosition.getOrganization().getName())
-                .memberStatus(memberPosition.getMember().getMemberStatus())
+                .memberStatus(memberPosition.getMember().getMemberStatus().getCodeName())
                 .email(memberPosition.getMember().getEmail())
-                .phoneNumber(memberPosition.getMember().getPhoneNumber())
+                .phoneNumber(memberPosition.getMember().getIsPhoneNumberPublic() == Bool.TRUE ? memberPosition.getMember().getPhoneNumber() : null)
+                .extensionNumber(memberPosition.getMember().getExtensionNumber())
                 .build();
     }
 }
