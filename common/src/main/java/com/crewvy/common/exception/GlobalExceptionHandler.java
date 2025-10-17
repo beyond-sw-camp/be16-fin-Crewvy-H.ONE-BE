@@ -136,4 +136,44 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(e.getMessage()));
     }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    protected ResponseEntity<ApiResponse<?>> handleResourceNotFoundException(ResourceNotFoundException e) {
+        log.warn("ResourceNotFoundException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
+    @ExceptionHandler(DuplicateResourceException.class)
+    protected ResponseEntity<ApiResponse<?>> handleDuplicateResourceException(DuplicateResourceException e) {
+        log.warn("DuplicateResourceException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
+    @ExceptionHandler(UnauthorizedDeviceException.class)
+    protected ResponseEntity<ApiResponse<?>> handleUnauthorizedDeviceException(UnauthorizedDeviceException e) {
+        log.warn("UnauthorizedDeviceException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
+    @ExceptionHandler(AuthenticationFailedException.class)
+    protected ResponseEntity<ApiResponse<?>> handleAuthenticationFailedException(AuthenticationFailedException e) {
+        log.warn("AuthenticationFailedException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
+    @ExceptionHandler(InvalidPolicyRuleException.class)
+    protected ResponseEntity<ApiResponse<?>> handleInvalidPolicyRuleException(InvalidPolicyRuleException e) {
+        log.warn("InvalidPolicyRuleException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(e.getMessage()));
+    }
 }

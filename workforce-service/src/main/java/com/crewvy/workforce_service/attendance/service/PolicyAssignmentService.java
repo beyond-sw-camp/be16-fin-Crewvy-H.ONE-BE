@@ -1,7 +1,8 @@
 package com.crewvy.workforce_service.attendance.service;
 
 import com.crewvy.common.dto.ApiResponse;
-import com.crewvy.common.exception.BusinessException;
+import com.crewvy.common.exception.PermissionDeniedException;
+import com.crewvy.common.exception.ResourceNotFoundException;
 import com.crewvy.workforce_service.attendance.constant.PolicyScopeType;
 import com.crewvy.workforce_service.attendance.dto.request.PolicyAssignmentRequest;
 import com.crewvy.workforce_service.attendance.dto.response.PolicyAssignmentResponse;
@@ -38,7 +39,7 @@ public class PolicyAssignmentService {
 
         for (PolicyAssignmentRequest.SingleAssignmentRequest assignmentReq : request.getAssignments()) {
             Policy policy = policyRepository.findById(assignmentReq.getPolicyId())
-                    .orElseThrow(() -> new BusinessException("존재하지 않는 정책입니다: " + assignmentReq.getPolicyId()));
+                    .orElseThrow(() -> new ResourceNotFoundException("존재하지 않는 정책입니다: " + assignmentReq.getPolicyId()));
 
             // TODO: targetId 유효성 검증 (member-service 호출)
 
@@ -100,7 +101,7 @@ public class PolicyAssignmentService {
         Pageable pageable = PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "createdAt"));
         return policyRepository.findActivePolicies(companyId, LocalDate.now(), pageable)
                 .stream().findFirst()
-                .orElseThrow(() -> new BusinessException("적용할 수 있는 정책이 회사에 존재하지 않습니다."));
+                .orElseThrow(() -> new ResourceNotFoundException("적용할 수 있는 정책이 회사에 존재하지 않습니다."));
     }
 
     @Transactional(readOnly = true)
@@ -116,7 +117,7 @@ public class PolicyAssignmentService {
     private void checkPermissionOrThrow(UUID memberPositionId, String action, String range, String errorMessage) {
         ApiResponse<Boolean> response = memberClient.checkPermission(memberPositionId, "attendance", action, range);
         if (response == null || !Boolean.TRUE.equals(response.getData())) {
-            throw new BusinessException(errorMessage);
+            throw new PermissionDeniedException(errorMessage);
         }
     }
 }

@@ -1,7 +1,7 @@
 package com.crewvy.workforce_service.attendance.service;
 
 import com.crewvy.common.dto.ApiResponse;
-import com.crewvy.common.exception.BusinessException;
+import com.crewvy.common.exception.*;
 import com.crewvy.workforce_service.attendance.constant.DeviceType;
 import com.crewvy.workforce_service.attendance.constant.EventType;
 import com.crewvy.workforce_service.attendance.constant.RequestStatus;
@@ -70,7 +70,7 @@ public class AttendanceService {
     private void checkPermissionOrThrow(UUID memberPositionId, String action, String range, String errorMessage) {
         ApiResponse<Boolean> response = memberClient.checkPermission(memberPositionId, "attendance", action, range);
         if (response == null || !Boolean.TRUE.equals(response.getData())) {
-            throw new BusinessException(errorMessage);
+            throw new PermissionDeniedException(errorMessage);
         }
     }
 
@@ -78,7 +78,7 @@ public class AttendanceService {
         LocalDate today = LocalDate.now();
         dailyAttendanceRepository.findByMemberIdAndAttendanceDate(memberId, today)
                 .ifPresent(d -> {
-                    throw new BusinessException("이미 출근 처리되었습니다.");
+                    throw new DuplicateResourceException("이미 출근 처리되었습니다.");
                 });
 
         LocalDateTime clockInTime = LocalDateTime.now();
@@ -95,7 +95,7 @@ public class AttendanceService {
 
         LocalDate today = LocalDate.now();
         DailyAttendance dailyAttendance = dailyAttendanceRepository.findByMemberIdAndAttendanceDate(memberId, today)
-                .orElseThrow(() -> new BusinessException("출근 기록이 없습니다. 퇴근 처리할 수 없습니다."));
+                .orElseThrow(() -> new ResourceNotFoundException("출근 기록이 없습니다. 퇴근 처리할 수 없습니다."));
 
         dailyAttendance.updateClockOut(clockOutTime);
 
@@ -141,7 +141,7 @@ public class AttendanceService {
 
     private void validateApprovedDevice(String deviceId, UUID memberId, DeviceType deviceType) {
         if (deviceId == null) {
-            throw new BusinessException("디바이스 ID가 없습니다.");
+            throw new IllegalArgumentException("디바이스 ID가 없습니다.");
         }
         boolean isApproved = requestRepository.existsApprovedDevice(
                 memberId,
@@ -150,7 +150,7 @@ public class AttendanceService {
                 RequestStatus.APPROVED
         );
         if (!isApproved) {
-            throw new BusinessException("등록되지 않았거나 미승인된 디바이스입니다.");
+            throw new UnauthorizedDeviceException("등록되지 않았거나 미승인된 디바이스입니다.");
         }
     }
 
@@ -158,7 +158,7 @@ public class AttendanceService {
         Pageable pageable = PageRequest.of(0, 1, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<Policy> policyPage = policyRepository.findActivePolicies(companyId, LocalDate.now(), pageable);
         if (policyPage.isEmpty()) {
-            throw new BusinessException("적용된 출퇴근 정책이 없습니다.");
+            throw new ResourceNotFoundException("적용된 출퇴근 정책이 없습니다.");
         }
         return policyPage.getContent().get(0);
     }
@@ -171,7 +171,7 @@ public class AttendanceService {
         AuthMethodDto applicableMethod = ruleDetails.getAuthRule().getMethods().stream()
                 .filter(method -> deviceType.equals(method.getDeviceType()))
                 .findFirst()
-                .orElseThrow(() -> new BusinessException("현재 기기에서 지원하는 인증 방식이 정책에 없습니다."));
+                .orElseThrow(() -> new InvalidPolicyRuleException("현재 기기에서 지원하는 인증 방식이 정책에 없습니다."));
 
         String authMethod = applicableMethod.getAuthMethod();
         Map<String, Object> details = applicableMethod.getDetails();
@@ -179,7 +179,7 @@ public class AttendanceService {
         switch (authMethod) {
             case "GPS":
                 if (latitude == null || longitude == null) {
-                    throw new BusinessException("GPS 인증 방식에는 좌표 정보가 필수입니다.");
+                    throw new IllegalArgumentException("GPS 인증 방식에는 좌표 정보가 필수입니다.");
                 }
                 validateGpsLocation(details, latitude, longitude);
                 break;
@@ -187,7 +187,7 @@ public class AttendanceService {
                 validateIpAddress(details, clientIp);
                 break;
             default:
-                throw new BusinessException("정책에 알 수 없는 인증 방식이 설정되어 있습니다.");
+                throw new InvalidPolicyRuleException("정책에 알 수 없는 인증 방식이 설정되어 있습니다.");
         }
     }
 
@@ -197,17 +197,17 @@ public class AttendanceService {
         double officeLon = ((Number) rules.get("officeLongitude")).doubleValue();
         double distance = DistanceCalculator.calculateDistanceInMeters(officeLat, officeLon, userLat, userLon);
         if (distance > gpsRadius) {
-            throw new BusinessException(String.format("지정된 근무지로부터 약 %.0f미터 벗어났습니다.", distance));
+            throw new AuthenticationFailedException(String.format("지정된 근무지로부터 약 %.0f미터 벗어났습니다.", distance));
         }
     }
 
     private void validateIpAddress(Map<String, Object> rules, String clientIp) {
         List<String> allowedIps = (List<String>) rules.get("allowedIps");
         if (allowedIps == null || allowedIps.isEmpty()) {
-            throw new BusinessException("정책에 허용된 IP가 등록되지 않았습니다.");
+            throw new InvalidPolicyRuleException("정책에 허용된 IP가 등록되지 않았습니다.");
         }
         if (!allowedIps.contains(clientIp)) {
-            throw new BusinessException("허용되지 않은 IP입니다.");
+            throw new AuthenticationFailedException("허용되지 않은 IP입니다.");
         }
     }
 }
