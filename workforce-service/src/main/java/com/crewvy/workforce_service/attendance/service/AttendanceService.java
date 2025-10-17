@@ -43,6 +43,7 @@ public class AttendanceService {
     private final RequestRepository requestRepository;
     private final PolicyRepository policyRepository;
     private final MemberClient memberClient;
+    private final PolicyAssignmentService policyAssignmentService;
 
     public ApiResponse<?> recordEvent(UUID memberId, UUID memberPositionId, UUID companyId, EventRequest request, String clientIp) {
         checkPermissionOrThrow(memberPositionId, "CREATE", "INDIVIDUAL", "근태를 기록할 권한이 없습니다.");
@@ -133,7 +134,7 @@ public class AttendanceService {
     // --- 이하 검증(validate) 관련 헬퍼 메서드들 ---
     private void validate(UUID memberId, UUID companyId, String deviceId, DeviceType deviceType, Double latitude, Double longitude, String clientIp) {
         validateApprovedDevice(deviceId, memberId, deviceType);
-        Policy activePolicy = findActivePolicy(companyId);
+        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId);
         PolicyRuleDetails ruleDetails = activePolicy.getRuleDetails();
         validateAuthRule(ruleDetails, deviceType, latitude, longitude, clientIp);
     }

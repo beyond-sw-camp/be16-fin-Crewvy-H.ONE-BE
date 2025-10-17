@@ -25,4 +25,8 @@ public interface MemberClient {
             @RequestParam("action") String action,
             @RequestParam("range") String range
     );
+
+    // 직원의 조직 계층 조회 (MEMBER -> TEAM -> DEPARTMENT -> ... -> COMPANY)
+    @GetMapping("/member/{memberId}/organization-hierarchy")
+    ApiResponse<List<UUID>> getOrganizationHierarchy(@PathVariable("memberId") UUID memberId);
 }
