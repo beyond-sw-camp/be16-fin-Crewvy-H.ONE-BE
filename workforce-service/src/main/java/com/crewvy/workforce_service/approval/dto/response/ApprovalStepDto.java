@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @AllArgsConstructor
@@ -15,7 +16,10 @@ import java.util.UUID;
 public class ApprovalStepDto {
     private UUID approverId;
     private String approverName;
-    private String approverGrade;
+    private String approverPosition;
+    private String approverOrganization;
     private LineStatus status;
     private int index;
+    private LocalDateTime approveAt;
+    private String comment;
 }

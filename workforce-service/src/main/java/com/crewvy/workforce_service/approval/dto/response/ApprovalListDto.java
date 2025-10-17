@@ -18,6 +18,9 @@ public class ApprovalListDto {
     private String title;
     private String documentName;
     private UUID requesterId; // 기안자 ID (추후 기안자 이름, 소속, 직급으로 수정)
+    private String requesterName;
+    private String requesterPosition;
+    private String requesterOrganization;
     private LocalDateTime createAt; // 기안 일자
     private ApprovalState status; // 결재 상태
 }
