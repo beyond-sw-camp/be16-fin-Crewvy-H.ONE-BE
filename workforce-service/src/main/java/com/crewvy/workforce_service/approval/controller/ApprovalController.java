@@ -1,10 +1,7 @@
 package com.crewvy.workforce_service.approval.controller;
 
 import com.crewvy.common.dto.ApiResponse;
-import com.crewvy.workforce_service.approval.dto.request.AttachmentRequestDto;
-import com.crewvy.workforce_service.approval.dto.request.CreateApprovalDto;
-import com.crewvy.workforce_service.approval.dto.request.ReplyRequestDto;
-import com.crewvy.workforce_service.approval.dto.request.UpdateDocumentDto;
+import com.crewvy.workforce_service.approval.dto.request.*;
 import com.crewvy.workforce_service.approval.dto.response.*;
 import com.crewvy.workforce_service.approval.service.ApprovalService;
 import lombok.RequiredArgsConstructor;
@@ -22,18 +19,12 @@ import java.util.UUID;
 public class ApprovalController {
     private final ApprovalService approvalService;
 
-    @PatchMapping("/update-document")
-    public ResponseEntity<?> updateDocument(@RequestBody UpdateDocumentDto dto) {
-        UUID documentId = approvalService.updateDocument(dto);
-        return new ResponseEntity<>(
-                ApiResponse.success(documentId, "문서 양식 수정"),
-                HttpStatus.OK
-        );
-    }
 
     @GetMapping("/get-document/{id}")
-    public ResponseEntity<?> getDocument(@PathVariable UUID id) {
-        DocumentResponseDto document = approvalService.getDocument(id);
+    public ResponseEntity<?> getDocument(@PathVariable UUID id,
+                                         @RequestHeader("X-User-MemberPositionId") UUID memberPositionId
+    ) {
+        DocumentResponseDto document = approvalService.getDocument(id, memberPositionId);
         return new ResponseEntity<>(
                 ApiResponse.success(document, "양식 상세 조회"),
                 HttpStatus.OK
@@ -78,6 +69,23 @@ public class ApprovalController {
                 ApiResponse.success(id, "문서 삭제"),
                 HttpStatus.OK
         );
+    }
+
+    @PatchMapping("/approve/{approvalId}")
+    public ResponseEntity<?> approveApproval(@PathVariable UUID approvalId,
+                                             @RequestHeader ("X-User-MemberPositionId") UUID memberPositionId
+    ) {
+        approvalService.approveApproval(approvalId, memberPositionId);
+        return new ResponseEntity<>(ApiResponse.success(approvalId, "승인"), HttpStatus.OK);
+    }
+
+    @PatchMapping("/reject/{approvalId}")
+    public ResponseEntity<?> rejectApproval(@PathVariable UUID approvalId,
+                                            @RequestHeader ("X-User-MemberPositionId") UUID memberPositionId,
+                                            @RequestBody RejectRequestDto dto
+    ) {
+        approvalService.rejectApproval(approvalId, memberPositionId, dto);
+        return new ResponseEntity<>(ApiResponse.success(approvalId, "반려"), HttpStatus.OK);
     }
 
     @PostMapping("/create-reply/{approvalId}")
@@ -163,6 +171,17 @@ public class ApprovalController {
         StatsResponseDto dto = approvalService.getStats(memberPositionId);
         return new ResponseEntity<>(
                 ApiResponse.success(dto, "통계 조회"),
+                HttpStatus.OK
+        );
+    }
+
+    @PutMapping("/document-policy/{documentId}")
+    public ResponseEntity<?> updateDocument(@PathVariable UUID documentId,
+                                            @RequestBody List<DocumentPolicyDto> dtoList
+    ) {
+        approvalService.setPolicies(documentId, dtoList);
+        return new ResponseEntity<>(
+                ApiResponse.success(documentId, "문서 양식 수정"),
                 HttpStatus.OK
         );
     }

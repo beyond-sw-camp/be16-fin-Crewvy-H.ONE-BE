@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -17,6 +18,7 @@ public class DocumentResponseDto {
     private UUID documentId;
     private String documentName;
     private Map<String, Object> metadata;
+    private List<ApprovalStepDto> policy;
 
 
     public static DocumentResponseDto from(ApprovalDocument approvalDocument) {

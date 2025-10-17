@@ -1,6 +1,8 @@
 package com.crewvy.workforce_service.approval.entity;
 
 import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.workforce_service.approval.constant.RequirementType;
+import com.crewvy.workforce_service.approval.converter.RequirementTypeConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,13 +27,10 @@ public class ApprovalPolicy extends BaseEntity {
 
     private UUID companyId;
 
-    private UUID roleId;
+    @Convert(converter = RequirementTypeConverter.class)
+    private RequirementType requirementType;
 
-    private UUID memberPositionId;
+    private UUID requirementId;
 
     private int lineIndex;
-
-    protected void setApprovalDocument(ApprovalDocument approvalDocument) {
-        this.approvalDocument = approvalDocument;
-    }
 }

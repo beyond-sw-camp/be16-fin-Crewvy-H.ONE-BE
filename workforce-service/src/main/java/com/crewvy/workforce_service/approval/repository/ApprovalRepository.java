@@ -42,4 +42,7 @@ public interface ApprovalRepository extends JpaRepository<Approval, UUID> {
             @Param("memberPositionId") UUID memberPositionId,
             @Param("states") List<ApprovalState> states
     );
+
+    @Query("SELECT a FROM Approval a LEFT JOIN FETCH a.approvalLineList WHERE a.id = :id")
+    Optional<Approval> findByIdWithLines(@Param("id") UUID id);
 }
