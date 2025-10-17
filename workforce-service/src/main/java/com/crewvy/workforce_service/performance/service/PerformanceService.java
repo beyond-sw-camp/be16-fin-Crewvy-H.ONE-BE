@@ -15,7 +15,6 @@ import com.crewvy.workforce_service.performance.repository.EvaluationRepository;
 import com.crewvy.workforce_service.performance.repository.PerformanceRepository;
 import com.crewvy.workforce_service.performance.repository.TeamGoalRepository;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.persistence.Id;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
