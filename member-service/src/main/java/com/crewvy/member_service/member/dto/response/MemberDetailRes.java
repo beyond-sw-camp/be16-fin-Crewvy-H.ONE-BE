@@ -81,7 +81,7 @@ public class MemberDetailRes {
                 .bank(member.getBank())
                 .bankAccount(member.getBankAccount())
                 .joinDate(member.getJoinDate())
-                .lengthOfService(String.format("%d년 %d개월 %d일.", period.getYears(), period.getMonths(), period.getDays()))
+                .lengthOfService(String.format("%d년 %d개월 %d일", period.getYears(), period.getMonths(), period.getDays()))
                 .gradeHistoryList(gradeHistoryResList)
                 .titleList(titleList)
                 .organizationList(organizationList)

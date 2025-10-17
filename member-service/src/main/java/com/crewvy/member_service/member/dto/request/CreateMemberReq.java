@@ -33,18 +33,18 @@ public class CreateMemberReq {
     private LocalDate joinDate;
     private String extensionNumber;
     private String telNumber;
+    @NotNull(message = "직급을 선택해 주세요.")
+    private UUID gradeId;
     @NotNull(message = "고용형태를 선택해 주세요.")
     private String employmentType;
     @NotNull(message = "조직을 선택해 주세요.")
     private UUID organizationId;
     @NotNull(message = "직책을 선택해 주세요.")
     private UUID titleId;
-    @NotNull(message = "직급을 선택해 주세요.")
-    private UUID gradeId;
     @NotNull(message = "역할을 선택해 주세요.")
     private UUID roleId;
 
-    public Member memberToEntity(String encodePassword, Company company){
+    public Member memberToEntity(String encodePassword, Company company) {
         return Member.builder()
                 .email(this.email)
                 .password(encodePassword)
@@ -55,7 +55,7 @@ public class CreateMemberReq {
                 .bankAccount(this.bankAccount)
                 .profileUrl(this.profileUrl)
                 .sabun(this.sabun)
-                .joinDate(this.joinDate)
+                .joinDate(this.joinDate != null ? this.joinDate : LocalDate.now())
                 .extensionNumber(this.extensionNumber)
                 .telNumber(this.telNumber)
                 .employmentType(EmploymentType.fromCode(this.employmentType))
