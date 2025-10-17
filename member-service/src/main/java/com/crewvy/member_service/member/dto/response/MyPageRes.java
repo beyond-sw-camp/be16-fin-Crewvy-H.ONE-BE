@@ -60,7 +60,7 @@ public class MyPageRes {
                 .gradeName(grade.getName())
                 .sabun(member.getSabun())
                 .joinDate(member.getJoinDate())
-                .lengthOfService(String.format("%d년 %d개월 %d일.", period.getYears(), period.getMonths(), period.getDays()))
+                .lengthOfService(String.format("%d년 %d개월 %d일", period.getYears(), period.getMonths(), period.getDays()))
                 .employmentTypeName(member.getEmploymentType().getCodeName())
                 .defaultPosition(defaultPosition)
                 .extensionNumber(member.getExtensionNumber())

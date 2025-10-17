@@ -10,14 +10,13 @@ import com.crewvy.member_service.member.dto.response.*;
 import com.crewvy.member_service.member.entity.*;
 import com.crewvy.member_service.member.repository.*;
 import jakarta.persistence.EntityNotFoundException;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -109,7 +108,7 @@ public class MemberService {
         Role role = roleRepository.findById(createMemberReq.getRoleId()).orElseThrow(()
                 -> new IllegalArgumentException("존재하지 않는 역할입니다."));
 
-        MemberPosition memberPosition = createMemberPosition(savedMember, organization, title, role, LocalDateTime.now());
+        MemberPosition memberPosition = createMemberPosition(savedMember, organization, title, role, LocalDate.now(), null);
         savedMember.updateDefaultMemberPosition(memberPosition);
         return savedMember.getId();
     }
@@ -323,7 +322,7 @@ public class MemberService {
                     throw new IllegalArgumentException("역할 ID는 null일 수 없습니다.");
                 }
 
-                memberPosition.update(organization, title, role, req.getStartDate());
+                memberPosition.update(organization, title, role, req.getStartDate(), req.getEndDate());
                 memberPosition.delete();
                 memberPositionRepository.save(memberPosition);
             }
@@ -822,21 +821,21 @@ public class MemberService {
 
     // member_position 생성
     private MemberPosition createMemberPosition(Member member, Organization organization,
-                                                Title title, Role role, LocalDateTime startDate) {
+                                                Title title, Role role, LocalDate startDate, LocalDate endDate) {
         MemberPosition memberPosition = MemberPosition.builder()
                 .member(member)
                 .organization(organization)
                 .title(title)
                 .role(role)
                 .startDate(startDate)
-                .endDate(null)
+                .endDate(endDate)
                 .build();
         return memberPositionRepository.save(memberPosition);
     }
 
     // member_position 생성
     public void createAndAssignDefaultPosition(Member member, Organization organization, Title title, Role role) {
-        MemberPosition memberPosition = createMemberPosition(member, organization, title, role, LocalDateTime.now());
+        MemberPosition memberPosition = createMemberPosition(member, organization, title, role, LocalDate.now(), null);
         member.updateDefaultMemberPosition(memberPosition);
         memberRepository.save(member);
     }

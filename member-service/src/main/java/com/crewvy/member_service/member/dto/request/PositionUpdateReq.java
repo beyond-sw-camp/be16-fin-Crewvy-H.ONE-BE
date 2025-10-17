@@ -4,7 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Getter
@@ -15,5 +15,6 @@ public class PositionUpdateReq {
     private UUID organizationId;
     private UUID titleId;
     private UUID roleId;
-    private LocalDateTime startDate;
+    private LocalDate startDate;
+    private LocalDate endDate;
 }
