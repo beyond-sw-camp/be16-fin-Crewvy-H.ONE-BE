@@ -4,6 +4,7 @@ import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.exception.BusinessException;
 import com.crewvy.workforce_service.attendance.constant.PolicyScopeType;
 import com.crewvy.workforce_service.attendance.dto.request.PolicyAssignmentRequest;
+import com.crewvy.workforce_service.attendance.dto.response.PolicyAssignmentResponse;
 import com.crewvy.workforce_service.attendance.entity.Policy;
 import com.crewvy.workforce_service.attendance.entity.PolicyAssignment;
 import com.crewvy.workforce_service.attendance.repository.PolicyAssignmentRepository;
@@ -21,6 +22,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -99,6 +101,16 @@ public class PolicyAssignmentService {
         return policyRepository.findActivePolicies(companyId, LocalDate.now(), pageable)
                 .stream().findFirst()
                 .orElseThrow(() -> new BusinessException("적용할 수 있는 정책이 회사에 존재하지 않습니다."));
+    }
+
+    @Transactional(readOnly = true)
+    public List<PolicyAssignmentResponse> findPolicyAssignmentsByTarget(UUID memberPositionId, UUID targetId, PolicyScopeType targetType) {
+        checkPermissionOrThrow(memberPositionId, "READ", "COMPANY", "정책 할당 내역을 조회할 권한이 없습니다.");
+
+        List<PolicyAssignment> assignments = policyAssignmentRepository.findByTargetIdAndTargetTypeOrderByAssignedAtDesc(targetId, targetType);
+        return assignments.stream()
+                .map(PolicyAssignmentResponse::new)
+                .collect(Collectors.toList());
     }
 
     private void checkPermissionOrThrow(UUID memberPositionId, String action, String range, String errorMessage) {
