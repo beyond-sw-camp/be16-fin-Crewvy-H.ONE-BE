@@ -87,6 +87,6 @@
 | WBS      | [열기](https://docs.google.com/spreadsheets/d/1OWBwOKICwviN1j20aa2d0-GFYH7mc54pXyNh_uE32rs/edit?gid=437381057#gid=437381057) |
 | ERD      | [열기](https://www.erdcloud.com/d/putcJAPJZgGAzeqBS) |
 | 화면설계서    | [열기](https://www.figma.com/design/xpNgDkijDVTtfj1qtteclD/Team-project?node-id=939-12738&t=uA5ilLzLXs6EpFeA-1) |
-| API 명세서  | [열기]() |
+| API 명세서  | [열기](https://documenter.getpostman.com/view/48728965/2sB3QQH7M2) |
 
 ---
