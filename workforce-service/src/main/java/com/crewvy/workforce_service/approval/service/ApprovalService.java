@@ -20,6 +20,7 @@ import com.crewvy.workforce_service.feignClient.dto.response.OrganizationNodeDto
 import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -52,26 +53,69 @@ public class ApprovalService {
 
 //    문서 양식 조회
     @Transactional(readOnly = true)
-    public DocumentResponseDto getDocument(UUID id, UUID memberPositionId) {
-        ApprovalDocument document = approvalDocumentRepository.findByIdWithPolicies(id).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 문서입니다."));
+    public DocumentResponseDto getDocument(UUID id, UUID memberPositionId, UUID memberId) {
+        // 1. 문서와 정책 목록을 한 번에 조회합니다 (N+1 방지).
+        ApprovalDocument document = approvalDocumentRepository.findByIdWithPolicies(id)
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 문서입니다."));
 
-        List<OrganizationNodeDto> orgTree = memberClient.getOrganization(memberPositionId).getData();
-        List<UUID> memberPositionIdList = new ArrayList<>();
-        for(ApprovalPolicy p : document.getPolicyList()) {
-            if(p.getRequirementType() == RequirementType.TITLE) {
-                UUID mpId = findApproverByTitle(orgTree, memberPositionId, p.getRequirementId());
-                memberPositionIdList.add(mpId);
+        // 2. 조직도는 한 번만 조회하여 재사용합니다.
+        List<OrganizationNodeDto> orgTree = memberClient.getOrganization(memberId).getData();
+
+        // 3. 각 정책을 해석하여 '순서(lineIndex)'와 '찾아야 할 결재자 ID'를 Pair로 묶어 저장합니다.
+        List<Pair<Integer, UUID>> resolvedPolicies = new ArrayList<>();
+        for (ApprovalPolicy policy : document.getPolicyList()) {
+            UUID approverId;
+            if (policy.getRequirementType() == RequirementType.TITLE) {
+                approverId = findApproverByTitle(orgTree, memberPositionId, policy.getRequirementId());
+            } else { // MEMBER_POSITION 또는 ROLE
+                approverId = policy.getRequirementId();
             }
-            else {
-                memberPositionIdList.add(p.getRequirementId());
+
+            if (approverId != null) {
+                resolvedPolicies.add(Pair.of(policy.getLineIndex(), approverId));
             }
         }
 
+        // 4. 수집된 모든 결재자 ID로 FeignClient를 딱 한 번 호출하여 상세 정보를 가져옵니다.
+        List<UUID> allApproverIds = resolvedPolicies.stream().map(Pair::getSecond).toList();
+        Map<UUID, PositionDto> positionMap = new HashMap<>();
+        if (!allApproverIds.isEmpty()) {
+            List<PositionDto> positions = memberClient.getPositionList(memberPositionId, new IdListReq(allApproverIds)).getData();
+            if (positions != null) {
+                positionMap = positions.stream()
+                        .collect(Collectors.toMap(PositionDto::getMemberPositionId, pos -> pos));
+            }
+        }
+
+        // 5. 💡 조회된 정보를 조합하여 최종 'ApprovalStepDto' 리스트를 생성합니다. (핵심 요리 과정)
+        final Map<UUID, PositionDto> finalPositionMap = positionMap;
+        List<ApprovalStepDto> policyLine = resolvedPolicies.stream()
+                .map(pair -> {
+                    int lineIndex = pair.getFirst();
+                    UUID approverId = pair.getSecond();
+                    PositionDto position = finalPositionMap.get(approverId);
+
+                    if (position == null) return null; // 상세 정보를 찾지 못한 경우
+
+                    // ApprovalStepDto를 빌드합니다.
+                    return ApprovalStepDto.builder()
+                            .index(lineIndex)
+                            .approverId(position.getMemberPositionId())
+                            .approverName(position.getMemberName())
+                            .approverPosition(position.getTitleName())
+                            .approverOrganization(position.getOrganizationName())
+                            .build();
+                })
+                .filter(Objects::nonNull) // null인 경우 최종 리스트에서 제외
+                .sorted(Comparator.comparing(ApprovalStepDto::getIndex)) // lineIndex 순서대로 최종 정렬
+                .toList();
+
+        // 6. 완성된 추천 결재자 목록을 최종 DTO에 담아 반환합니다.
         return DocumentResponseDto.builder()
                 .documentId(document.getId())
                 .documentName(document.getDocumentName())
                 .metadata(document.getMetadata())
-//                .policy()
+                .policy(policyLine)
                 .build();
     }
 
