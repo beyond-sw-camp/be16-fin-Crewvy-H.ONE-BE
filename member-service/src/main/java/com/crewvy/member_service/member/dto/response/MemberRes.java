@@ -15,6 +15,8 @@ import java.util.UUID;
 @Builder
 public class MemberRes {
     private UUID id;
+    private UUID memberPositionId;
+    private UUID titleId;
     private String name;
     private String position;
     private String email;
@@ -26,9 +28,13 @@ public class MemberRes {
         String departmentName = (defaultPosition != null && defaultPosition.getOrganization() != null) ? defaultPosition.getOrganization().getName() : null;
         String teamName = (defaultPosition != null && defaultPosition.getOrganization() != null && defaultPosition.getOrganization().getParent() != null) ? defaultPosition.getOrganization().getParent().getName() : null; // Assuming parent is team or department
         String positionName = (defaultPosition != null && defaultPosition.getTitle() != null) ? defaultPosition.getTitle().getName() : null;
+        UUID memberPositionId = (defaultPosition != null && defaultPosition.getId() != null) ? defaultPosition.getId() : null;
+        UUID titleId = (defaultPosition != null && defaultPosition.getTitle() != null) ? defaultPosition.getTitle().getId() : null;
 
         return MemberRes.builder()
                 .id(member.getId())
+                .memberPositionId(memberPositionId)
+                .titleId(titleId)
                 .name(member.getName())
                 .position(positionName)
                 .email(member.getEmail())
