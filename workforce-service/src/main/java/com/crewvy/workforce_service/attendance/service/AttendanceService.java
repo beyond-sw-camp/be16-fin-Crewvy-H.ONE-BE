@@ -48,7 +48,7 @@ public class AttendanceService {
     private final MemberBalanceRepository memberBalanceRepository;
 
     public ApiResponse<?> recordEvent(UUID memberId, UUID memberPositionId, UUID companyId, EventRequest request, String clientIp) {
-        checkPermissionOrThrow(memberPositionId, "CREATE", "INDIVIDUAL", "근태를 기록할 권한이 없습니다.");
+        checkPermissionOrThrow(memberPositionId, "attendance", "CREATE", "INDIVIDUAL", "근태를 기록할 권한이 없습니다.");
 
         // 인증/검증이 필요한 이벤트 그룹
         List<EventType> validationRequiredEvents = List.of(EventType.CLOCK_IN, EventType.CLOCK_OUT);
@@ -69,8 +69,8 @@ public class AttendanceService {
         }
     }
 
-    private void checkPermissionOrThrow(UUID memberPositionId, String action, String range, String errorMessage) {
-        ApiResponse<Boolean> response = memberClient.checkPermission(memberPositionId, "attendance", action, range);
+    private void checkPermissionOrThrow(UUID memberPositionId, String resource, String action, String range, String errorMessage) {
+        ApiResponse<Boolean> response = memberClient.checkPermission(memberPositionId, resource, action, range);
         if (response == null || !Boolean.TRUE.equals(response.getData())) {
             throw new PermissionDeniedException(errorMessage);
         }
@@ -234,7 +234,7 @@ public class AttendanceService {
         validateDateRange(startDate, endDate);
 
         // Phase 1: COMPANY 레벨 - 급여 담당자 전체 조회
-        checkPermissionOrThrow(memberPositionId, "READ", "COMPANY", "급여 정산을 위한 근태 요약 데이터를 조회할 권한이 없습니다.");
+        checkPermissionOrThrow(memberPositionId, "salary", "READ", "COMPANY", "급여 정산을 위한 근태 요약 데이터를 조회할 권한이 없습니다.");
 
         // TODO: Phase 2 - 개인/팀장 조회 기능 추가
         // if (targetMemberId != null) {
@@ -284,7 +284,7 @@ public class AttendanceService {
         validateYear(year);
 
         // Phase 1: COMPANY 레벨 - 급여 담당자만 전체 조회 가능
-        checkPermissionOrThrow(memberPositionId, "READ", "COMPANY", "급여 정산을 위한 잔여 일수 데이터를 조회할 권한이 없습니다.");
+        checkPermissionOrThrow(memberPositionId, "salary", "READ", "COMPANY", "급여 정산을 위한 잔여 일수 데이터를 조회할 권한이 없습니다.");
 
         // TODO: Phase 2 - 개인 조회 기능 추가
         // if (targetMemberId != null) {
@@ -299,7 +299,7 @@ public class AttendanceService {
         return balances.stream()
                 .map(mb -> MemberBalanceSummaryRes.builder()
                         .memberId(mb.getMemberId())
-                        .policyTypeCode(mb.getBalanceTypeCode().getCodeValue())
+                        .policyTypeCode(mb.getBalanceTypeCode().name())
                         .policyTypeName(mb.getBalanceTypeCode().getCodeName())
                         .remainingBalance(mb.getRemaining())
                         .build())
