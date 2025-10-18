@@ -70,20 +70,21 @@ public class PolicyAssignmentService {
             return memberPolicy.get();
         }
 
+        // TODO: member-service에 GET /member/{memberId}/organization-hierarchy API 구현 필요
         // 2. ORGANIZATION 우선: 직원의 소속 조직(상위 포함)에 할당된 정책 조회
         // 조직 계층 구조 순서대로 조회 (하위 조직부터 상위 조직 순으로)
-        ApiResponse<List<UUID>> hierarchyResponse = memberClient.getOrganizationHierarchy(memberId);
-        if (hierarchyResponse != null && hierarchyResponse.getData() != null && !hierarchyResponse.getData().isEmpty()) {
-            List<UUID> organizationHierarchy = hierarchyResponse.getData();
-            // 계층 구조 순서대로 순회하며 첫 번째 할당된 정책 반환
-            for (UUID organizationId : organizationHierarchy) {
-                Optional<PolicyAssignment> assignment = policyAssignmentRepository
-                        .findFirstByTargetIdAndTargetTypeAndIsActiveTrueOrderByAssignedAtDesc(organizationId, PolicyScopeType.ORGANIZATION);
-                if (assignment.isPresent()) {
-                    return assignment.get().getPolicy();
-                }
-            }
-        }
+//        ApiResponse<List<UUID>> hierarchyResponse = memberClient.getOrganizationHierarchy(memberId);
+//        if (hierarchyResponse != null && hierarchyResponse.getData() != null && !hierarchyResponse.getData().isEmpty()) {
+//            List<UUID> organizationHierarchy = hierarchyResponse.getData();
+//            // 계층 구조 순서대로 순회하며 첫 번째 할당된 정책 반환
+//            for (UUID organizationId : organizationHierarchy) {
+//                Optional<PolicyAssignment> assignment = policyAssignmentRepository
+//                        .findFirstByTargetIdAndTargetTypeAndIsActiveTrueOrderByAssignedAtDesc(organizationId, PolicyScopeType.ORGANIZATION);
+//                if (assignment.isPresent()) {
+//                    return assignment.get().getPolicy();
+//                }
+//            }
+//        }
 
         // 3. COMPANY 우선: 회사 전체에 할당된 정책 조회
         Optional<Policy> companyPolicy = policyAssignmentRepository

@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.feignClient;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
+import com.crewvy.workforce_service.feignClient.dto.response.OrganizationNodeDto;
 import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
@@ -17,6 +18,9 @@ public interface MemberClient {
                                                     @RequestBody IdListReq idListReq
     );
 
+    @GetMapping("/organization/tree-with-members")
+    ApiResponse<List<OrganizationNodeDto>> getOrganization(@RequestHeader("X-User-UUID") UUID uuid);
+
     // 권한 확인
     @GetMapping("/member/check-permission")
     ApiResponse<Boolean> checkPermission(
@@ -26,7 +30,8 @@ public interface MemberClient {
             @RequestParam("range") String range
     );
 
+    // TODO: member-service에 API 구현 필요
     // 직원의 조직 계층 조회 (MEMBER -> TEAM -> DEPARTMENT -> ... -> COMPANY)
-    @GetMapping("/member/{memberId}/organization-hierarchy")
-    ApiResponse<List<UUID>> getOrganizationHierarchy(@PathVariable("memberId") UUID memberId);
+//    @GetMapping("/member/{memberId}/organization-hierarchy")
+//    ApiResponse<List<UUID>> getOrganizationHierarchy(@PathVariable("memberId") UUID memberId);
 }

@@ -133,6 +133,20 @@ public class OrganizationService {
         return organizationRepository.save(organization).getId();
     }
 
+    // 조직 순서 변경
+    public void reorderOrganization(List<UUID> organizationIds) {
+        List<Organization> organizationsToUpdate = new ArrayList<>();
+        for (int i = 0; i < organizationIds.size(); i++) {
+            int displayOrder = i;
+            UUID id = organizationIds.get(i);
+            organizationRepository.findById(id).ifPresent(organization -> {
+                organization.updateDisplayOrder(displayOrder);
+                organizationsToUpdate.add(organization);
+            });
+        }
+        organizationRepository.saveAll(organizationsToUpdate);
+    }
+
     // 조직 삭제
     public void deleteOrganization(UUID memberId, UUID memberPositionId, UUID organizationId) {
         if (memberService.checkPermission(memberPositionId, "organization", Action.DELETE, PermissionRange.COMPANY) == FALSE) {
@@ -153,20 +167,5 @@ public class OrganizationService {
         }
 
         organizationRepository.delete(organization);
-    }
-
-    // 조직 순서 변경
-    @Transactional
-    public void reorderOrganization(List<UUID> organizationIds) {
-        List<Organization> organizationsToUpdate = new ArrayList<>();
-        for (int i = 0; i < organizationIds.size(); i++) {
-            int displayOrder = i;
-            UUID id = organizationIds.get(i);
-            organizationRepository.findById(id).ifPresent(organization -> {
-                organization.updateDisplayOrder(displayOrder);
-                organizationsToUpdate.add(organization);
-            });
-        }
-        organizationRepository.saveAll(organizationsToUpdate);
     }
 }

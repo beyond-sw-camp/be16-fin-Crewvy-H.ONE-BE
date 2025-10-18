@@ -6,6 +6,8 @@ import com.crewvy.member_service.member.entity.Member;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.*;
 
+import java.time.LocalDate;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -25,6 +27,8 @@ public class CreateAdminReq {
     private String bank;
     private String bankAccount;
     private String profileUrl;
+    @Builder.Default
+    private LocalDate joinDate = LocalDate.now();
     private String employmentType;
     @NotEmpty(message = "회사명을 입력해 주세요.")
     private String companyName;
@@ -41,6 +45,7 @@ public class CreateAdminReq {
                 .bank(this.bank)
                 .bankAccount(this.bankAccount)
                 .profileUrl(this.profileUrl)
+                .joinDate(this.joinDate)
                 .employmentType(EmploymentType.FULL)
                 .company(company)
                 .build();
