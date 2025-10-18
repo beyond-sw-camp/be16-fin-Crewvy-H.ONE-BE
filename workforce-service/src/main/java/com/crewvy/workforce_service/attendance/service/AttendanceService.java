@@ -8,6 +8,8 @@ import com.crewvy.workforce_service.attendance.constant.RequestStatus;
 import com.crewvy.workforce_service.attendance.dto.request.EventRequest;
 import com.crewvy.workforce_service.attendance.dto.response.ClockInResponse;
 import com.crewvy.workforce_service.attendance.dto.response.ClockOutResponse;
+import com.crewvy.workforce_service.attendance.dto.response.DailyAttendanceSummaryRes;
+import com.crewvy.workforce_service.attendance.dto.response.MemberBalanceSummaryRes;
 import com.crewvy.workforce_service.attendance.dto.rule.AuthMethodDto;
 import com.crewvy.workforce_service.attendance.dto.rule.PolicyRuleDetails;
 import com.crewvy.workforce_service.attendance.entity.AttendanceLog;
@@ -209,6 +211,141 @@ public class AttendanceService {
         }
         if (!allowedIps.contains(clientIp)) {
             throw new AuthenticationFailedException("허용되지 않은 IP입니다.");
+        }
+    }
+
+    /**
+     * 기간별 전체 직원 일일 근태 조회 (급여 정산용)
+     *
+     * 현재 구현: COMPANY 레벨 전체 조회만 지원 (salary 권한 필수)
+     * TODO: Phase 2 - INDIVIDUAL, TEAM, DEPARTMENT 레벨 추가
+     *
+     * @param memberPositionId 요청자 직책 ID
+     * @param companyId 회사 ID
+     * @param startDate 조회 시작일
+     * @param endDate 조회 종료일
+     * @return 기간 내 모든 직원의 일일 근태 데이터
+     */
+    @Transactional(readOnly = true)
+    public List<DailyAttendanceSummaryRes> getDailyAttendanceSummary(
+            UUID memberPositionId, UUID companyId,
+            LocalDate startDate, LocalDate endDate) {
+
+        validateDateRange(startDate, endDate);
+
+        // Phase 1: COMPANY 레벨 - 급여 담당자 전체 조회
+        checkPermissionOrThrow(memberPositionId, "READ", "COMPANY", "급여 정산을 위한 근태 요약 데이터를 조회할 권한이 없습니다.");
+
+        // TODO: Phase 2 - 개인/팀장 조회 기능 추가
+        // if (targetMemberId != null) {
+        //     // INDIVIDUAL: 본인 데이터만 조회
+        //     checkPermissionOrThrow(memberPositionId, "READ", "INDIVIDUAL", "본인의 근태 데이터만 조회할 수 있습니다.");
+        //     return getDailyAttendanceByMember(targetMemberId, startDate, endDate, companyId);
+        // }
+        //
+        // // TEAM/DEPARTMENT: 소속 팀원 조회
+        // // member-service에서 조직 계층 정보 필요
+        // List<UUID> subordinateIds = memberClient.getSubordinates(memberPositionId);
+        // if (!subordinateIds.isEmpty()) {
+        //     return getDailyAttendanceByMembers(subordinateIds, startDate, endDate, companyId);
+        // }
+
+        // companyId 필터링 (Multi-tenant 보안)
+        List<DailyAttendance> dailyAttendances = dailyAttendanceRepository.findAllByDateRangeAndCompany(companyId, startDate, endDate);
+
+        return dailyAttendances.stream()
+                .map(da -> DailyAttendanceSummaryRes.builder()
+                        .memberId(da.getMemberId())
+                        .attendanceDate(da.getAttendanceDate())
+                        .firstClockIn(da.getFirstClockIn())
+                        .lastClockOut(da.getLastClockOut())
+                        .workedMinutes(da.getWorkedMinutes())
+                        .overtimeMinutes(da.getOvertimeMinutes())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 연도별 전체 직원 잔여 일수 조회 (급여 정산용)
+     *
+     * 현재 구현: COMPANY 레벨 전체 조회만 지원 (salary 권한 필수)
+     * TODO: Phase 2 - INDIVIDUAL 레벨 추가 (본인 잔여 일수 조회)
+     *
+     * @param memberPositionId 요청자 직책 ID
+     * @param companyId 회사 ID
+     * @param year 조회 연도
+     * @return 해당 연도의 전체 직원 잔여 일수 데이터
+     */
+    @Transactional(readOnly = true)
+    public List<MemberBalanceSummaryRes> getMemberBalanceSummary(
+            UUID memberPositionId, UUID companyId,
+            Integer year) {
+
+        validateYear(year);
+
+        // Phase 1: COMPANY 레벨 - 급여 담당자만 전체 조회 가능
+        checkPermissionOrThrow(memberPositionId, "READ", "COMPANY", "급여 정산을 위한 잔여 일수 데이터를 조회할 권한이 없습니다.");
+
+        // TODO: Phase 2 - 개인 조회 기능 추가
+        // if (targetMemberId != null) {
+        //     // INDIVIDUAL: 본인 잔여 일수만 조회
+        //     checkPermissionOrThrow(memberPositionId, "READ", "INDIVIDUAL", "본인의 잔여 일수만 조회할 수 있습니다.");
+        //     return getBalanceByMember(targetMemberId, year, companyId);
+        // }
+
+        // companyId 필터링 (Multi-tenant 보안)
+        List<MemberBalance> balances = memberBalanceRepository.findAllByYearAndCompany(companyId, year);
+
+        return balances.stream()
+                .map(mb -> MemberBalanceSummaryRes.builder()
+                        .memberId(mb.getMemberId())
+                        .policyTypeCode(mb.getBalanceTypeCode().getCodeValue())
+                        .policyTypeName(mb.getBalanceTypeCode().getCodeName())
+                        .remainingBalance(mb.getRemaining())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+
+    // --- 검증 메서드들 ---
+
+    /**
+     * 날짜 범위 유효성 검증
+     */
+    private void validateDateRange(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            throw new IllegalArgumentException("시작일과 종료일은 필수입니다.");
+        }
+
+        if (startDate.isAfter(endDate)) {
+            throw new InvalidDateRangeException("시작일은 종료일보다 이후일 수 없습니다.");
+        }
+
+        // 최대 조회 기간 제한 (예: 1년)
+        long daysBetween = java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate);
+        if (daysBetween > 365) {
+            throw new InvalidDateRangeException("조회 기간은 최대 365일까지 가능합니다.");
+        }
+    }
+
+    /**
+     * 연도 유효성 검증
+     */
+    private void validateYear(Integer year) {
+        if (year == null) {
+            throw new IllegalArgumentException("연도는 필수입니다.");
+        }
+
+        int currentYear = LocalDate.now().getYear();
+
+        // 너무 과거 연도 제한 (예: 10년 전까지)
+        if (year < currentYear - 10) {
+            throw new InvalidDateRangeException("조회 가능한 연도는 최근 10년 이내입니다.");
+        }
+
+        // 미래 연도 제한
+        if (year > currentYear + 1) {
+            throw new InvalidDateRangeException("미래 연도는 조회할 수 없습니다.");
         }
     }
 }
