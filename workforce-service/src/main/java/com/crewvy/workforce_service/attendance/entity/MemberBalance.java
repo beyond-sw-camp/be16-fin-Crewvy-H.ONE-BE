@@ -23,7 +23,7 @@ public class MemberBalance extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "member_balance_id", nullable = false)
-    private UUID memberBalanceId;
+    private UUID id;
 
     @Column(name = "member_id", nullable = false)
     private UUID memberId;

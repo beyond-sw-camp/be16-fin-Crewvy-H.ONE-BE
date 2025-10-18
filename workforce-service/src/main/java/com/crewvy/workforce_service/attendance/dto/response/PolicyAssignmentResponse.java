@@ -21,8 +21,8 @@ public class PolicyAssignmentResponse {
     private LocalDateTime revokedAt;
 
     public PolicyAssignmentResponse(PolicyAssignment entity) {
-        this.policyAssignmentId = entity.getPolicyAssignmentId();
-        this.policyId = entity.getPolicy().getPolicyId();
+        this.policyAssignmentId = entity.getId();
+        this.policyId = entity.getPolicy().getId();
         this.targetId = entity.getTargetId();
         this.scopeType = entity.getTargetType();
         this.isActive = entity.isActive();
