@@ -114,6 +114,16 @@ public class PolicyAssignmentService {
                 .collect(Collectors.toList());
     }
 
+    public void revokePolicyAssignment(UUID memberPositionId, UUID policyAssignmentId) {
+        checkPermissionOrThrow(memberPositionId, "UPDATE", "COMPANY", "정책 할당을 해지할 권한이 없습니다.");
+
+        PolicyAssignment assignment = policyAssignmentRepository.findById(policyAssignmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("해당 정책 할당 내역을 찾을 수 없습니다: " + policyAssignmentId));
+
+        assignment.deactivate();
+        policyAssignmentRepository.save(assignment);
+    }
+
     private void checkPermissionOrThrow(UUID memberPositionId, String action, String range, String errorMessage) {
         ApiResponse<Boolean> response = memberClient.checkPermission(memberPositionId, "attendance", action, range);
         if (response == null || !Boolean.TRUE.equals(response.getData())) {

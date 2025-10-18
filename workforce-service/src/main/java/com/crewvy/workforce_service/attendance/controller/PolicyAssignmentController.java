@@ -37,4 +37,12 @@ public class PolicyAssignmentController {
         List<PolicyAssignmentResponse> response = policyAssignmentService.findPolicyAssignmentsByTarget(memberPositionId, targetId, targetType);
         return new ResponseEntity<>(ApiResponse.success(response, "정책 할당 목록 조회 완료"), HttpStatus.OK);
     }
+
+    @PatchMapping("/{policyAssignmentId}/revoke")
+    public ResponseEntity<ApiResponse<Void>> revokePolicyAssignment(
+            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+            @PathVariable("policyAssignmentId") UUID policyAssignmentId) {
+        policyAssignmentService.revokePolicyAssignment(memberPositionId, policyAssignmentId);
+        return new ResponseEntity<>(ApiResponse.success(null, "정책 할당 해지 완료"), HttpStatus.OK);
+    }
 }
