@@ -87,7 +87,7 @@ public class AttendanceService {
         AttendanceLog newLog = createAttendanceLog(memberId, clockInTime, EventType.CLOCK_IN, request.getLatitude(), request.getLongitude());
         createDailyAttendance(memberId, companyId, today, clockInTime);
 
-        return new ClockInResponse(newLog.getAttendanceLogId(), newLog.getEventTime());
+        return new ClockInResponse(newLog.getId(), newLog.getEventTime());
     }
 
     private ClockOutResponse clockOut(UUID memberId, EventRequest request) {
@@ -102,7 +102,7 @@ public class AttendanceService {
         dailyAttendance.updateClockOut(clockOutTime);
 
         return new ClockOutResponse(
-                newLog.getAttendanceLogId(),
+                newLog.getId(),
                 newLog.getEventTime(),
                 dailyAttendance.getWorkedMinutes(),
                 dailyAttendance.getOvertimeMinutes()
