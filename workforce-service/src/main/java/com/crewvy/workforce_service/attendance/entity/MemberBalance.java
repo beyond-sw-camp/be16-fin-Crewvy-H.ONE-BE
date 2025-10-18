@@ -28,6 +28,9 @@ public class MemberBalance extends BaseEntity {
     @Column(name = "member_id", nullable = false)
     private UUID memberId;
 
+    @Column(name = "company_id", nullable = false)
+    private UUID companyId;
+
     @Column(name = "balance_type_code", nullable = false)
     @Convert(converter = PolicyTypeCodeConverter.class)
     private PolicyTypeCode balanceTypeCode;

@@ -12,11 +12,9 @@ import com.crewvy.workforce_service.attendance.dto.rule.AuthMethodDto;
 import com.crewvy.workforce_service.attendance.dto.rule.PolicyRuleDetails;
 import com.crewvy.workforce_service.attendance.entity.AttendanceLog;
 import com.crewvy.workforce_service.attendance.entity.DailyAttendance;
+import com.crewvy.workforce_service.attendance.entity.MemberBalance;
 import com.crewvy.workforce_service.attendance.entity.Policy;
-import com.crewvy.workforce_service.attendance.repository.AttendanceLogRepository;
-import com.crewvy.workforce_service.attendance.repository.DailyAttendanceRepository;
-import com.crewvy.workforce_service.attendance.repository.PolicyRepository;
-import com.crewvy.workforce_service.attendance.repository.RequestRepository;
+import com.crewvy.workforce_service.attendance.repository.*;
 import com.crewvy.workforce_service.attendance.util.DistanceCalculator;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +30,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -44,6 +43,7 @@ public class AttendanceService {
     private final PolicyRepository policyRepository;
     private final MemberClient memberClient;
     private final PolicyAssignmentService policyAssignmentService;
+    private final MemberBalanceRepository memberBalanceRepository;
 
     public ApiResponse<?> recordEvent(UUID memberId, UUID memberPositionId, UUID companyId, EventRequest request, String clientIp) {
         checkPermissionOrThrow(memberPositionId, "CREATE", "INDIVIDUAL", "근태를 기록할 권한이 없습니다.");
@@ -57,7 +57,7 @@ public class AttendanceService {
 
         switch (request.getEventType()) {
             case CLOCK_IN:
-                ClockInResponse clockInResponse = clockIn(memberId, request);
+                ClockInResponse clockInResponse = clockIn(memberId, companyId, request);
                 return ApiResponse.success(clockInResponse, "출근 등록 완료.");
             case CLOCK_OUT:
                 ClockOutResponse clockOutResponse = clockOut(memberId, request);
@@ -74,7 +74,7 @@ public class AttendanceService {
         }
     }
 
-    private ClockInResponse clockIn(UUID memberId, EventRequest request) {
+    private ClockInResponse clockIn(UUID memberId, UUID companyId, EventRequest request) {
         LocalDate today = LocalDate.now();
         dailyAttendanceRepository.findByMemberIdAndAttendanceDate(memberId, today)
                 .ifPresent(d -> {
@@ -83,7 +83,7 @@ public class AttendanceService {
 
         LocalDateTime clockInTime = LocalDateTime.now();
         AttendanceLog newLog = createAttendanceLog(memberId, clockInTime, EventType.CLOCK_IN, request.getLatitude(), request.getLongitude());
-        createDailyAttendance(memberId, today, clockInTime);
+        createDailyAttendance(memberId, companyId, today, clockInTime);
 
         return new ClockInResponse(newLog.getAttendanceLogId(), newLog.getEventTime());
     }
@@ -119,9 +119,10 @@ public class AttendanceService {
         return attendanceLogRepository.save(newLog);
     }
 
-    private void createDailyAttendance(UUID memberId, LocalDate today, LocalDateTime clockInTime) {
+    private void createDailyAttendance(UUID memberId, UUID companyId, LocalDate today, LocalDateTime clockInTime) {
         DailyAttendance dailyAttendance = DailyAttendance.builder()
                 .memberId(memberId)
+                .companyId(companyId)
                 .attendanceDate(today)
                 .firstClockIn(clockInTime)
                 .workedMinutes(0)

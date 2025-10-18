@@ -28,6 +28,9 @@ public class DailyAttendance extends BaseEntity {
     @JoinColumn(name = "member_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private UUID memberId;
 
+    @Column(name = "company_id", nullable = false)
+    private UUID companyId;
+
     @Column(name = "attendance_date", nullable = false)
     private LocalDate attendanceDate;
 
