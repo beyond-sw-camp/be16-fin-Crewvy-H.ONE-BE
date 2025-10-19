@@ -240,15 +240,23 @@ public class PolicyService {
                 if (workTimeRule.getFixedWorkMinutes() == null) {
                     throw new InvalidPolicyRuleException("고정 근무제에는 fixedWorkMinutes가 필수입니다.");
                 }
+
+                // 법정 필수: 일일 최대 12시간 (근로기준법 제53조)
+                if (workTimeRule.getFixedWorkMinutes() > 720) {
+                    throw new InvalidPolicyRuleException("일일 근무시간은 최대 12시간(720분)을 초과할 수 없습니다. (근로기준법 제53조)");
+                }
+
+                // 법정 필수: 8시간 이상 근무 시 60분 이상 휴게 (근로기준법 제54조)
                 if (workTimeRule.getFixedWorkMinutes() >= 480) {
                     BreakRuleDto breakRule = ruleDetails.getBreakRule();
                     if (breakRule == null || breakRule.getMandatoryBreakMinutes() == null || breakRule.getMandatoryBreakMinutes() < 60) {
-                        throw new InvalidPolicyRuleException("8시간 이상 근무 시, 최소 60분 이상의 휴게 규칙(breakRule)이 필수입니다.");
+                        throw new InvalidPolicyRuleException("8시간 이상 근무 시, 최소 60분 이상의 휴게 규칙(breakRule)이 필수입니다. (근로기준법 제54조)");
                     }
                 } else if (workTimeRule.getFixedWorkMinutes() >= 240) {
+                    // 법정 필수: 4시간 이상 근무 시 30분 이상 휴게
                     BreakRuleDto breakRule = ruleDetails.getBreakRule();
                     if (breakRule == null || breakRule.getMandatoryBreakMinutes() == null || breakRule.getMandatoryBreakMinutes() < 30) {
-                        throw new InvalidPolicyRuleException("4시간 이상 근무 시, 최소 30분 이상의 휴게 규칙(breakRule)이 필수입니다.");
+                        throw new InvalidPolicyRuleException("4시간 이상 근무 시, 최소 30분 이상의 휴게 규칙(breakRule)이 필수입니다. (근로기준법 제54조)");
                     }
                 }
                 break;
@@ -264,17 +272,45 @@ public class PolicyService {
         if (leaveRule.getAccrualType() == null || leaveRule.getDefaultDays() == null) {
             throw new InvalidPolicyRuleException("휴가 규칙에는 발생 유형(accrualType)과 기본 부여 일수(defaultDays)가 필수입니다.");
         }
+
+        // 법정 필수: 1년 이상 근무자 최소 15일 연차 (근로기준법 제60조)
+        if (leaveRule.getDefaultDays() < 15) {
+            throw new InvalidPolicyRuleException("1년 이상 근무자의 연차는 최소 15일 이상이어야 합니다. (근로기준법 제60조)");
+        }
+
+        // 법정 필수: 1년 미만 근무자 월차 최대 11일 (근로기준법 제60조)
+        if (leaveRule.getFirstYearMaxAccrual() != null && leaveRule.getFirstYearMaxAccrual() > 11) {
+            throw new InvalidPolicyRuleException("1년 미만 근무자의 연차는 최대 11일입니다. (근로기준법 제60조)");
+        }
     }
 
     private void validateTripRuleDetails(TripRuleDto tripRule) {
-        if (tripRule.getType() == null || tripRule.getPerDiemAmount() == null) {
-            throw new InvalidPolicyRuleException("출장 규칙에는 유형(type)과 일비(perDiemAmount)가 필수입니다.");
+        // 출장 규칙은 선택사항 (회사 재량)
+        // 설정된 경우에만 유효성 검증
+
+        if (tripRule.getPerDiemAmount() != null && tripRule.getPerDiemAmount().compareTo(java.math.BigDecimal.ZERO) < 0) {
+            throw new InvalidPolicyRuleException("일비는 음수일 수 없습니다.");
+        }
+
+        if (tripRule.getAccommodationLimit() != null && tripRule.getAccommodationLimit().compareTo(java.math.BigDecimal.ZERO) < 0) {
+            throw new InvalidPolicyRuleException("숙박비 한도는 음수일 수 없습니다.");
+        }
+
+        if (tripRule.getTransportationLimit() != null && tripRule.getTransportationLimit().compareTo(java.math.BigDecimal.ZERO) < 0) {
+            throw new InvalidPolicyRuleException("교통비 한도는 음수일 수 없습니다.");
         }
     }
 
     private void validateGoOutRuleDetails(GoOutRuleDto goOutRule) {
-        if (goOutRule.getType() == null) {
-            throw new InvalidPolicyRuleException("외출 규칙에는 유형(type)이 필수입니다.");
+        // 외출 규칙은 선택사항 (회사 재량)
+        // 설정된 경우에만 유효성 검증
+
+        if (goOutRule.getMaxSingleGoOutMinutes() != null && goOutRule.getMaxSingleGoOutMinutes() < 0) {
+            throw new InvalidPolicyRuleException("1회 최대 외출 시간은 음수일 수 없습니다.");
+        }
+
+        if (goOutRule.getMaxDailyGoOutMinutes() != null && goOutRule.getMaxDailyGoOutMinutes() < 0) {
+            throw new InvalidPolicyRuleException("일일 최대 외출 시간은 음수일 수 없습니다.");
         }
     }
 
@@ -282,11 +318,32 @@ public class PolicyService {
         if (breakRule.getType() == null) {
             throw new InvalidPolicyRuleException("휴게 규칙에는 유형(type)이 필수입니다.");
         }
+
+        // 법정 휴게시간이 설정되어 있다면 합리적인 범위인지 검증
+        if (breakRule.getMandatoryBreakMinutes() != null) {
+            if (breakRule.getMandatoryBreakMinutes() < 0) {
+                throw new InvalidPolicyRuleException("법정 휴게시간은 음수일 수 없습니다.");
+            }
+            // 법정 최소 휴게시간은 4시간 근무 시 30분 (근로기준법 제54조)
+            // 구체적인 검증은 WorkTimeRuleDto와 함께 수행됨
+        }
+
+        // 일일 최대 휴게시간이 설정되어 있다면 음수 체크
+        if (breakRule.getMaxDailyBreakMinutes() != null && breakRule.getMaxDailyBreakMinutes() < 0) {
+            throw new InvalidPolicyRuleException("일일 최대 휴게시간은 음수일 수 없습니다.");
+        }
     }
 
     private void validateLatenessRuleDetails(LatenessRuleDto latenessRule) {
-        if (latenessRule.getDeductionType() == null || latenessRule.getLatenessGraceMinutes() == null) {
-            throw new InvalidPolicyRuleException("지각/조퇴 규칙에는 차감 방식(deductionType)과 지각 허용 시간(latenessGraceMinutes)이 필수입니다.");
+        // 지각/조퇴 규칙은 선택사항 (회사 재량)
+        // 설정된 경우에만 유효성 검증
+
+        if (latenessRule.getLatenessGraceMinutes() != null && latenessRule.getLatenessGraceMinutes() < 0) {
+            throw new InvalidPolicyRuleException("지각 허용 시간은 음수일 수 없습니다.");
+        }
+
+        if (latenessRule.getEarlyLeaveGraceMinutes() != null && latenessRule.getEarlyLeaveGraceMinutes() < 0) {
+            throw new InvalidPolicyRuleException("조퇴 허용 시간은 음수일 수 없습니다.");
         }
     }
 }
