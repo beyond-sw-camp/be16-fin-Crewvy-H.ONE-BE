@@ -174,8 +174,8 @@ public class PolicyService {
             if (ruleDetails.getTripRule() != null) {
                 validateTripRuleDetails(ruleDetails.getTripRule());
             }
-            if (ruleDetails.getGoOutRuleDto() != null) {
-                validateGoOutRuleDetails(ruleDetails.getGoOutRuleDto());
+            if (ruleDetails.getGoOutRule() != null) {
+                validateGoOutRuleDetails(ruleDetails.getGoOutRule());
             }
             if (ruleDetails.getBreakRule() != null) {
                 validateBreakRuleDetails(ruleDetails.getBreakRule());
