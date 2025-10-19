@@ -99,13 +99,19 @@ public class AttendanceService {
                 });
 
         LocalDateTime clockInTime = LocalDateTime.now();
+
+        // 정책 조회
+        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId);
+
+        // 근무 시간 제한 검증
+        validateWorkingHoursLimit(today, activePolicy, clockInTime, null);
+
         AttendanceLog newLog = createAttendanceLog(memberId, clockInTime, EventType.CLOCK_IN, request.getLatitude(), request.getLongitude());
 
         // DailyAttendance 생성
         DailyAttendance dailyAttendance = createDailyAttendance(memberId, companyId, today, clockInTime);
 
-        // 정책 조회하여 지각 여부 판별
-        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId);
+        // 지각 여부 판별
         checkLateness(dailyAttendance, activePolicy);
 
         return new ClockInResponse(newLog.getId(), newLog.getEventTime());
@@ -196,6 +202,11 @@ public class AttendanceService {
         }
 
         LocalDateTime goOutTime = LocalDateTime.now();
+
+        // 정책 조회 및 근무 시간 제한 검증
+        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, dailyAttendance.getCompanyId());
+        validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), activePolicy, goOutTime, dailyAttendance.getFirstClockIn());
+
         AttendanceLog newLog = createAttendanceLog(memberId, goOutTime, EventType.GO_OUT, request.getLatitude(), request.getLongitude());
 
         return new GoOutResponse(newLog.getId(), newLog.getEventTime());
@@ -226,6 +237,11 @@ public class AttendanceService {
                 .orElseThrow(() -> new BusinessException("외출 기록을 찾을 수 없습니다."));
 
         LocalDateTime comeBackTime = LocalDateTime.now();
+
+        // 정책 조회 및 근무 시간 제한 검증
+        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, dailyAttendance.getCompanyId());
+        validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), activePolicy, comeBackTime, dailyAttendance.getFirstClockIn());
+
         AttendanceLog newLog = createAttendanceLog(memberId, comeBackTime, EventType.COME_BACK, request.getLatitude(), request.getLongitude());
 
         // 외출 시간 계산
@@ -271,6 +287,11 @@ public class AttendanceService {
         }
 
         LocalDateTime breakStartTime = LocalDateTime.now();
+
+        // 정책 조회 및 근무 시간 제한 검증
+        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, dailyAttendance.getCompanyId());
+        validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), activePolicy, breakStartTime, dailyAttendance.getFirstClockIn());
+
         AttendanceLog newLog = createAttendanceLog(memberId, breakStartTime, EventType.BREAK_START, request.getLatitude(), request.getLongitude());
 
         return new BreakStartResponse(newLog.getId(), newLog.getEventTime());
@@ -301,6 +322,11 @@ public class AttendanceService {
                 .orElseThrow(() -> new BusinessException("휴게 시작 기록을 찾을 수 없습니다."));
 
         LocalDateTime breakEndTime = LocalDateTime.now();
+
+        // 정책 조회 및 근무 시간 제한 검증
+        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, dailyAttendance.getCompanyId());
+        validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), activePolicy, breakEndTime, dailyAttendance.getFirstClockIn());
+
         AttendanceLog newLog = createAttendanceLog(memberId, breakEndTime, EventType.BREAK_END, request.getLatitude(), request.getLongitude());
 
         // 휴게 시간 계산
@@ -668,9 +694,15 @@ public class AttendanceService {
     }
 
     /**
-     * 퇴근 시간 제한 검증
+     * 근무 시간 제한 검증 (모든 근태 기록에 적용)
+     * WorkTimeRuleDto의 workEndTime과 ClockOutRuleDto 규칙에 따라 유연하게 처리
+     *
+     * @param attendanceDate 근태 날짜 (출근일 기준)
+     * @param policy 적용할 정책
+     * @param requestTime 요청 시각
+     * @param clockInTime 출근 시각 (WORK_DURATION 타입 검증에 필요, 출근 전이면 null)
      */
-    private void validateClockOutTime(DailyAttendance dailyAttendance, Policy policy, LocalDateTime clockOutTime) {
+    private void validateWorkingHoursLimit(LocalDate attendanceDate, Policy policy, LocalDateTime requestTime, LocalDateTime clockInTime) {
         if (policy == null || policy.getRuleDetails() == null || policy.getRuleDetails().getClockOutRule() == null) {
             return; // 정책이 없으면 검증 안 함
         }
@@ -691,11 +723,11 @@ public class AttendanceService {
                         String[] timeParts = workEndTime.split(":");
                         int standardHour = Integer.parseInt(timeParts[0]);
                         int standardMinute = Integer.parseInt(timeParts[1]);
-                        LocalDateTime standardEndTime = dailyAttendance.getAttendanceDate().atTime(standardHour, standardMinute);
+                        LocalDateTime standardEndTime = attendanceDate.atTime(standardHour, standardMinute);
                         LocalDateTime maxAllowedTime = standardEndTime.plusHours(clockOutRule.getMaxHoursAfterWorkEnd());
 
-                        if (clockOutTime.isAfter(maxAllowedTime)) {
-                            throw new BusinessException(String.format("퇴근 가능 시간(%s)을 초과했습니다.", maxAllowedTime.toLocalTime()));
+                        if (requestTime.isAfter(maxAllowedTime)) {
+                            throw new BusinessException(String.format("근태 기록 가능 시간(%s)을 초과했습니다.", maxAllowedTime.toLocalTime()));
                         }
                     }
                 }
@@ -703,17 +735,17 @@ public class AttendanceService {
 
             case "END_OF_DAY":
                 // 당일 자정까지만 허용
-                LocalDateTime endOfDay = dailyAttendance.getAttendanceDate().atTime(23, 59, 59);
-                if (clockOutTime.isAfter(endOfDay)) {
-                    throw new BusinessException("당일 자정 이후에는 퇴근 처리할 수 없습니다.");
+                LocalDateTime endOfDay = attendanceDate.atTime(23, 59, 59);
+                if (requestTime.isAfter(endOfDay)) {
+                    throw new BusinessException("당일 자정 이후에는 근태 기록을 처리할 수 없습니다.");
                 }
                 break;
 
             case "WORK_DURATION":
                 // 출근 시각 기준 + N시간
-                if (clockOutRule.getMaxWorkDurationHours() != null && dailyAttendance.getFirstClockIn() != null) {
-                    LocalDateTime maxAllowedTime = dailyAttendance.getFirstClockIn().plusHours(clockOutRule.getMaxWorkDurationHours());
-                    if (clockOutTime.isAfter(maxAllowedTime)) {
+                if (clockOutRule.getMaxWorkDurationHours() != null && clockInTime != null) {
+                    LocalDateTime maxAllowedTime = clockInTime.plusHours(clockOutRule.getMaxWorkDurationHours());
+                    if (requestTime.isAfter(maxAllowedTime)) {
                         throw new BusinessException(String.format("최대 근무 시간(%d시간)을 초과했습니다.", clockOutRule.getMaxWorkDurationHours()));
                     }
                 }
@@ -723,6 +755,18 @@ public class AttendanceService {
                 // 알 수 없는 제한 타입은 무시
                 break;
         }
+    }
+
+    /**
+     * 퇴근 시간 제한 검증 (하위 호환성 유지)
+     */
+    private void validateClockOutTime(DailyAttendance dailyAttendance, Policy policy, LocalDateTime clockOutTime) {
+        validateWorkingHoursLimit(
+            dailyAttendance.getAttendanceDate(),
+            policy,
+            clockOutTime,
+            dailyAttendance.getFirstClockIn()
+        );
     }
 
     /**
