@@ -2,7 +2,9 @@ package com.crewvy.workforce_service.approval.service;
 
 import com.crewvy.common.S3.S3Uploader;
 import com.crewvy.common.dto.ApiResponse;
+import com.crewvy.common.dto.NotificationMessage;
 import com.crewvy.common.exception.BusinessException;
+import com.crewvy.common.notification.NotificationRedis;
 import com.crewvy.workforce_service.approval.constant.ApprovalState;
 import com.crewvy.workforce_service.approval.constant.LineStatus;
 import com.crewvy.workforce_service.approval.constant.RequirementType;
@@ -39,6 +41,7 @@ public class ApprovalService {
     private final ApprovalReplyRepository approvalReplyRepository;
     private final S3Uploader s3Uploader;
     private final MemberClient memberClient;
+    private final NotificationRedis notification;
 
 //    문서 양식 생성
     public UUID uploadDocument(UploadDocumentDto dto) {
@@ -212,6 +215,7 @@ public class ApprovalService {
         }
         // 2. 결재 라인 정렬
         dto.getLineDtoList().sort(Comparator.comparing(ApprovalLineRequestDto::getLineIndex));
+        UUID alarmId = null;
 
         // 3. 결재 라인(자식) 생성
         for (ApprovalLineRequestDto alDto : dto.getLineDtoList()) {
@@ -223,9 +227,14 @@ public class ApprovalService {
                 approvalDate = LocalDateTime.now();
             } else if (alDto.getLineIndex() == 2) {
                 currentStatus = LineStatus.PENDING;
+                List<PositionDto> position =  memberClient.getPositionList(memberPositionId,
+                        new IdListReq(List.of(alDto.getMemberPositionId()))).getData();
+                alarmId = position.get(0).getMemberId();
             } else {
                 currentStatus = LineStatus.WAITING;
             }
+
+
 
             ApprovalLine approvalLine = ApprovalLine.builder()
                     .approval(approval)
@@ -245,6 +254,23 @@ public class ApprovalService {
 
         // 5. 부모 엔티티를 한 번만 저장
         approvalRepository.save(approval);
+
+//        알림 전송
+        if(alarmId != null) {
+            NotificationMessage message = NotificationMessage.builder()
+                    .memberId(alarmId)
+                    .notificationType("APPROVAL")
+                    .content("전자결재 : " + approval.getTitle() + " 문서가  도착했습니다.")
+                    .build();
+
+            try {
+                notification.sendNotification(message);
+            }
+            catch (Exception e) {
+                throw new BusinessException("레디스 알림 전송 실패");
+            }
+
+        }
 
         return approval.getId();
     }
@@ -323,10 +349,48 @@ public class ApprovalService {
             approval.getApprovalLineList().stream()
                     .filter(line -> line.getLineIndex() == currentIndex + 1)
                     .findFirst()
-                    .ifPresent(nextLine -> nextLine.updateLineStatus(LineStatus.PENDING)); // 날짜는 null
+                    .ifPresent(nextLine -> { // 👈 한 줄 람다를 블록 { } 으로 변경
+                        // 1. 다음 라인의 상태를 PENDING으로 변경합니다.
+                        nextLine.updateLineStatus(LineStatus.PENDING);
+
+                        // 2. ⭐ 다음 결재자의 memberPositionId를 변수로 받아냅니다.
+                        UUID nextApproverId = nextLine.getMemberPositionId();
+
+                        List<PositionDto> position = memberClient.getPositionList(memberPositionId, new IdListReq(List.of(nextApproverId))).getData();
+
+                        NotificationMessage message = NotificationMessage.builder()
+                                .memberId(position.get(0).getMemberId())
+                                .notificationType("approval")
+                                .content("전자결재 : " + approval.getTitle() + " 문서가  도착했습니다.")
+                                .build();
+
+                        try {
+                            notification.sendNotification(message);
+                        }
+                        catch (Exception e) {
+                            throw new BusinessException("레디스 알림 전송 실패");
+                        }
+                    });
         } else {
             // 5-2. 현재 결재자가 마지막인 경우, 문서 전체 상태를 최종 승인으로 변경
             approval.updateState(ApprovalState.APPROVED);
+
+            UUID nextApproverId = approval.getMemberPositionId();
+
+            List<PositionDto> position = memberClient.getPositionList(memberPositionId, new IdListReq(List.of(nextApproverId))).getData();
+
+            NotificationMessage message = NotificationMessage.builder()
+                    .memberId(position.get(0).getMemberId())
+                    .notificationType("APPROVAL")
+                    .content("전자결재 : " + approval.getTitle() + " 문서가 결재가 완료되었습니다..")
+                    .build();
+
+            try {
+                notification.sendNotification(message);
+            }
+            catch (Exception e) {
+                throw new BusinessException("레디스 알림 전송 실패");
+            }
         }
     }
 
@@ -353,6 +417,23 @@ public class ApprovalService {
 
         // 5. 문서 전체 상태를 '반려'로 즉시 변경
         approval.updateState(ApprovalState.REJECTED);
+
+        UUID nextApproverId = approval.getMemberPositionId();
+
+        List<PositionDto> position = memberClient.getPositionList(memberPositionId, new IdListReq(List.of(nextApproverId))).getData();
+
+        NotificationMessage message = NotificationMessage.builder()
+                .memberId(position.get(0).getMemberId())
+                .notificationType("APPROVAL")
+                .content("전자결재 : " + approval.getTitle() + " 문서가 결재가 완료되었습니다..")
+                .build();
+
+        try {
+            notification.sendNotification(message);
+        }
+        catch (Exception e) {
+            throw new BusinessException("레디스 알림 전송 실패");
+        }
     }
 
 //    결재 상세 조회
