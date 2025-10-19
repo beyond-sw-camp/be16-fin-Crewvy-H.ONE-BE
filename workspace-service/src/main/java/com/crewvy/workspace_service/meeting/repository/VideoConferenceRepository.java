@@ -38,6 +38,4 @@ public interface VideoConferenceRepository extends JpaRepository<VideoConference
     List<VideoConference> findByVideoConferenceInviteeList_MemberIdAndStatusFetchInvitees(
             @Param("memberId") UUID memberId,
             @Param("status") VideoConferenceStatus status);
-
-    Optional<VideoConference> findBySessionId(String sessionId);
 }

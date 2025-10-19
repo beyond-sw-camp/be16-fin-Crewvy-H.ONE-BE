@@ -136,4 +136,20 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(e.getMessage()));
     }
+
+    @ExceptionHandler(ChatSendFailedException.class)
+    protected ResponseEntity<ApiResponse<?>> handleChatSendFailedException(ChatSendFailedException e) {
+        log.warn("ChatSendFailedException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
+    @ExceptionHandler(LiveKitClientException.class)
+    protected ResponseEntity<ApiResponse<?>> handleLiveKitClientException(LiveKitClientException e) {
+        log.warn("LiveKitClientException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.error(e.getMessage()));
+    }
 }
