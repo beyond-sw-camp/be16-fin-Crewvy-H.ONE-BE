@@ -87,6 +87,22 @@ public class MemberController {
                 memberService.updateMember(memberPositionId, memberId, updateMemberReq), "직원 정보 수정 성공"), HttpStatus.OK);
     }
 
+    // 직원 삭제
+    @DeleteMapping("/{memberId}/delete")
+    public ResponseEntity<?> deleteMember(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                          @PathVariable UUID memberId) {
+        memberService.deleteMember(memberPositionId, memberId);
+        return new ResponseEntity<>(ApiResponse.success(null, "직원 정보 삭제 성공"), HttpStatus.OK);
+    }
+
+    // 직원 복원
+    @PatchMapping("/{memberId}/restore")
+    public ResponseEntity<?> restoreMember(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                           @PathVariable UUID memberId) {
+        memberService.restoreMember(memberPositionId, memberId);
+        return new ResponseEntity<>(ApiResponse.success(null, "직원 정보 복원 성공"), HttpStatus.OK);
+    }
+
     // 직원 상세 조회
     @GetMapping("/detail/{memberId}")
     public ResponseEntity<?> memberList(@RequestHeader("X-User-UUID") UUID uuid,
@@ -137,6 +153,14 @@ public class MemberController {
         return new ResponseEntity<>(ApiResponse.success(null, "직책 삭제 성공"), HttpStatus.OK);
     }
 
+    // 직책 복원
+    @PatchMapping("/title/{titleId}/restore")
+    public ResponseEntity<?> restoreTitle(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                          @PathVariable UUID titleId) {
+        memberService.restoreTitle(memberPositionId, titleId);
+        return new ResponseEntity<>(ApiResponse.success(null, "직책 복원 성공"), HttpStatus.OK);
+    }
+
     // 직급 생성
     @PostMapping("/create-grade")
     public ResponseEntity<?> createGrade(@RequestHeader("X-User-UUID") UUID uuid,
@@ -177,6 +201,14 @@ public class MemberController {
                                          @PathVariable UUID gradeId) {
         memberService.deleteGrade(memberPositionId, gradeId);
         return new ResponseEntity<>(ApiResponse.success(null, "직급 삭제 성공"), HttpStatus.OK);
+    }
+
+    // 직급 복원
+    @PatchMapping("/grade/{gradeId}/restore")
+    public ResponseEntity<?> restoreGrade(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                          @PathVariable UUID gradeId) {
+        memberService.restoreGrade(memberPositionId, gradeId);
+        return new ResponseEntity<>(ApiResponse.success(null, "직급 복원 성공"), HttpStatus.OK);
     }
 
     // 역할 생성
@@ -235,6 +267,14 @@ public class MemberController {
                                         @PathVariable UUID roleId) {
         memberService.deleteRole(memberPositionId, roleId);
         return new ResponseEntity<>(ApiResponse.success(null, "역할 삭제 성공"), HttpStatus.OK);
+    }
+
+    // 역할 복원
+    @PatchMapping("/role/{roleId}/restore")
+    public ResponseEntity<?> restoreRole(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                         @PathVariable UUID roleId) {
+        memberService.restoreRole(memberPositionId, roleId);
+        return new ResponseEntity<>(ApiResponse.success(null, "역할 복원 성공"), HttpStatus.OK);
     }
 
     // 마이페이지

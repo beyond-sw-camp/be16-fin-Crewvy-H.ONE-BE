@@ -24,8 +24,8 @@ public class MemberDetailRes {
 
     private String name;
     private String gradeName;
-    private EmploymentType employmentType;
-    private MemberStatus memberStatus;
+    private String employmentTypeName;
+    private String memberStatusName;
     private String sabun;
     private String email;
     private String phoneNumber;
@@ -69,8 +69,8 @@ public class MemberDetailRes {
                 .accountStatus(member.getAccountStatus())
                 .name(member.getName())
                 .gradeName(gradeName)
-                .employmentType(member.getEmploymentType())
-                .memberStatus(member.getMemberStatus())
+                .employmentTypeName(member.getEmploymentType().getCodeName())
+                .memberStatusName(member.getMemberStatus().getCodeName())
                 .sabun(member.getSabun())
                 .email(member.getEmail())
                 .phoneNumber(member.getPhoneNumber())

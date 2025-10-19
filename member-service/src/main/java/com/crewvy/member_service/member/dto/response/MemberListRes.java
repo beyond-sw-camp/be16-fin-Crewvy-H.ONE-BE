@@ -22,7 +22,7 @@ public class MemberListRes {
     private LocalDate joinDate;
     private String titleName;
     private String organizationName;
-    private String memberStatus;
+    private String memberStatusName;
     private String email;
     private String phoneNumber;
     private String extensionNumber;
@@ -35,7 +35,7 @@ public class MemberListRes {
                 .joinDate(memberPosition.getMember().getJoinDate())
                 .titleName(memberPosition.getTitle().getName())
                 .organizationName(memberPosition.getOrganization().getName())
-                .memberStatus(memberPosition.getMember().getMemberStatus().getCodeName())
+                .memberStatusName(memberPosition.getMember().getMemberStatus().getCodeName())
                 .email(memberPosition.getMember().getEmail())
                 .phoneNumber(memberPosition.getMember().getIsPhoneNumberPublic() == Bool.TRUE ? memberPosition.getMember().getPhoneNumber() : null)
                 .extensionNumber(memberPosition.getMember().getExtensionNumber())

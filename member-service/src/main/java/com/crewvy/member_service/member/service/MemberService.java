@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
@@ -108,7 +109,7 @@ public class MemberService {
         Role role = roleRepository.findById(createMemberReq.getRoleId()).orElseThrow(()
                 -> new IllegalArgumentException("존재하지 않는 역할입니다."));
 
-        MemberPosition memberPosition = createMemberPosition(savedMember, organization, title, role, LocalDate.now(), null);
+        MemberPosition memberPosition = createMemberPosition(createMemberReq.getMemberPositionName(), savedMember, organization, title, role, LocalDate.now(), null);
         savedMember.updateDefaultMemberPosition(memberPosition);
         return savedMember.getId();
     }
@@ -195,10 +196,32 @@ public class MemberService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 직책입니다."));
         Company company = requesterPosition.getMember().getCompany();
 
-        List<Grade> allGrade = gradeRepository.findAllByCompany(company);
+        List<Grade> activeGradeList = gradeRepository.findAllByCompanyAndYnDelOrderByDisplayOrderAsc(company, Bool.FALSE);
+        Set<UUID> assignedGradeIdSet = member.getGradeHistorySet().stream().map(gh -> gh.getGrade().getId()).collect(Collectors.toSet());
+        // 이미 할당되어 있는 목록 조회, 삭제 하더라도 할당 된 것을 보여주기 위함
+        List<Grade> assignedGradeList = gradeRepository.findAllById(assignedGradeIdSet);
+        Map<UUID, Grade> allGradeMap = new LinkedHashMap<>();
+        activeGradeList.forEach(g -> allGradeMap.put(g.getId(), g));
+        assignedGradeList.forEach(g -> allGradeMap.put(g.getId(), g));
+        List<Grade> allGrade = new ArrayList<>(allGradeMap.values());
+
         List<Organization> allOrganization = organizationRepository.findAllByCompany(company);
-        List<Title> allTitle = titleRepository.findAllByCompany(company);
-        List<Role> allRole = roleRepository.findAllByCompanyAndYnDel(company, Bool.TRUE);
+
+        List<Title> activeTitleList = titleRepository.findAllByCompanyAndYnDelOrderByDisplayOrderAsc(company, Bool.FALSE);
+        Set<UUID> assignedTitleIdSet = member.getMemberPositionList().stream().map(mp -> mp.getTitle().getId()).collect(Collectors.toSet());
+        List<Title> assignedTitleList = titleRepository.findAllById(assignedTitleIdSet);
+        Map<UUID, Title> allTitleMap = new LinkedHashMap<>();
+        activeTitleList.forEach(t -> allTitleMap.put(t.getId(), t));
+        assignedTitleList.forEach(t -> allTitleMap.put(t.getId(), t));
+        List<Title> allTitle = new ArrayList<>(allTitleMap.values());
+
+        List<Role> activeRoleList = roleRepository.findAllByCompanyAndYnDelOrderByDisplayOrderAsc(company, Bool.FALSE);
+        Set<UUID> assignedRoleIdSet = member.getMemberPositionList().stream().map(mp -> mp.getRole().getId()).collect(Collectors.toSet());
+        List<Role> assignedRoleList = roleRepository.findAllById(assignedRoleIdSet);
+        Map<UUID, Role> allRoleMap = new LinkedHashMap<>();
+        activeRoleList.forEach(r -> allRoleMap.put(r.getId(), r));
+        assignedRoleList.forEach(r -> allRoleMap.put(r.getId(), r));
+        List<Role> allRole = new ArrayList<>(allRoleMap.values());
 
         return MemberEditRes.toEntity(member, allGrade, allOrganization, allTitle, allRole);
     }
@@ -338,6 +361,24 @@ public class MemberService {
         return member.getId();
     }
 
+    // 직원 삭제
+    public void deleteMember(UUID memberPositionId, UUID memberId) {
+        if (checkPermission(memberPositionId, "member", Action.DELETE, PermissionRange.COMPANY) == FALSE) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+
+        memberRepository.findById(memberId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 계정입니다.")).delete();
+    }
+
+    // 직원 복원
+    public void restoreMember(UUID memberPositionId, UUID memberId) {
+        if (checkPermission(memberPositionId, "member", Action.DELETE, PermissionRange.COMPANY) == FALSE) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+
+        memberRepository.findById(memberId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 계정입니다.")).restore();
+    }
+
     // 직원 상세 조회
     @Transactional(readOnly = true)
     public MemberDetailRes getMemberDetail(UUID uuid, UUID memberPositionId, UUID memberId) {
@@ -442,7 +483,16 @@ public class MemberService {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
-        titleRepository.deleteById(titleId);
+        titleRepository.findById(titleId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 직책입니다.")).delete();
+    }
+
+    // 직책 복원
+    public void restoreTitle(UUID memberPositionId, UUID titleId) {
+        if (checkPermission(memberPositionId, "title", Action.DELETE, PermissionRange.COMPANY) == FALSE) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+
+        titleRepository.findById(titleId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 직책입니다.")).restore();
     }
 
     // 직급 생성
@@ -518,7 +568,16 @@ public class MemberService {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
-        gradeRepository.deleteById(gradeId);
+        gradeRepository.findById(gradeId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 직급입니다.")).delete();
+    }
+
+    // 직급 복원
+    public void restoreGrade(UUID memberPositionId, UUID gradeId) {
+        if (checkPermission(memberPositionId, "grade", Action.DELETE, PermissionRange.COMPANY) == FALSE) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+
+        gradeRepository.findById(gradeId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 직급입니다.")).restore();
     }
 
     // 역할 생성
@@ -570,7 +629,7 @@ public class MemberService {
         Member member = memberRepository.findById(memberId).orElseThrow(()
                 -> new IllegalArgumentException("존재하지 않는 계정입니다."));
         Company company = member.getCompany();
-        List<Role> roles = roleRepository.findAllByCompanyAndYnDelOrderByDisplayOrderAsc(company, Bool.TRUE);
+        List<Role> roles = roleRepository.findAllByCompanyOrderByDisplayOrderAsc(company);
 
         return roles.stream().map(role -> {
             List<MemberPosition> memberPositions = memberPositionRepository.findByRole(role);
@@ -702,9 +761,15 @@ public class MemberService {
         if (checkPermission(memberPositionId, "role", Action.DELETE, PermissionRange.COMPANY) == FALSE) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
-        Role role = roleRepository.findById(roleId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 역할입니다."));
-        role.delete();
-        roleRepository.save(role);
+        roleRepository.findById(roleId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 역할입니다.")).delete();
+    }
+
+    // 역할 복원
+    public void restoreRole(UUID memberPositionId, UUID roleId) {
+        if (checkPermission(memberPositionId, "role", Action.DELETE, PermissionRange.COMPANY) == FALSE) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+        roleRepository.findById(roleId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 역할입니다.")).restore();
     }
 
     // 마이페이지
@@ -765,6 +830,17 @@ public class MemberService {
         }
 
         member.updateMyPage(myPageEditReq, encodePw);
+
+        if (myPageEditReq.getDefaultPositionId() != null) {
+            MemberPosition newDefaultMemberPosition = memberPositionRepository.findById(myPageEditReq.getDefaultPositionId())
+                    .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 직책입니다."));
+
+            if (member.getMemberPositionList().stream().noneMatch(mp -> mp.getId().equals(newDefaultMemberPosition.getId()))) {
+                throw new PermissionDeniedException("자신의 직책으로만 변경할 수 있습니다.");
+            }
+
+            member.updateDefaultMemberPosition(newDefaultMemberPosition);
+        }
     }
 
     // 권한 확인
@@ -820,9 +896,10 @@ public class MemberService {
     }
 
     // member_position 생성
-    private MemberPosition createMemberPosition(Member member, Organization organization,
+    private MemberPosition createMemberPosition(String memberPositionName, Member member, Organization organization,
                                                 Title title, Role role, LocalDate startDate, LocalDate endDate) {
         MemberPosition memberPosition = MemberPosition.builder()
+                .name(memberPositionName)
                 .member(member)
                 .organization(organization)
                 .title(title)
@@ -834,8 +911,8 @@ public class MemberService {
     }
 
     // member_position 생성
-    public void createAndAssignDefaultPosition(Member member, Organization organization, Title title, Role role) {
-        MemberPosition memberPosition = createMemberPosition(member, organization, title, role, LocalDate.now(), null);
+    public void createAndAssignDefaultPosition(String memberPositionName, Member member, Organization organization, Title title, Role role) {
+        MemberPosition memberPosition = createMemberPosition(memberPositionName, member, organization, title, role, LocalDate.now(), null);
         member.updateDefaultMemberPosition(memberPosition);
         memberRepository.save(member);
     }

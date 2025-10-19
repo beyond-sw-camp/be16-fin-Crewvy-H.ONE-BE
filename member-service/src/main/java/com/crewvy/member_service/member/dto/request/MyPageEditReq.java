@@ -5,10 +5,13 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.UUID;
+
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+
 public class MyPageEditReq {
     private String profileUrl;
     private String phoneNumber;
@@ -23,4 +26,5 @@ public class MyPageEditReq {
     private String currentPassword;
     private String newPassword;
     private String confirmPassword;
+    private UUID defaultPositionId;
 }
