@@ -1,5 +1,6 @@
 package com.crewvy.workspace_service.notification.sse;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -13,6 +14,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 @Service
+@Slf4j
 public class SseAlarmService {
 
     private final Map<UUID, Set<SseEmitter>> clients = new ConcurrentHashMap<>();
@@ -50,17 +52,17 @@ public class SseAlarmService {
     public void sendToUser(UUID memberId, String message) {
         Set<SseEmitter> emitters = clients.get(memberId);
         if (emitters == null || emitters.isEmpty()) {
-            System.out.println("❌ No emitters found for user " + memberId);
+            log.error("No emitters found for user {}", memberId);
             return;
         }
 
-        System.out.println("✅ Sending message to " + memberId + ": " + message);
+        log.info("Sending message to {}: {}", memberId, message);
         emitters.forEach(emitter -> {
             try {
                 emitter.send(SseEmitter.event().name("notification").data(message));
-                System.out.println("➡️ Sent to one emitter");
+                log.info("Sent to one emitter");
             } catch (IOException e) {
-                System.out.println("⚠️ Failed to send, removing emitter");
+                log.error("Failed to send, removing emitter");
                 removeEmitter(memberId, emitter);
             }
         });

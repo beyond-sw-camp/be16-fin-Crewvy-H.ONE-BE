@@ -352,11 +352,11 @@ public class ApprovalService {
             approval.getApprovalLineList().stream()
                     .filter(line -> line.getLineIndex() == currentIndex + 1)
                     .findFirst()
-                    .ifPresent(nextLine -> { // 👈 한 줄 람다를 블록 { } 으로 변경
+                    .ifPresent(nextLine -> { // 한 줄 람다를 블록 { } 으로 변경
                         // 1. 다음 라인의 상태를 PENDING으로 변경합니다.
                         nextLine.updateLineStatus(LineStatus.PENDING);
 
-                        // 2. ⭐ 다음 결재자의 memberPositionId를 변수로 받아냅니다.
+                        // 2. 다음 결재자의 memberPositionId를 변수로 받아냅니다.
                         UUID nextApproverId = nextLine.getMemberPositionId();
 
                         List<PositionDto> position = memberClient.getPositionList(memberPositionId, new IdListReq(List.of(nextApproverId))).getData();
