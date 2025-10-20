@@ -22,7 +22,7 @@ public class AttendanceLog extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "attendance_log_id", nullable = false)
-    private UUID attendanceLogId;
+    private UUID id;
 
     @Column(name = "member_id", nullable = false)
     private UUID memberId;

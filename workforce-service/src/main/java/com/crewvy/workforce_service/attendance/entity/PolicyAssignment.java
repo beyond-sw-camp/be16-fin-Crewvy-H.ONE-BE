@@ -20,7 +20,8 @@ public class PolicyAssignment {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID policyAssignmentId;
+    @Column(name = "policy_assignment_id", nullable = false)
+    private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "policy_id", nullable = false)
