@@ -2,14 +2,19 @@ package com.crewvy.workforce_service.attendance.controller;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.attendance.dto.request.EventRequest;
+import com.crewvy.workforce_service.attendance.dto.response.DailyAttendanceSummaryRes;
+import com.crewvy.workforce_service.attendance.dto.response.MemberBalanceSummaryRes;
 import com.crewvy.workforce_service.attendance.service.AttendanceService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -21,16 +26,15 @@ public class AttendanceController {
 
     @PostMapping("/events")
     public ResponseEntity<ApiResponse<?>> recordEvent(
-            // TODO: [MSA 연동] 실제 운영 시 아래 @RequestHeader로 전환하고, @RequestParam은 삭제.
-            // --- 독립적인 테스트를 위한 임시 파라미터 ---
-            @RequestParam("memberId") UUID memberId,
-            @RequestParam("companyId") UUID companyId,
+            @RequestHeader("X-User-UUID") UUID memberId,
+            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+            @RequestHeader("X-User-CompanyId") UUID companyId,
             @RequestBody @Valid EventRequest request,
             HttpServletRequest httpServletRequest) {
 
         String clientIp = getClientIp(httpServletRequest);
 
-        Object response = attendanceService.recordEvent(memberId, companyId, request, clientIp);
+        Object response = attendanceService.recordEvent(memberId, memberPositionId, companyId, request, clientIp);
         return new ResponseEntity<>(ApiResponse.success(response), HttpStatus.OK);
     }
 
@@ -53,4 +57,5 @@ public class AttendanceController {
         }
         return ip;
     }
+
 }

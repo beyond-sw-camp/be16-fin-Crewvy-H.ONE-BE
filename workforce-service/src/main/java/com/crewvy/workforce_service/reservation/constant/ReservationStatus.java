@@ -8,9 +8,8 @@ import java.util.Arrays;
 @Getter
 @AllArgsConstructor
 public enum ReservationStatus {
-    REQUEST("RS001", "요청"),
-    APPROVAL("RS002", "승인"),
-    REJECT("RS003", "반려");
+    BEFORE("RS001", "이용 전"),
+    USED("RS002", "이용 완료");
 
     private final String codeValue;
     private final String codeName;

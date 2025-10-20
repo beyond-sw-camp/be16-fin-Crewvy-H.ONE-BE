@@ -21,6 +21,7 @@ public class VideoConferenceListRes {
     private String status;
     private Boolean isRecording;
     private List<UUID> inviteeIdList;
+    private String recordingUrl;
 
     public static VideoConferenceListRes fromEntity(VideoConference videoConference) {
         return VideoConferenceListRes.builder()
@@ -32,6 +33,7 @@ public class VideoConferenceListRes {
                 .status(videoConference.getStatus().getCodeName())
                 .isRecording(videoConference.getIsRecording().toBoolean())
                 .inviteeIdList(videoConference.getVideoConferenceInviteeSet().stream().map(VideoConferenceInvitee::getMemberId).toList())
+                .recordingUrl(videoConference.getRecording() != null ? videoConference.getRecording().getUrl() : null)
                 .build();
     }
 }

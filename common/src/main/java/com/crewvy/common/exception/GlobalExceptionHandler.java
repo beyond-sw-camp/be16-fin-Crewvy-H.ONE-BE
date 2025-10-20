@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -89,6 +90,15 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("파라미터 형식이 올바르지 않습니다."));
     }
 
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    protected ResponseEntity<ApiResponse<?>> handleMissingServletRequestParameterException(MissingServletRequestParameterException e) {
+        log.warn("MissingServletRequestParameterException: {}", e.getMessage());
+        String message = String.format("필수 파라미터가 누락되었습니다: %s", e.getParameterName());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(message));
+    }
+
     @ExceptionHandler(VideoConferenceNotInProgressException.class)
     protected ResponseEntity<ApiResponse<?>> handleVideoConferenceNotInProgressException(VideoConferenceNotInProgressException e) {
         log.warn("VideoConferenceNotInProgressException: {}", e.getMessage());
@@ -132,6 +142,62 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidSenderException.class)
     protected ResponseEntity<ApiResponse<?>> handleInvalidSenderException(InvalidSenderException e) {
         log.warn("InvalidSenderException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
+    @ExceptionHandler(ChatSendFailedException.class)
+    protected ResponseEntity<ApiResponse<?>> handleChatSendFailedException(ChatSendFailedException e) {
+        log.warn("ChatSendFailedException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
+    @ExceptionHandler(LiveKitClientException.class)
+    protected ResponseEntity<ApiResponse<?>> handleLiveKitClientException(LiveKitClientException e) {
+        log.warn("LiveKitClientException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    protected ResponseEntity<ApiResponse<?>> handleResourceNotFoundException(ResourceNotFoundException e) {
+        log.warn("ResourceNotFoundException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
+    @ExceptionHandler(DuplicateResourceException.class)
+    protected ResponseEntity<ApiResponse<?>> handleDuplicateResourceException(DuplicateResourceException e) {
+        log.warn("DuplicateResourceException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
+    @ExceptionHandler(UnauthorizedDeviceException.class)
+    protected ResponseEntity<ApiResponse<?>> handleUnauthorizedDeviceException(UnauthorizedDeviceException e) {
+        log.warn("UnauthorizedDeviceException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
+    @ExceptionHandler(AuthenticationFailedException.class)
+    protected ResponseEntity<ApiResponse<?>> handleAuthenticationFailedException(AuthenticationFailedException e) {
+        log.warn("AuthenticationFailedException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
+    @ExceptionHandler(InvalidPolicyRuleException.class)
+    protected ResponseEntity<ApiResponse<?>> handleInvalidPolicyRuleException(InvalidPolicyRuleException e) {
+        log.warn("InvalidPolicyRuleException: {}", e.getMessage());
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(e.getMessage()));
