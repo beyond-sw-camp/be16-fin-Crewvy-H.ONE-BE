@@ -7,17 +7,20 @@ import java.util.Arrays;
 
 @Getter
 @AllArgsConstructor
-public enum ReservationStatus {
-    BEFORE("RS001", "이용 전"),
-    USED("RS002", "이용 완료");
+public enum RepeatCycle {
+
+    Daily("RC001", "매일")
+    , Weekly("RC002", "매주")
+    , Monthly("RC003", "매월");
 
     private final String codeValue;
     private final String codeName;
 
-    public static ReservationStatus fromCode(String code) {
+    public static RepeatCycle fromCode(String code) {
         return Arrays.stream(values())
                 .filter(v -> v.codeValue.equals(code))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Unknown ReservationStatus code: " + code));
+                .orElseThrow(() -> new IllegalArgumentException("Unknown RepeatCycle code: " + code));
     }
+
 }
