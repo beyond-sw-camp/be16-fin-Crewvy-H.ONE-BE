@@ -1,6 +1,7 @@
 package com.crewvy.member_service.member.dto.response;
 
 import com.crewvy.member_service.member.entity.Grade;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -15,11 +16,13 @@ import java.util.UUID;
 public class GradeRes {
     private UUID id;
     private String name;
+    private boolean ynDel;
 
     public static GradeRes fromEntity(Grade grade) {
         return GradeRes.builder()
                 .id(grade.getId())
                 .name(grade.getName())
+                .ynDel(grade.getYnDel().toBoolean())
                 .build();
     }
 }

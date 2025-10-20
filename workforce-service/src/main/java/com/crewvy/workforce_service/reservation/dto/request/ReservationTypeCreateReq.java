@@ -1,6 +1,6 @@
 package com.crewvy.workforce_service.reservation.dto.request;
 
-import com.crewvy.workforce_service.reservation.constant.ReservationCategoryStatus;
+import com.crewvy.workforce_service.reservation.constant.ReservationTypeStatus;
 import com.crewvy.workforce_service.reservation.entity.ReservationCategory;
 import com.crewvy.workforce_service.reservation.entity.ReservationType;
 import lombok.AllArgsConstructor;
@@ -22,7 +22,7 @@ public class ReservationTypeCreateReq {
     public ReservationType toEntity() {
         return ReservationType.builder()
                 .reservationCategory(reservationCategory)
-                .reservationCategoryStatus(ReservationCategoryStatus.AVAILABLE)
+                .reservationTypeStatus(ReservationTypeStatus.AVAILABLE)
                 .name(name)
                 .location(location)
                 .capacity(capacity)

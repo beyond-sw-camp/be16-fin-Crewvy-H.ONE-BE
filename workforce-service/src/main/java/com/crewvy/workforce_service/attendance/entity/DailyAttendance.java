@@ -1,6 +1,7 @@
 package com.crewvy.workforce_service.attendance.entity;
 
 import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.workforce_service.attendance.constant.AttendanceStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,15 +24,21 @@ public class DailyAttendance extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "daily_attendance_id", nullable = false)
-    private UUID dailyAttendanceId;
+    private UUID id;
 
     @JoinColumn(name = "member_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private UUID memberId;
 
+    @Column(name = "company_id", nullable = false)
+    private UUID companyId;
+
     @Column(name = "attendance_date", nullable = false)
     private LocalDate attendanceDate;
 
-    @Column(name = "first_clock_in", nullable = false)
+    @Column(name = "attendance_status", nullable = false)
+    private AttendanceStatus status;
+
+    @Column(name = "first_clock_in")
     private LocalDateTime firstClockIn;
 
     @Column(name = "last_clock_out")

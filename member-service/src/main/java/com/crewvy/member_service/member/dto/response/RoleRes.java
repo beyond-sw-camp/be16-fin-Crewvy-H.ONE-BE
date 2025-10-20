@@ -1,6 +1,7 @@
 package com.crewvy.member_service.member.dto.response;
 
 import com.crewvy.member_service.member.entity.Role;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -19,6 +20,7 @@ public class RoleRes {
     private String name;
     private String description;
     private int memberCount;
+    private boolean ynDel;
     private List<String> permissionList;
     private List<RoleMemberRes> memberList;
 
@@ -28,6 +30,7 @@ public class RoleRes {
                 .name(role.getName())
                 .description(role.getDescription())
                 .memberCount(memberList.size())
+                .ynDel(role.getYnDel().toBoolean())
                 .permissionList(role.getRolePermissionList().stream()
                         .map(rp -> rp.getPermission().getName())
                         .collect(Collectors.toList()))
@@ -40,6 +43,7 @@ public class RoleRes {
                 .id(role.getId())
                 .name(role.getName())
                 .description(role.getDescription())
+                .ynDel(role.getYnDel().toBoolean())
                 .permissionList(role.getRolePermissionList().stream()
                         .map(rp -> rp.getPermission().getName())
                         .collect(Collectors.toList()))

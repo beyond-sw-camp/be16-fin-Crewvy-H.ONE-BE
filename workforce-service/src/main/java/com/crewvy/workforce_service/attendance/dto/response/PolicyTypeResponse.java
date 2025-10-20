@@ -13,7 +13,7 @@ public class PolicyTypeResponse {
     private final boolean isBalanceDeductible;
 
     public PolicyTypeResponse(PolicyType policyType) {
-        this.policyTypeId = policyType.getPolicyTypeId();
+        this.policyTypeId = policyType.getId();
         this.typeCode = policyType.getTypeCode().getCodeValue(); // .getCodeValue() 추가
         this.typeName = policyType.getTypeName();
         this.isBalanceDeductible = policyType.isBalanceDeductible();

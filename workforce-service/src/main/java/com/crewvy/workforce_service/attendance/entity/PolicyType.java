@@ -24,7 +24,7 @@ public class PolicyType extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "policy_type_id", nullable = false)
-    private UUID policyTypeId;
+    private UUID id;
 
     @Column(name = "company_id", nullable = false)
     private UUID companyId;

@@ -1,8 +1,8 @@
 package com.crewvy.workforce_service.reservation.entity;
 
 import com.crewvy.common.entity.BaseEntity;
-import com.crewvy.workforce_service.reservation.constant.ReservationCategoryStatus;
-import com.crewvy.workforce_service.reservation.converter.ReservationCategoryStatusConverter;
+import com.crewvy.workforce_service.reservation.constant.ReservationTypeStatus;
+import com.crewvy.workforce_service.reservation.converter.ReservationTypeStatusConverter;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -20,13 +20,15 @@ public class ReservationType extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    private UUID companyId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private ReservationCategory reservationCategory;
 
     @Column(nullable = false)
-    @Convert(converter = ReservationCategoryStatusConverter.class)
-    private ReservationCategoryStatus reservationCategoryStatus;
+    @Convert(converter = ReservationTypeStatusConverter.class)
+    private ReservationTypeStatus reservationTypeStatus;
 
     @Column(nullable = false)
     private String name;

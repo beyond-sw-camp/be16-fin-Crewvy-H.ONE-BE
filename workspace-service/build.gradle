@@ -41,8 +41,9 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
-	// OpenVidu
-	implementation 'io.openvidu:openvidu-java-client:2.23.0'
+
+	// livekit-server
+	implementation 'io.livekit:livekit-server:0.10.1'
 
 	// WebClient
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'

@@ -23,8 +23,8 @@ public class PolicyResponse {
     private final PolicyRuleDetails ruleDetails;
 
     public PolicyResponse(Policy policy) {
-        this.policyId = policy.getPolicyId();
-        this.policyTypeId = policy.getPolicyType().getPolicyTypeId();
+        this.policyId = policy.getId();
+        this.policyTypeId = policy.getPolicyType().getId();
         this.typeCode = policy.getPolicyType().getTypeCode(); // typeCode 값 할당
         this.name = policy.getName();
         this.isPaid = policy.getIsPaid();

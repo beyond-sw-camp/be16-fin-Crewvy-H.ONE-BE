@@ -23,7 +23,7 @@ public class Policy extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "policy_id", nullable = false)
-    private UUID policyId;
+    private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "policy_type_id")

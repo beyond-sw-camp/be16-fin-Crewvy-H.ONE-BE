@@ -1,5 +1,7 @@
 package com.crewvy.workforce_service.reservation.service;
 
+import com.crewvy.common.exception.ResourceNotFoundException;
+import com.crewvy.workforce_service.reservation.constant.ReservationTypeStatus;
 import com.crewvy.workforce_service.reservation.dto.request.ReservationTypeCreateReq;
 import com.crewvy.workforce_service.reservation.dto.request.ReservationTypeUpdateReq;
 import com.crewvy.workforce_service.reservation.dto.response.ReservationTypeCreateRes;
@@ -31,22 +33,24 @@ public class ReservationTypeService {
 
     public List<ReservationTypeListRes> getResourceList(UUID companyId) {
         List<ReservationType> reservationTypes = reservationTypeRepository.findByCompanyId(companyId);
-        log.info("조회된 예약 자원 수: {}", reservationTypes.size());
-        
         return reservationTypes.stream()
-                .map(reservationType -> {
-                    log.info("예약 자원 ID: {}, 카테고리: {}", 
-                            reservationType.getId(), 
-                            reservationType.getReservationCategory() != null ? 
-                                    reservationType.getReservationCategory().getName() : "null");
-                    return ReservationTypeListRes.fromEntity(reservationType);
-                })
+                .map(ReservationTypeListRes::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    public List<ReservationTypeListRes> getAvailableResourceList(UUID companyId) {
+        List<ReservationTypeStatus> statuses = List.of(ReservationTypeStatus.AVAILABLE, ReservationTypeStatus.RESERVED);
+        List<ReservationType> reservationTypes = reservationTypeRepository.findByCompanyIdAndReservationTypeStatusIn(companyId, statuses);
+
+        return reservationTypes.stream()
+                .map(ReservationTypeListRes::fromEntity)
                 .collect(Collectors.toList());
     }
 
     public ReservationTypeUpdateRes updateReservationType(UUID id, ReservationTypeUpdateReq updateReq) {
+
         ReservationType reservationType = reservationTypeRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("예약 자원을 찾을 수 없습니다."));
+                .orElseThrow(() -> new ResourceNotFoundException("예약 자원을 찾을 수 없습니다."));
         
         if (updateReq.getName() != null) {
             reservationType.setName(updateReq.getName());
@@ -63,8 +67,8 @@ public class ReservationTypeService {
         if (updateReq.getDescription() != null) {
             reservationType.setDescription(updateReq.getDescription());
         }
-        if (updateReq.getReservationCategoryStatus() != null) {
-            reservationType.setReservationCategoryStatus(updateReq.getReservationCategoryStatus());
+        if (updateReq.getReservationTypeStatus() != null) {
+            reservationType.setReservationTypeStatus(updateReq.getReservationTypeStatus());
         }
         
         ReservationType updatedReservationType = reservationTypeRepository.save(reservationType);
@@ -73,8 +77,9 @@ public class ReservationTypeService {
 
     public void deleteReservationType(UUID id) {
         if (!reservationTypeRepository.existsById(id)) {
-            throw new RuntimeException("예약 자원을 찾을 수 없습니다.");
+            throw new ResourceNotFoundException("예약 자원을 찾을 수 없습니다.");
         }
         reservationTypeRepository.deleteById(id);
     }
+
 }

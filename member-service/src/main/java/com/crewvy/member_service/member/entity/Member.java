@@ -125,30 +125,30 @@ public class Member extends BaseEntity {
         }
     }
 
-    public void updateGradeHistories(Set<GradeHistory> gradeHistories) {
-        this.gradeHistorySet.clear();
-        if (gradeHistories != null) {
-            this.gradeHistorySet.addAll(gradeHistories);
-        }
-    }
-
-    public void updateMemberPositions(Set<MemberPosition> memberPositions) {
-        this.memberPositionList.clear();
-        if (memberPositions != null) {
-            this.memberPositionList.addAll(memberPositions);
-        }
-    }
-
     public void updateMyPage(MyPageEditReq myPageEditReq, String encodePw){
         this.phoneNumber = myPageEditReq.getPhoneNumber();
         this.emergencyContact = myPageEditReq.getEmergencyContact();
         this.extensionNumber = myPageEditReq.getExtensionNumber();
         this.telNumber = myPageEditReq.getTelNumber();
         this.address = myPageEditReq.getAddress();
-        this.isPhoneNumberPublic = Bool.fromBoolean(myPageEditReq.getIsPhoneNumberPublic());
-        this.isAddressDisclosure = Bool.fromBoolean(myPageEditReq.getIsAddressDisclosure());
+        if (myPageEditReq.getIsPhoneNumberPublic() != null) {
+            this.isPhoneNumberPublic = Bool.fromBoolean(myPageEditReq.getIsPhoneNumberPublic());
+        }
+        if (myPageEditReq.getIsAddressDisclosure() != null) {
+            this.isAddressDisclosure = Bool.fromBoolean(myPageEditReq.getIsAddressDisclosure());
+        }
         this.bank = myPageEditReq.getBank();
         this.bankAccount = myPageEditReq.getBankAccount();
         this.password = encodePw;
+    }
+
+    public void delete() {
+        this.ynDel = Bool.TRUE;
+        this.memberStatus = MemberStatus.DELETED;
+    }
+
+    public void restore() {
+        this.ynDel = Bool.FALSE;
+        this.memberStatus = MemberStatus.WORKING;
     }
 }
