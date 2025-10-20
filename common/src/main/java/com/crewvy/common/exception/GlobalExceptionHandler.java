@@ -160,6 +160,9 @@ public class GlobalExceptionHandler {
         log.warn("LiveKitClientException: {}", e.getMessage());
         return ResponseEntity
                 .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     protected ResponseEntity<ApiResponse<?>> handleResourceNotFoundException(ResourceNotFoundException e) {
         log.warn("ResourceNotFoundException: {}", e.getMessage());
