@@ -26,8 +26,8 @@ public class VideoConference extends BaseEntity {
     @Column(name = "host_id", nullable = false)
     private UUID hostId;
 
-    @Column(name = "session_id", nullable = true)
-    private String sessionId;
+//    @Column(name = "session_id", nullable = true)
+//    private String sessionId;
 
     @Column(name = "password", nullable = true)
     private String password;
@@ -75,8 +75,10 @@ public class VideoConference extends BaseEntity {
     @OneToMany(mappedBy = "videoConference", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<MessageMedia> messageMediaList = new ArrayList<>();
 
-    public void startVideoConference(String sessionId) {
-        this.sessionId = sessionId;
+    @OneToOne(mappedBy = "videoConference", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Recording recording;
+
+    public void startVideoConference() {
         this.status = VideoConferenceStatus.IN_PROGRESS;
         this.actualStartTime = LocalDateTime.now();
     }
