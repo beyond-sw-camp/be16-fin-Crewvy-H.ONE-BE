@@ -10,7 +10,8 @@ import java.util.Arrays;
 public enum MemberStatus {
     WORKING("MS001", "재직"),
     LEAVE("MS002", "휴직"),
-    DETACHMENT("MS003", "파견");
+    DETACHMENT("MS003", "파견"),
+    DELETED("MS004", "삭제");
 
     private final String codeValue;
     private final String codeName;

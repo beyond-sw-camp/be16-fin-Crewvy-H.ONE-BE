@@ -1,5 +1,6 @@
 package com.crewvy.member_service.member.dto.response;
 
+import com.crewvy.common.entity.Bool;
 import com.crewvy.member_service.member.entity.Member;
 import com.crewvy.member_service.member.entity.MemberPosition;
 import lombok.AllArgsConstructor;
@@ -22,6 +23,8 @@ public class MemberRes {
     private String email;
     private String department;
     private String team;
+    private String phoneNumber;
+    private String status;
 
     public static MemberRes fromEntity(Member member) {
         MemberPosition defaultPosition = member.getDefaultMemberPosition();
@@ -40,6 +43,8 @@ public class MemberRes {
                 .email(member.getEmail())
                 .department(departmentName)
                 .team(teamName)
+                .phoneNumber(member.getIsPhoneNumberPublic() == Bool.TRUE ? member.getPhoneNumber() : null)
+                .status(member.getMemberStatus().getCodeName())
                 .build();
     }
 }

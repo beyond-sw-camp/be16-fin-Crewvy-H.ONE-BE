@@ -37,6 +37,7 @@ public class CreateMemberReq {
     private UUID gradeId;
     @NotNull(message = "고용형태를 선택해 주세요.")
     private String employmentType;
+    private String memberPositionName;
     @NotNull(message = "조직을 선택해 주세요.")
     private UUID organizationId;
     @NotNull(message = "직책을 선택해 주세요.")

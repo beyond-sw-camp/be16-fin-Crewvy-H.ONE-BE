@@ -44,7 +44,7 @@ public class OnboardingService {
                 .build();
         gradeHistoryRepository.save(gradeHistory);
 
-        memberService.createAndAssignDefaultPosition(adminMember, organization, adminTitle, adminRole);
+        memberService.createAndAssignDefaultPosition(null, adminMember, organization, adminTitle, adminRole);
 
         return adminMember.getId();
     }

@@ -10,6 +10,9 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.Period;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Getter
 @NoArgsConstructor
@@ -34,6 +37,8 @@ public class MyPageRes {
     private String lengthOfService;
     private String employmentTypeName;
     private String defaultPosition;
+    private UUID defaultPositionId;
+    private List<MemberPositionInfo> memberPositionList;
     private String extensionNumber;     // 내선전화
     private String telNumber;           // 일반전화
 
@@ -42,8 +47,12 @@ public class MyPageRes {
 
     public static MyPageRes fromEntity(Member member, MemberPosition memberPosition, Grade grade) {
         Period period = Period.between(member.getJoinDate(), LocalDate.now());
-        String defaultPosition = member.getDefaultMemberPosition().getOrganization().getName() + " / "
+        String defaultPositionName = member.getDefaultMemberPosition().getOrganization().getName() + " / "
                 + member.getDefaultMemberPosition().getTitle().getName();
+
+        List<MemberPositionInfo> memberPositionInfoList = member.getMemberPositionList().stream()
+                .map(MemberPositionInfo::from)
+                .collect(Collectors.toList());
 
         return MyPageRes.builder()
                 .profileUrl(member.getProfileUrl())
@@ -62,7 +71,9 @@ public class MyPageRes {
                 .joinDate(member.getJoinDate())
                 .lengthOfService(String.format("%d년 %d개월 %d일", period.getYears(), period.getMonths(), period.getDays()))
                 .employmentTypeName(member.getEmploymentType().getCodeName())
-                .defaultPosition(defaultPosition)
+                .defaultPosition(defaultPositionName)
+                .defaultPositionId(member.getDefaultMemberPosition() != null ? member.getDefaultMemberPosition().getId() : null)
+                .memberPositionList(memberPositionInfoList)
                 .extensionNumber(member.getExtensionNumber())
                 .telNumber(member.getTelNumber())
                 .bank(member.getBank())
