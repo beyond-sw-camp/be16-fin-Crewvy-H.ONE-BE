@@ -14,12 +14,14 @@ import java.time.LocalDate;
 import java.time.Period;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.UUID;
 
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class MemberDetailRes {
+    private UUID memberId;
     private AccountStatus accountStatus;
 
     private String name;
@@ -66,6 +68,7 @@ public class MemberDetailRes {
         Period period = Period.between(member.getJoinDate(), LocalDate.now());
 
         return MemberDetailRes.builder()
+                .memberId(member.getId())
                 .accountStatus(member.getAccountStatus())
                 .name(member.getName())
                 .gradeName(gradeName)

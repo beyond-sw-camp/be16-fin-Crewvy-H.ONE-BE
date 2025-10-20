@@ -311,27 +311,35 @@ public class MemberController {
                 memberService.getAllPermission(), "전체 권한 목록 조회 성공"), HttpStatus.OK);
     }
 
-    // memberIdList → 이름 List
-    @GetMapping("/name-list")
+    // memberIdList -> 이름 List
+    @PostMapping("/name-list")
     public ResponseEntity<?> getNameList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                          @RequestBody IdListReq idListReq) {
         return new ResponseEntity<>(ApiResponse.success(
-                memberService.getNameList(memberPositionId, idListReq), "이름 목록 조회 성공"), HttpStatus.OK);
+                memberService.getNameList(memberPositionId, idListReq), "목록 조회 성공"), HttpStatus.OK);
     }
 
-    // 조멤직IdList → ( 이름, 부서, 직급 ) List
+    // 조멤직IdList -> ( 이름, 부서, 직급 ) List
     @PostMapping("/position-list")
     public ResponseEntity<?> getPositionList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                              @RequestBody IdListReq idListReq) {
         return new ResponseEntity<>(ApiResponse.success(
-                memberService.getPositionList(memberPositionId, idListReq), "이름 목록 조회 성공"), HttpStatus.OK);
+                memberService.getPositionList(memberPositionId, idListReq), "목록 조회 성공"), HttpStatus.OK);
     }
 
-    // companyId → ( 사번, 이름, 부서, 직급, 계좌, 은행 ) List
+    // companyId -> ( 사번, 이름, 부서, 직급, 계좌, 은행 ) List
     @GetMapping("/salary-list")
     public ResponseEntity<?> getSalaryList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                            @RequestParam UUID companyId) {
         return new ResponseEntity<>(ApiResponse.success(
-                memberService.getSalaryList(memberPositionId, companyId), "이름 목록 조회 성공"), HttpStatus.OK);
+                memberService.getSalaryList(memberPositionId, companyId), "목록 조회 성공"), HttpStatus.OK);
+    }
+
+    // memberIdList -> defaultMemberPosition의 ( 이름, 부서, 직급 ) List
+    @PostMapping("/default-position-list")
+    public ResponseEntity<?> getDefaultPositionList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                                    @RequestBody IdListReq idListReq){
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.getDefaultPositionList(memberPositionId, idListReq), "목록 조회 성공"), HttpStatus.OK);
     }
 }

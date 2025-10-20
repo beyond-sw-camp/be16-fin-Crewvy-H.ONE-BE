@@ -992,4 +992,11 @@ public class MemberService {
                         new EntityNotFoundException("존재하지 않는 회사입니다."))).stream()
                 .map(mp -> MemberSalaryListRes.fromEntity(mp.getDefaultMemberPosition())).collect(Collectors.toList());
     }
+
+    // memberIdList -> defaultMemberPosition의 ( 이름, 부서, 직급 ) List
+    @Transactional(readOnly = true)
+    public List<MemberPositionListRes> getDefaultPositionList(UUID memberIdList, IdListReq idListReq) {
+        return memberRepository.findAllById(idListReq.getUuidList()).stream()
+                .map(m -> MemberPositionListRes.fromEntity(m.getDefaultMemberPosition())).collect(Collectors.toList());
+    }
 }
