@@ -17,4 +17,7 @@ public interface MemberPositionRepository extends JpaRepository<MemberPosition, 
 
     @Query("SELECT mp FROM MemberPosition mp JOIN mp.organization o WHERE o.company = :company")
     List<MemberPosition> findByCompany(@Param("company") Company company);
+
+    // memberId 리스트로 MemberPosition 조회 (급여 정산용)
+    List<MemberPosition> findByMember_IdIn(List<UUID> memberIds);
 }

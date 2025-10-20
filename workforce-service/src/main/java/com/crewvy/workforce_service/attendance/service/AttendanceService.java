@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.attendance.service;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.exception.*;
+import com.crewvy.workforce_service.attendance.constant.AttendanceStatus;
 import com.crewvy.workforce_service.attendance.constant.DeviceType;
 import com.crewvy.workforce_service.attendance.constant.EventType;
 import com.crewvy.workforce_service.attendance.constant.RequestStatus;
@@ -19,7 +20,10 @@ import com.crewvy.workforce_service.attendance.entity.Policy;
 import com.crewvy.workforce_service.attendance.repository.*;
 import com.crewvy.workforce_service.attendance.util.DistanceCalculator;
 import com.crewvy.workforce_service.feignClient.MemberClient;
+import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
+import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -29,11 +33,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -122,10 +128,15 @@ public class AttendanceService {
     }
 
     private void createDailyAttendance(UUID memberId, UUID companyId, LocalDate today, LocalDateTime clockInTime) {
+        // TODO: Request 승인 시 DailyAttendance 생성 로직 구현 필요
+        //  - 연차/병가/반차 Request 승인 시 해당 status로 DailyAttendance 미리 생성
+        //  - 출근 시 기존 DailyAttendance 확인하여 update 또는 create
+        //  - 현재는 출근 찍을 때만 NORMAL_WORK로 생성
         DailyAttendance dailyAttendance = DailyAttendance.builder()
                 .memberId(memberId)
                 .companyId(companyId)
                 .attendanceDate(today)
+                .status(AttendanceStatus.NORMAL_WORK)  // 임시: 출근 시 무조건 정상출근으로 설정
                 .firstClockIn(clockInTime)
                 .workedMinutes(0)
                 .overtimeMinutes(0)
@@ -253,15 +264,48 @@ public class AttendanceService {
         // companyId 필터링 (Multi-tenant 보안)
         List<DailyAttendance> dailyAttendances = dailyAttendanceRepository.findAllByDateRangeAndCompany(companyId, startDate, endDate);
 
+        // 직책 정보 조회 (member-service)
+        List<UUID> memberIds = dailyAttendances.stream()
+                .map(DailyAttendance::getMemberId)
+                .distinct()
+                .collect(Collectors.toList());
+
+        Map<UUID, PositionDto> positionMap = new HashMap<>();
+        if (!memberIds.isEmpty()) {
+            IdListReq request = IdListReq.builder()
+                    .uuidList(memberIds)
+                    .build();
+            try {
+                ApiResponse<List<PositionDto>> response = memberClient.getPositionList(memberPositionId, request);
+                if (response != null && response.getData() != null) {
+                    positionMap = response.getData().stream()
+                            .collect(Collectors.toMap(PositionDto::getMemberId, p -> p));
+                }
+            } catch (Exception e) {
+                log.error("Failed to fetch position info from member-service", e);
+            }
+        }
+
+        // 응답 조립 (근태 데이터 + 직책 정보)
+        final Map<UUID, PositionDto> finalPositionMap = positionMap;
         return dailyAttendances.stream()
-                .map(da -> DailyAttendanceSummaryRes.builder()
-                        .memberId(da.getMemberId())
-                        .attendanceDate(da.getAttendanceDate())
-                        .firstClockIn(da.getFirstClockIn())
-                        .lastClockOut(da.getLastClockOut())
-                        .workedMinutes(da.getWorkedMinutes())
-                        .overtimeMinutes(da.getOvertimeMinutes())
-                        .build())
+                .map(da -> {
+                    PositionDto position = finalPositionMap.get(da.getMemberId());
+                    return DailyAttendanceSummaryRes.builder()
+                            .memberId(da.getMemberId())
+                            .memberName(position != null ? position.getMemberName() : null)
+                            .organizationName(position != null ? position.getOrganizationName() : null)
+                            .titleName(position != null ? position.getTitleName() : null)
+                            .attendanceDate(da.getAttendanceDate())
+                            .status(da.getStatus().getCodeValue())
+                            .statusName(da.getStatus().getCodeName())
+                            .isPaid(da.getStatus().isPaid())
+                            .firstClockIn(da.getFirstClockIn())
+                            .lastClockOut(da.getLastClockOut())
+                            .workedMinutes(da.getWorkedMinutes())
+                            .overtimeMinutes(da.getOvertimeMinutes())
+                            .build();
+                })
                 .collect(Collectors.toList());
     }
 
@@ -296,13 +340,46 @@ public class AttendanceService {
         // companyId 필터링 (Multi-tenant 보안)
         List<MemberBalance> balances = memberBalanceRepository.findAllByYearAndCompany(companyId, year);
 
+        // 직책 정보 조회 (member-service)
+        List<UUID> memberIds = balances.stream()
+                .map(MemberBalance::getMemberId)
+                .distinct()
+                .collect(Collectors.toList());
+
+        Map<UUID, PositionDto> positionMap = new HashMap<>();
+        if (!memberIds.isEmpty()) {
+            IdListReq request = IdListReq.builder()
+                    .uuidList(memberIds)
+                    .build();
+            try {
+                ApiResponse<List<PositionDto>> response = memberClient.getPositionList(memberPositionId, request);
+                if (response != null && response.getData() != null) {
+                    positionMap = response.getData().stream()
+                            .collect(Collectors.toMap(PositionDto::getMemberId, p -> p));
+                }
+            } catch (Exception e) {
+                log.error("Failed to fetch position info from member-service", e);
+            }
+        }
+
+        // 응답 조립 (잔여 일수 데이터 + 직책 정보)
+        final Map<UUID, PositionDto> finalPositionMap = positionMap;
         return balances.stream()
-                .map(mb -> MemberBalanceSummaryRes.builder()
-                        .memberId(mb.getMemberId())
-                        .policyTypeCode(mb.getBalanceTypeCode().name())
-                        .policyTypeName(mb.getBalanceTypeCode().getCodeName())
-                        .remainingBalance(mb.getRemaining())
-                        .build())
+                .map(mb -> {
+                    PositionDto position = finalPositionMap.get(mb.getMemberId());
+                    return MemberBalanceSummaryRes.builder()
+                            .memberId(mb.getMemberId())
+                            .memberName(position != null ? position.getMemberName() : null)
+                            .organizationName(position != null ? position.getOrganizationName() : null)
+                            .titleName(position != null ? position.getTitleName() : null)
+                            .policyTypeCode(mb.getBalanceTypeCode().getCodeValue())
+                            .policyTypeName(mb.getBalanceTypeCode().getCodeName())
+                            .totalGranted(mb.getTotalGranted())
+                            .totalUsed(mb.getTotalUsed())
+                            .remainingBalance(mb.getRemaining())
+                            .isPaid(mb.getIsPaid())
+                            .build();
+                })
                 .collect(Collectors.toList());
     }
 

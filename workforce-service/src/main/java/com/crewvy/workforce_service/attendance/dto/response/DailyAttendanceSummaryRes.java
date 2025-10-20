@@ -15,7 +15,13 @@ import java.util.UUID;
 @AllArgsConstructor
 public class DailyAttendanceSummaryRes {
     private UUID memberId;
+    private String memberName;          // 직원명
+    private String organizationName;    // 조직명
+    private String titleName;           // 직책명
     private LocalDate attendanceDate;
+    private String status;              // 근태 상태 코드 (AS001, AS101 등)
+    private String statusName;          // 근태 상태 한글명 (정상 출근, 연차 등)
+    private Boolean isPaid;             // 유급 여부 (급여 정산용)
     private LocalDateTime firstClockIn;
     private LocalDateTime lastClockOut;
     private Integer workedMinutes;

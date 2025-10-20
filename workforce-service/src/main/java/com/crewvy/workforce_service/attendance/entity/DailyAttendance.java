@@ -1,6 +1,7 @@
 package com.crewvy.workforce_service.attendance.entity;
 
 import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.workforce_service.attendance.constant.AttendanceStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -34,7 +35,10 @@ public class DailyAttendance extends BaseEntity {
     @Column(name = "attendance_date", nullable = false)
     private LocalDate attendanceDate;
 
-    @Column(name = "first_clock_in", nullable = false)
+    @Column(name = "attendance_status", nullable = false)
+    private AttendanceStatus status;
+
+    @Column(name = "first_clock_in")
     private LocalDateTime firstClockIn;
 
     @Column(name = "last_clock_out")
