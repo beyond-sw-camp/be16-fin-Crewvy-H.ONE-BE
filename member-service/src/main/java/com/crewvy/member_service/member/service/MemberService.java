@@ -894,10 +894,10 @@ public class MemberService {
                 .map(MemberNameListRes::fromEntity).collect(Collectors.toList());
     }
 
-    // memberIdList → ( 이름, 부서, 직급 ) List
+    // 조멤직IdList → ( 이름, 부서, 직급 ) List
     @Transactional(readOnly = true)
     public List<MemberPositionListRes> getPositionList(UUID memberPositionId, IdListReq idListReq) {
-        return memberPositionRepository.findByMember_IdIn(idListReq.getUuidList()).stream()
+        return memberPositionRepository.findAllById(idListReq.getUuidList()).stream()
                 .map(MemberPositionListRes::fromEntity).collect(Collectors.toList());
     }
 
