@@ -1,6 +1,6 @@
 package com.crewvy.workforce_service.reservation.dto.request;
 
-import com.crewvy.workforce_service.reservation.constant.ReservationCategoryStatus;
+import com.crewvy.workforce_service.reservation.constant.ReservationTypeStatus;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -15,5 +15,5 @@ public class ReservationTypeUpdateReq {
     private int capacity;
     private String facilities;
     private String description;
-    private ReservationCategoryStatus reservationCategoryStatus;
+    private ReservationTypeStatus reservationTypeStatus;
 }

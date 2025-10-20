@@ -1,6 +1,6 @@
 package com.crewvy.workforce_service.reservation.dto.response;
 
-import com.crewvy.workforce_service.reservation.constant.ReservationCategoryStatus;
+import com.crewvy.workforce_service.reservation.constant.ReservationTypeStatus;
 import com.crewvy.workforce_service.reservation.entity.ReservationType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -17,7 +17,7 @@ public class ReservationTypeUpdateRes {
 
     private UUID id;
     private String categoryName;
-    private ReservationCategoryStatus reservationCategoryStatus;
+    private ReservationTypeStatus reservationTypeStatus;
     private String name;
     private String location;
     private int capacity;
@@ -28,7 +28,7 @@ public class ReservationTypeUpdateRes {
         return ReservationTypeUpdateRes.builder()
                 .id(reservationType.getId())
                 .categoryName(reservationType.getReservationCategory().getName())
-                .reservationCategoryStatus(reservationType.getReservationCategoryStatus())
+                .reservationTypeStatus(reservationType.getReservationTypeStatus())
                 .name(reservationType.getName())
                 .location(reservationType.getLocation())
                 .capacity(reservationType.getCapacity())

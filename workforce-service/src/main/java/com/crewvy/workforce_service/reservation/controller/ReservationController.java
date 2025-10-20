@@ -3,6 +3,7 @@ package com.crewvy.workforce_service.reservation.controller;
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.reservation.dto.request.ReservationCreateReq;
 import com.crewvy.workforce_service.reservation.dto.request.ReservationUpdateReq;
+import com.crewvy.workforce_service.reservation.dto.request.ReservationUpdateStatusReq;
 import com.crewvy.workforce_service.reservation.dto.response.ReservationRes;
 import com.crewvy.workforce_service.reservation.service.ReservationService;
 import lombok.RequiredArgsConstructor;
@@ -25,14 +26,15 @@ public class ReservationController {
     // 예약 등록
     @PostMapping("/register")
     public ResponseEntity<?> create(@RequestBody ReservationCreateReq req) {
+        log.error("예약 확인 : {}", req);
         ReservationRes res = reservationService.create(req);
         return new ResponseEntity<>(new ApiResponse<>(true, res, "예약 등록 성공"), HttpStatus.CREATED);
     }
 
     // 전체 예약 조회
     @GetMapping("/list")
-    public ResponseEntity<?> allReservationList(@RequestParam UUID companyId) {
-        List<ReservationRes> res = reservationService.listByCompany(companyId);
+    public ResponseEntity<?> allReservationList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId, @RequestParam UUID companyId) {
+        List<ReservationRes> res = reservationService.listByCompany(memberPositionId, companyId);
         return new ResponseEntity<>(new ApiResponse<>(true, res, "예약 조회 성공"), HttpStatus.OK);
     }
 
@@ -56,5 +58,12 @@ public class ReservationController {
     public ResponseEntity<?> delete(@PathVariable UUID id) {
         reservationService.delete(id);
         return new ResponseEntity<>(new ApiResponse<>(true, null, "예약 삭제 성공"), HttpStatus.OK);
+    }
+    
+    // 예약 상태 변경
+    @PutMapping("/status/{id}")
+    public ResponseEntity<?> updateReservationStatus(@PathVariable UUID id, @RequestBody ReservationUpdateStatusReq req) {
+        ReservationRes res = reservationService.updateReservationStatus(id, req);
+        return new ResponseEntity<>(new ApiResponse<>(true, res, "예약 상태 변경 성공"), HttpStatus.OK);
     }
 }

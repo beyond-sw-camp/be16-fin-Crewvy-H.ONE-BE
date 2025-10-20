@@ -1,8 +1,7 @@
-package com.crewvy.workforce_service.reservation.dto.request;
+package com.crewvy.workforce_service.reservation.constant;
 
 import com.crewvy.common.entity.Bool;
-import com.crewvy.workforce_service.reservation.constant.ReservationRequestStatus;
-import com.crewvy.workforce_service.reservation.constant.ReservationStatus;
+import com.crewvy.workforce_service.reservation.dto.request.RepeatCreateReq;
 import com.crewvy.workforce_service.reservation.entity.Reservation;
 import com.crewvy.workforce_service.reservation.entity.ReservationType;
 import lombok.AllArgsConstructor;

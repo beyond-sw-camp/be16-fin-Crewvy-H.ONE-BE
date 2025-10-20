@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.feignClient;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
+import com.crewvy.workforce_service.feignClient.dto.response.NameDto;
 import com.crewvy.workforce_service.feignClient.dto.response.OrganizationNodeDto;
 import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -34,4 +35,9 @@ public interface MemberClient {
     // 직원의 조직 계층 조회 (MEMBER -> TEAM -> DEPARTMENT -> ... -> COMPANY)
 //    @GetMapping("/member/{memberId}/organization-hierarchy")
 //    ApiResponse<List<UUID>> getOrganizationHierarchy(@PathVariable("memberId") UUID memberId);
+
+
+    @PostMapping("/member/name-list")
+    ApiResponse<List<NameDto>> getNameList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                           @RequestBody IdListReq idListReq);
 }

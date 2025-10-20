@@ -1,5 +1,6 @@
 package com.crewvy.workforce_service.reservation.service;
 
+import com.crewvy.common.exception.ResourceNotFoundException;
 import com.crewvy.workforce_service.reservation.dto.request.ReservationCategoryCreateReq;
 import com.crewvy.workforce_service.reservation.dto.request.ReservationCategoryUpdateReq;
 import com.crewvy.workforce_service.reservation.dto.response.ReservationCategoryCreateRes;
@@ -38,7 +39,7 @@ public class ReservationCategoryService {
     @Transactional
     public ReservationCategoryUpdateRes update(UUID id, ReservationCategoryUpdateReq req) {
         ReservationCategory category = reservationCategoryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("예약 카테고리를 찾을 수 없습니다."));
+                .orElseThrow(() -> new ResourceNotFoundException("예약 카테고리를 찾을 수 없습니다."));
 
         category.update(req);
 
@@ -47,7 +48,7 @@ public class ReservationCategoryService {
 
     public void delete(UUID id) {
         if (!reservationCategoryRepository.existsById(id)) {
-            throw new RuntimeException("예약 카테고리를 찾을 수 없습니다.");
+            throw new ResourceNotFoundException("예약 카테고리를 찾을 수 없습니다.");
         }
         reservationCategoryRepository.deleteById(id);
     }

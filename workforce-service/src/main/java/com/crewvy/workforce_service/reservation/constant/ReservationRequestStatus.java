@@ -7,17 +7,18 @@ import java.util.Arrays;
 
 @Getter
 @AllArgsConstructor
-public enum ReservationStatus {
-    BEFORE("RS001", "이용 전"),
-    USED("RS002", "이용 완료");
+public enum ReservationRequestStatus {
+    REQUEST("RRS001", "요청"),
+    APPROVAL("RRS002", "승인"),
+    REJECT("RRS003", "반려");
 
     private final String codeValue;
     private final String codeName;
 
-    public static ReservationStatus fromCode(String code) {
+    public static ReservationRequestStatus fromCode(String code) {
         return Arrays.stream(values())
                 .filter(v -> v.codeValue.equals(code))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Unknown ReservationStatus code: " + code));
+                .orElseThrow(() -> new IllegalArgumentException("Unknown ReservationRequestStatus code: " + code));
     }
 }
