@@ -31,7 +31,7 @@ public class Role extends BaseEntity {
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     @Builder.Default
-    private Bool ynDel = Bool.TRUE;
+    private Bool ynDel = Bool.FALSE;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
@@ -65,6 +65,10 @@ public class Role extends BaseEntity {
     }
 
     public void delete() {
+        this.ynDel = Bool.TRUE;
+    }
+
+    public void restore() {
         this.ynDel = Bool.FALSE;
     }
 }
