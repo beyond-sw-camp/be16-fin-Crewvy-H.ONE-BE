@@ -1,5 +1,6 @@
 package com.crewvy.workforce_service.approval.dto.request;
 
+import com.crewvy.workforce_service.approval.constant.RequirementType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,7 +13,7 @@ import java.util.UUID;
 @Data
 @Builder
 public class DocumentPolicyDto {
-    private UUID roleId;
-    private UUID memberPositionId;
+    private RequirementType requirementType;
+    private UUID requirementId;
     private int lineIndex;
 }

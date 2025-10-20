@@ -8,6 +8,8 @@ import com.crewvy.member_service.member.constant.MemberStatus;
 import com.crewvy.member_service.member.converter.AccountStatusConverter;
 import com.crewvy.member_service.member.converter.EmploymentTypeConverter;
 import com.crewvy.member_service.member.converter.MemberStatusConverter;
+import com.crewvy.member_service.member.dto.request.MyPageEditReq;
+import com.crewvy.member_service.member.dto.request.UpdateMemberReq;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,7 +25,7 @@ import java.util.UUID;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@Builder(toBuilder = true)
 public class Member extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -62,7 +64,7 @@ public class Member extends BaseEntity {
 
     private LocalDate joinDate;
 
-    private String extensionNumber; // 내선번호
+    private String extensionNumber; // 내선전화
 
     private String telNumber;       // 일반전화
 
@@ -103,5 +105,50 @@ public class Member extends BaseEntity {
 
     public void updateDefaultMemberPosition(MemberPosition newMemberPosition){
         this.defaultMemberPosition = newMemberPosition;
+    }
+
+    public void updateBasicInfo(UpdateMemberReq updateMemberReq, String encodePw) {
+        this.name = updateMemberReq.getName();
+        this.password = encodePw;
+        this.joinDate = updateMemberReq.getJoinDate();
+        this.extensionNumber = updateMemberReq.getExtensionNumber();
+        this.telNumber = updateMemberReq.getTelNumber();
+
+        if (updateMemberReq.getAccountStatusCodeValue() != null && !updateMemberReq.getAccountStatusCodeValue().isBlank()) {
+            this.accountStatus = AccountStatus.fromCode(updateMemberReq.getAccountStatusCodeValue());
+        }
+        if (updateMemberReq.getEmploymentTypeCodeValue() != null && !updateMemberReq.getEmploymentTypeCodeValue().isBlank()) {
+            this.employmentType = EmploymentType.fromCode(updateMemberReq.getEmploymentTypeCodeValue());
+        }
+        if (updateMemberReq.getMemberStatusCodeValue() != null && !updateMemberReq.getMemberStatusCodeValue().isBlank()) {
+            this.memberStatus = MemberStatus.fromCode(updateMemberReq.getMemberStatusCodeValue());
+        }
+    }
+
+    public void updateGradeHistories(Set<GradeHistory> gradeHistories) {
+        this.gradeHistorySet.clear();
+        if (gradeHistories != null) {
+            this.gradeHistorySet.addAll(gradeHistories);
+        }
+    }
+
+    public void updateMemberPositions(Set<MemberPosition> memberPositions) {
+        this.memberPositionList.clear();
+        if (memberPositions != null) {
+            this.memberPositionList.addAll(memberPositions);
+        }
+    }
+
+    public void updateMyPage(MyPageEditReq myPageEditReq, String encodePw){
+        this.phoneNumber = myPageEditReq.getPhoneNumber();
+        this.emergencyContact = myPageEditReq.getEmergencyContact();
+        this.extensionNumber = myPageEditReq.getExtensionNumber();
+        this.telNumber = myPageEditReq.getTelNumber();
+        this.address = myPageEditReq.getAddress();
+        this.isPhoneNumberPublic = Bool.fromBoolean(myPageEditReq.getIsPhoneNumberPublic());
+        this.isAddressDisclosure = Bool.fromBoolean(myPageEditReq.getIsAddressDisclosure());
+        this.bank = myPageEditReq.getBank();
+        this.bankAccount = myPageEditReq.getBankAccount();
+        this.password = encodePw;
     }
 }

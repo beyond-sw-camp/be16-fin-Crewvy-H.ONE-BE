@@ -1,14 +1,17 @@
 package com.crewvy.member_service.member.dto.request;
 
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.util.List;
 import java.util.UUID;
 
 @Getter
+@Setter
 @NoArgsConstructor
-public class UpdateRolePermissionsReq {
-
-    private List<UUID> permissionIds;
+@AllArgsConstructor
+public class IdListReq {
+    private List<UUID> uuidList;
 }

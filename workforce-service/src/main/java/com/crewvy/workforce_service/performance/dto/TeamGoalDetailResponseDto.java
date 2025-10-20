@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @AllArgsConstructor
 @NoArgsConstructor
@@ -18,6 +19,7 @@ public class TeamGoalDetailResponseDto {
     private String contents;
     private LocalDate startDate;
     private LocalDate endDate;
+    private UUID memberPositionId;
     @Builder.Default
     private List<GoalResponseDto> goalList = new ArrayList<>();
 }

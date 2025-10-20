@@ -10,6 +10,10 @@ import lombok.Setter;
 public class PolicyRuleDetails {
     private WorkTimeRuleDto workTimeRule;
     private AuthRuleDto authRule;
-    private GoOutRuleDto goOutRule;
-    // private LeaveRuleDto leaveRule; // 향후 확장
+    private GoOutRuleDto goOutRuleDto;
+    private BreakRuleDto breakRule;
+    private LeaveRuleDto leaveRule;
+    private TripRuleDto tripRule;
+    private ExpenseRuleDto expenseRule;
+    private LatenessRuleDto latenessRule;
 }

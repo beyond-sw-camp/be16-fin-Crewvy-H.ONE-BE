@@ -7,7 +7,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.UuidGenerator;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -35,7 +34,18 @@ public class ApprovalLine{
 
     private int lineIndex;
 
+    private String comment;
+
     public void updateLineStatus(LineStatus status) {
         this.lineStatus = status;
+    }
+
+    public void updateLineStatus(LineStatus status, LocalDateTime approvalDate) {
+        this.lineStatus = status;
+        this.approvalDate = approvalDate;
+    }
+
+    public void reject(String comment) {
+        this.comment = comment;
     }
 }

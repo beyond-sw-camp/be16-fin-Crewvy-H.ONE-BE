@@ -18,4 +18,8 @@ public class TeamGoalResponseDto {
     private String contents;
     private LocalDate startDate;
     private LocalDate endDate;
+    private UUID memberPositionId;
+    private String memberName;
+    private String memberOrganization;
+    private String memberPosition;
 }

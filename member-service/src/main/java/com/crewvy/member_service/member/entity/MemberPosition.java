@@ -8,7 +8,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Entity
@@ -38,16 +38,38 @@ public class MemberPosition extends BaseEntity {
     private Role role;
 
     @Column(nullable = false)
-    private LocalDateTime startDate;
+    @Builder.Default
+    private LocalDate startDate = LocalDate.now()                               ;
 
-    private LocalDateTime endDate;
+    private LocalDate endDate;
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     @Builder.Default
     private Bool isActive = Bool.TRUE;
 
-    public void updateRole(Role newRole){
-        this.role = newRole;
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private Bool ynDel = Bool.FALSE;
+
+    public void updateMember(Member member) {
+        this.member = member;
+    }
+
+    public void update(Organization organization, Title title, Role role, LocalDate startDate, LocalDate endDate) {
+        this.organization = organization;
+        this.title = title;
+        this.role = role;
+        this.startDate = startDate;
+        this.endDate = endDate;
+    }
+
+    public void updateRole(Role newRole) {
+        role = newRole;
+    }
+
+    public void delete() {
+        this.ynDel = Bool.TRUE;
     }
 }

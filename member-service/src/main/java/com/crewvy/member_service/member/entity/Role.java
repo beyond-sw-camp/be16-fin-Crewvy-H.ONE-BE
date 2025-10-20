@@ -28,13 +28,18 @@ public class Role extends BaseEntity {
 
     private String description;
 
-    @Builder.Default
     @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
     private Bool ynDel = Bool.TRUE;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private Company company;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer displayOrder = 0; // displayOrder 필드 추가
 
     @Builder.Default
     @OneToMany(mappedBy = "role", cascade = {CascadeType.PERSIST, CascadeType.REMOVE}, orphanRemoval = true)
@@ -45,6 +50,10 @@ public class Role extends BaseEntity {
         if (newRolePermissions != null) {
             this.rolePermissionList.addAll(newRolePermissions);
         }
+    }
+
+    public void updateDisplayOrder(Integer displayOrder) {
+        this.displayOrder = displayOrder;
     }
 
     public void updateName(String newName){

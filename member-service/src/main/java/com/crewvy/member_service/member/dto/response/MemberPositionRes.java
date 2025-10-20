@@ -7,7 +7,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.Period;
 import java.util.UUID;
 
 @Getter
@@ -19,11 +20,18 @@ public class MemberPositionRes {
     private OrganizationRes organization;
     private TitleRes title;
     private RoleRes role;
-    private LocalDateTime startDate;
-    private LocalDateTime endDate;
+    private LocalDate startDate;
+    private LocalDate endDate;
+    private String lengthOfService;
     private Bool isActive;
 
     public static MemberPositionRes fromEntity(MemberPosition memberPosition) {
+        String lengthOfService = null;
+        if (memberPosition.getStartDate() != null) {
+            LocalDate endDate = memberPosition.getEndDate() != null ? memberPosition.getEndDate() : LocalDate.now();
+            Period period = Period.between(memberPosition.getStartDate(), endDate);
+            lengthOfService = String.format("%d년 %d개월 %d일", period.getYears(), period.getMonths(), period.getDays());
+        }
         return MemberPositionRes.builder()
                 .id(memberPosition.getId())
                 .organization(OrganizationRes.fromEntity(memberPosition.getOrganization()))
@@ -31,6 +39,7 @@ public class MemberPositionRes {
                 .role(RoleRes.forMemberPositionRes(memberPosition.getRole()))
                 .startDate(memberPosition.getStartDate())
                 .endDate(memberPosition.getEndDate())
+                .lengthOfService(lengthOfService)
                 .isActive(memberPosition.getIsActive())
                 .build();
     }
