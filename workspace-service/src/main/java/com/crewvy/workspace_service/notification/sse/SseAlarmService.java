@@ -8,6 +8,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class SseAlarmService {
@@ -20,6 +23,23 @@ public class SseAlarmService {
 
         clients.computeIfAbsent(memberId, k -> ConcurrentHashMap.newKeySet()).add(emitter);
 
+        // 초기 연결 이벤트
+        try {
+            emitter.send(SseEmitter.event().name("connected").data("ok"));
+        } catch (IOException e) {
+            emitter.completeWithError(e);
+        }
+
+        // 주기 ping
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        scheduler.scheduleAtFixedRate(() -> {
+            try {
+                emitter.send(SseEmitter.event().name("ping").data(System.currentTimeMillis()));
+            } catch (IOException e) {
+                emitter.complete();
+            }
+        }, 30, 30, TimeUnit.SECONDS);
+
         emitter.onCompletion(() -> removeEmitter(memberId, emitter));
         emitter.onTimeout(() -> removeEmitter(memberId, emitter));
 
@@ -27,7 +47,7 @@ public class SseAlarmService {
     }
 
     // 특정 사용자에게 알림 전송
-    public void sendToUser(UUID memberId, String type, String message) {
+    public void sendToUser(UUID memberId, String message) {
         Set<SseEmitter> emitters = clients.get(memberId);
         if (emitters == null || emitters.isEmpty()) {
             System.out.println("❌ No emitters found for user " + memberId);
@@ -37,7 +57,7 @@ public class SseAlarmService {
         System.out.println("✅ Sending message to " + memberId + ": " + message);
         emitters.forEach(emitter -> {
             try {
-                emitter.send(SseEmitter.event().name(type).data(message));
+                emitter.send(SseEmitter.event().name("notification").data(message));
                 System.out.println("➡️ Sent to one emitter");
             } catch (IOException e) {
                 System.out.println("⚠️ Failed to send, removing emitter");

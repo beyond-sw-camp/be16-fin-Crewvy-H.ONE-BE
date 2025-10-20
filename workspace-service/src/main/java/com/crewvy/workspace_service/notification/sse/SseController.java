@@ -1,6 +1,7 @@
 package com.crewvy.workspace_service.notification.sse;
 
 import com.crewvy.common.dto.NotificationMessage;
+import com.crewvy.common.kafka.KafkaMessagePublisher;
 import com.crewvy.common.redis.RedisMessagePublisher;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -14,11 +15,14 @@ public class SseController {
 
     private final SseAlarmService sseAlarmService;
     private final RedisMessagePublisher messagePublisher;
+    private final KafkaMessagePublisher kafkaMessagePublisher;
 
     public SseController(SseAlarmService sseAlarmService,
-                         RedisMessagePublisher messagePublisher) {
+                         RedisMessagePublisher messagePublisher,
+                         KafkaMessagePublisher kafkaMessagePublisher) {
         this.sseAlarmService = sseAlarmService;
         this.messagePublisher = messagePublisher;
+        this.kafkaMessagePublisher = kafkaMessagePublisher;
     }
 
     /**
@@ -35,7 +39,8 @@ public class SseController {
     @PostMapping("/send")
     public void sendNotification(@RequestBody NotificationMessage message) throws IOException {
         // Redis Pub/Sub으로 발행
-        messagePublisher.publish("notification-channel", toJson(message));
+//        messagePublisher.publish("notification-channel", toJson(message));
+        kafkaMessagePublisher.publish("notification", message);
     }
 
     // Object -> JSON 문자열

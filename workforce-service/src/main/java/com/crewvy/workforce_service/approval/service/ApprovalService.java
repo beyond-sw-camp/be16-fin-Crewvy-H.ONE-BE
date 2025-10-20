@@ -4,6 +4,7 @@ import com.crewvy.common.S3.S3Uploader;
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.dto.NotificationMessage;
 import com.crewvy.common.exception.BusinessException;
+import com.crewvy.common.kafka.KafkaMessagePublisher;
 import com.crewvy.common.notification.NotificationRedis;
 import com.crewvy.workforce_service.approval.constant.ApprovalState;
 import com.crewvy.workforce_service.approval.constant.LineStatus;
@@ -42,6 +43,7 @@ public class ApprovalService {
     private final S3Uploader s3Uploader;
     private final MemberClient memberClient;
     private final NotificationRedis notification;
+    private final KafkaMessagePublisher messagePublisher;
 
 //    문서 양식 생성
     public UUID uploadDocument(UploadDocumentDto dto) {
@@ -264,10 +266,11 @@ public class ApprovalService {
                     .build();
 
             try {
-                notification.sendNotification(message);
+                messagePublisher.publish("notification", message);
             }
             catch (Exception e) {
-                throw new BusinessException("레디스 알림 전송 실패");
+//                throw new BusinessException("레디스 알림 전송 실패");
+                throw new BusinessException("카프카 알림 전송 실패");
             }
 
         }
@@ -360,12 +363,12 @@ public class ApprovalService {
 
                         NotificationMessage message = NotificationMessage.builder()
                                 .memberId(position.get(0).getMemberId())
-                                .notificationType("approval")
+                                .notificationType("APPROVAL")
                                 .content("전자결재 : " + approval.getTitle() + " 문서가  도착했습니다.")
                                 .build();
 
                         try {
-                            notification.sendNotification(message);
+                            messagePublisher.publish("notification", message);
                         }
                         catch (Exception e) {
                             throw new BusinessException("레디스 알림 전송 실패");
@@ -386,10 +389,10 @@ public class ApprovalService {
                     .build();
 
             try {
-                notification.sendNotification(message);
+                messagePublisher.publish("notification", message);
             }
             catch (Exception e) {
-                throw new BusinessException("레디스 알림 전송 실패");
+                throw new BusinessException("알림 전송 실패");
             }
         }
     }
@@ -429,7 +432,7 @@ public class ApprovalService {
                 .build();
 
         try {
-            notification.sendNotification(message);
+            messagePublisher.publish("notification", message);
         }
         catch (Exception e) {
             throw new BusinessException("레디스 알림 전송 실패");
