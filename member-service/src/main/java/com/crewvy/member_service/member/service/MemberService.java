@@ -1,6 +1,8 @@
 package com.crewvy.member_service.member.service;
 
 import com.crewvy.common.entity.Bool;
+import com.crewvy.common.event.MemberDeletedEvent;
+import com.crewvy.common.event.MemberSavedEvent;
 import com.crewvy.common.exception.PermissionDeniedException;
 import com.crewvy.member_service.member.auth.JwtTokenProvider;
 import com.crewvy.member_service.member.constant.Action;
@@ -12,6 +14,7 @@ import com.crewvy.member_service.member.repository.*;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
@@ -40,13 +42,14 @@ public class MemberService {
     private final PermissionRepository permissionRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
     public MemberService(CompanyRepository companyRepository, OrganizationRepository organizationRepository
             , MemberRepository memberRepository, MemberPositionRepository memberPositionRepository
             , RoleRepository roleRepository, RolePermissionRepository rolePermissionRepository
             , GradeRepository gradeRepository, GradeHistoryRepository gradeHistoryRepository
             , TitleRepository titleRepository, PermissionRepository permissionRepository
-            , PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider) {
+            , PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider, KafkaTemplate<String, Object> kafkaTemplate) {
         this.companyRepository = companyRepository;
         this.organizationRepository = organizationRepository;
         this.memberRepository = memberRepository;
@@ -59,6 +62,7 @@ public class MemberService {
         this.permissionRepository = permissionRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.kafkaTemplate = kafkaTemplate;
     }
 
     // 회원가입
@@ -71,7 +75,16 @@ public class MemberService {
         }
         String encodePassword = passwordEncoder.encode(createAdminReq.getPassword());
         Member adminMember = createAdminReq.toEntity(encodePassword, company);
-        return memberRepository.save(adminMember);
+        Member savedMember = memberRepository.save(adminMember);
+
+        // Publish event to Kafka
+        kafkaTemplate.send("member-saved-events", MemberSavedEvent.builder()
+                .memberId(savedMember.getId())
+                .name(savedMember.getName())
+                .phoneNumber(savedMember.getPhoneNumber())
+                .build());
+
+        return savedMember;
     }
 
     // 계정 생성
@@ -89,6 +102,13 @@ public class MemberService {
         Company company = admin.getCompany();
         String encodePassword = passwordEncoder.encode(createMemberReq.getPassword());
         Member savedMember = memberRepository.save(createMemberReq.memberToEntity(encodePassword, company));
+
+        // Publish event to Kafka
+        kafkaTemplate.send("member-saved-events", MemberSavedEvent.builder()
+                .memberId(savedMember.getId())
+                .name(savedMember.getName())
+                .phoneNumber(savedMember.getPhoneNumber())
+                .build());
 
         Grade grade = gradeRepository.findById(createMemberReq.getGradeId()).orElseThrow(()
                 -> new IllegalArgumentException("존재하지 않는 직급입니다."));
@@ -358,6 +378,13 @@ public class MemberService {
                     mp.delete(); // ynDel = TRUE
                     memberPositionRepository.save(mp);
                 });
+
+        kafkaTemplate.send("member-saved-events", MemberSavedEvent.builder()
+                .memberId(member.getId())
+                .name(member.getName())
+                .phoneNumber(member.getPhoneNumber())
+                .build());
+
         return member.getId();
     }
 
@@ -367,7 +394,13 @@ public class MemberService {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
-        memberRepository.findById(memberId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 계정입니다.")).delete();
+        Member member = memberRepository.findById(memberId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 계정입니다."));
+        member.delete();
+        memberRepository.save(member);
+
+        kafkaTemplate.send("member-deleted-events", MemberDeletedEvent.builder()
+                .memberId(member.getId())
+                .build());
     }
 
     // 직원 복원
@@ -376,7 +409,15 @@ public class MemberService {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
-        memberRepository.findById(memberId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 계정입니다.")).restore();
+        Member member = memberRepository.findById(memberId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 계정입니다."));
+        member.restore();
+        memberRepository.save(member);
+
+        kafkaTemplate.send("member-saved-events", MemberSavedEvent.builder()
+                .memberId(member.getId())
+                .name(member.getName())
+                .phoneNumber(member.getPhoneNumber())
+                .build());
     }
 
     // 직원 상세 조회

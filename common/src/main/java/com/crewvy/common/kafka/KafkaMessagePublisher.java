@@ -7,9 +7,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class KafkaMessagePublisher {
 
-    private final KafkaTemplate<String, NotificationMessage> kafkaTemplate;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
-    public KafkaMessagePublisher(KafkaTemplate<String, NotificationMessage> kafkaTemplate) {
+    public KafkaMessagePublisher(KafkaTemplate<String, Object> kafkaTemplate) {
         this.kafkaTemplate = kafkaTemplate;
     }
 
