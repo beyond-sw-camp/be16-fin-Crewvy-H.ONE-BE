@@ -10,8 +10,9 @@ import lombok.Setter;
 public class PolicyRuleDetails {
     private WorkTimeRuleDto workTimeRule;
     private AuthRuleDto authRule;
-    private GoOutRuleDto goOutRuleDto;
+    private GoOutRuleDto goOutRule;
     private BreakRuleDto breakRule;
+    private ClockOutRuleDto clockOutRule;
     private LeaveRuleDto leaveRule;
     private TripRuleDto tripRule;
     private ExpenseRuleDto expenseRule;

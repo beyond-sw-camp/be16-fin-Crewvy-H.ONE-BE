@@ -40,6 +40,7 @@ public class AutoCreateAdmin implements ApplicationRunner {
     private final OrganizationService organizationService;
     private final RolePermissionRepository rolePermissionRepository;
     private final GradeHistoryRepository gradeHistoryRepository;
+    private final ElasticRepository elasticRepository;
 
     @Override
     @Transactional
@@ -151,6 +152,7 @@ public class AutoCreateAdmin implements ApplicationRunner {
                 .employmentType(EmploymentType.FULL)
                 .build();
         memberRepository.save(admin);
+        elasticRepository.save(MemberDocument.fromEntity(admin));
 
         Company company = admin.getCompany();
         UUID adminPositionId = admin.getDefaultMemberPosition().getId();

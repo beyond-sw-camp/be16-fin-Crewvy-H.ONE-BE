@@ -1019,4 +1019,20 @@ public class MemberService {
         return memberRepository.findAllById(idListReq.getUuidList()).stream()
                 .map(m -> MemberPositionListRes.fromEntity(m.getDefaultMemberPosition())).collect(Collectors.toList());
     }
+
+    @Transactional(readOnly = true)
+    public List<OrganizationRes> getOrganizationList(UUID memberPositionId) {
+        return memberPositionRepository.findById(memberPositionId).map(mp -> {
+            List<OrganizationRes> organizationResList = new ArrayList<>();
+            Organization organization = mp.getOrganization();
+
+            while (organization.getParent() != null) {
+                organizationResList.add(OrganizationRes.fromEntity(organization));
+                organization = organization.getParent();
+            }
+            organizationResList.add(OrganizationRes.fromEntity(organization));
+
+            return  organizationResList;
+        }).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 직원입니다."));
+    }
 }

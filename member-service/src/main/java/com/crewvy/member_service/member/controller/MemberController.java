@@ -338,8 +338,15 @@ public class MemberController {
     // memberIdList -> defaultMemberPosition의 ( 이름, 부서, 직급 ) List
     @PostMapping("/default-position-list")
     public ResponseEntity<?> getDefaultPositionList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                                    @RequestBody IdListReq idListReq){
+                                                    @RequestBody IdListReq idListReq) {
         return new ResponseEntity<>(ApiResponse.success(
                 memberService.getDefaultPositionList(memberPositionId, idListReq), "목록 조회 성공"), HttpStatus.OK);
+    }
+
+    // memberPositionId -> 조직 List( 0: 내 부서, 1: 상위 부서, 2: 1의 상위 부서, ... , n: 회사 )
+    @GetMapping("/organization-list")
+    public ResponseEntity<?> getOrganizationList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.getOrganizationList(memberPositionId), "목록 조회 성공"), HttpStatus.OK);
     }
 }

@@ -62,6 +62,10 @@ dependencies {
 	// Kafka
 	implementation 'org.springframework.kafka:spring-kafka'
 
+	// Elastic Search
+	implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
+	implementation 'org.springframework.data:spring-data-elasticsearch'
+
 	// common 모듈을 의존성으로 추가
 	implementation project(':common')
 

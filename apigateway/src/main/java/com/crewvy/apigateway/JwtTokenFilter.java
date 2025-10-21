@@ -15,6 +15,7 @@ import reactor.core.publisher.Mono;
 
 import java.security.Key;
 import java.util.List;
+import java.util.UUID;
 
 @Component
 public class JwtTokenFilter implements GlobalFilter {
@@ -67,14 +68,17 @@ public class JwtTokenFilter implements GlobalFilter {
                     .getBody();
 
             String memberId = claims.getSubject();
-            String memberPositionId = claims.get("MemberPositionId", String.class);
-            String role = claims.get("role", String.class);
+            String memberPositionId = claims.get("memberPositionId", String.class);
+            String organizationId = claims.get("organizationId", String.class);
+            String companyId = claims.get("companyId", String.class);
+            String name = claims.get("name", String.class);
 
             ServerWebExchange serverWebExchange = exchange.mutate()
                     .request(r -> r
                             .header("X-User-UUID", memberId)
                             .header("X-User-MemberPositionId", memberPositionId)
-                            .header("X-User-Role", role))
+                            .header("X-User-OrganizationId", organizationId)
+                            .header("X-User-CompanyId", companyId))
                     .build();
 
             return chain.filter(serverWebExchange);

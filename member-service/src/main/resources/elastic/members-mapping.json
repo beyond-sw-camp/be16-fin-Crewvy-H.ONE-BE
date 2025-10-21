@@ -1,0 +1,13 @@
+{
+  "properties": {
+    "memberId": {
+      "type": "keyword"
+    },
+    "name": {
+      "type": "text"
+    },
+    "phoneNumber": {
+      "type": "text"
+    }
+  }
+}
