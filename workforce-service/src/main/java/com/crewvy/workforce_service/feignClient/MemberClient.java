@@ -18,6 +18,10 @@ public interface MemberClient {
                                                     @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                                     @RequestBody IdListReq idListReq
     );
+    @PostMapping("/default-position-list")
+    ApiResponse<List<PositionDto>> getDefaultPositionList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                                    @RequestBody IdListReq idListReq
+    );
 
     @GetMapping("/organization/tree-with-members")
     ApiResponse<List<OrganizationNodeDto>> getOrganization(@RequestHeader("X-User-UUID") UUID uuid);
