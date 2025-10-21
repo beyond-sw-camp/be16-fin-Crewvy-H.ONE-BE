@@ -507,7 +507,7 @@ public class AttendanceService {
                     .uuidList(memberIds)
                     .build();
             try {
-                ApiResponse<List<PositionDto>> response = memberClient.getPositionList(memberPositionId, request);
+                ApiResponse<List<PositionDto>> response = memberClient.getDefaultPositionList(memberPositionId, request);
                 if (response != null && response.getData() != null) {
                     positionMap = response.getData().stream()
                             .collect(Collectors.toMap(PositionDto::getMemberId, p -> p));
@@ -553,7 +553,8 @@ public class AttendanceService {
      */
     @Transactional(readOnly = true)
     public List<MemberBalanceSummaryRes> getMemberBalanceSummary(
-            UUID memberPositionId, UUID companyId,
+            UUID memberPositionId,
+            UUID companyId,
             Integer year) {
 
         validateYear(year);
@@ -583,7 +584,7 @@ public class AttendanceService {
                     .uuidList(memberIds)
                     .build();
             try {
-                ApiResponse<List<PositionDto>> response = memberClient.getPositionList(memberPositionId, request);
+                ApiResponse<List<PositionDto>> response = memberClient.getDefaultPositionList(memberPositionId, request);
                 if (response != null && response.getData() != null) {
                     positionMap = response.getData().stream()
                             .collect(Collectors.toMap(PositionDto::getMemberId, p -> p));
