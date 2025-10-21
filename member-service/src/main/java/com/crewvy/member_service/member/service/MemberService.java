@@ -40,13 +40,14 @@ public class MemberService {
     private final PermissionRepository permissionRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final OutboxRepository outboxRepository;
 
     public MemberService(CompanyRepository companyRepository, OrganizationRepository organizationRepository
             , MemberRepository memberRepository, MemberPositionRepository memberPositionRepository
             , RoleRepository roleRepository, RolePermissionRepository rolePermissionRepository
             , GradeRepository gradeRepository, GradeHistoryRepository gradeHistoryRepository
             , TitleRepository titleRepository, PermissionRepository permissionRepository
-            , PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider) {
+            , PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider, OutboxRepository outboxRepository) {
         this.companyRepository = companyRepository;
         this.organizationRepository = organizationRepository;
         this.memberRepository = memberRepository;
@@ -59,6 +60,7 @@ public class MemberService {
         this.permissionRepository = permissionRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.outboxRepository = outboxRepository;
     }
 
     // 회원가입
@@ -71,7 +73,16 @@ public class MemberService {
         }
         String encodePassword = passwordEncoder.encode(createAdminReq.getPassword());
         Member adminMember = createAdminReq.toEntity(encodePassword, company);
-        return memberRepository.save(adminMember);
+        memberRepository.save(adminMember);
+
+        OutboxEvent outbox = OutboxEvent.builder()
+                .topic("member-create")
+                .memberId(adminMember.getId())
+                .processed(Bool.FALSE)
+                .build();
+        outboxRepository.save(outbox);
+
+        return adminMember;
     }
 
     // 계정 생성
@@ -111,6 +122,15 @@ public class MemberService {
 
         MemberPosition memberPosition = createMemberPosition(createMemberReq.getMemberPositionName(), savedMember, organization, title, role, LocalDate.now(), null);
         savedMember.updateDefaultMemberPosition(memberPosition);
+
+        OutboxEvent outbox = OutboxEvent.builder()
+                .topic("member-create")
+                .memberId(savedMember.getId())
+                .processed(Bool.FALSE)
+                .build();
+
+        outboxRepository.save(outbox);
+
         return savedMember.getId();
     }
 

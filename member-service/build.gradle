@@ -59,6 +59,9 @@ dependencies {
 	// Redis
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
+	// Kafka
+	implementation 'org.springframework.kafka:spring-kafka'
+
 	// common 모듈을 의존성으로 추가
 	implementation project(':common')
 
