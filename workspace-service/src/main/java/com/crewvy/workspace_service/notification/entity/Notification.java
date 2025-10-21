@@ -32,11 +32,12 @@ public class Notification extends BaseEntity {
     @Convert(converter = NotificationTypeConverter.class)
     private NotificationType notificationType;
 
-    @Column(name = "target_id", nullable = false)
-    private UUID targetId;
-
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "is_deleted", nullable = false)
     private Bool isDeleted = Bool.FALSE;
+
+    public void readNotification() {
+        this.isDeleted = Bool.TRUE;
+    }
 }

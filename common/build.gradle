@@ -65,6 +65,9 @@ dependencies {
     // Cache
     implementation 'org.springframework.boot:spring-boot-starter-cache'
 
+	// Kafka
+	implementation 'org.springframework.kafka:spring-kafka'
+
 //	이 아래는 수정X
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
