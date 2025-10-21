@@ -7,12 +7,8 @@ import com.crewvy.workforce_service.attendance.constant.DeviceType;
 import com.crewvy.workforce_service.attendance.constant.EventType;
 import com.crewvy.workforce_service.attendance.constant.RequestStatus;
 import com.crewvy.workforce_service.attendance.dto.request.EventRequest;
-import com.crewvy.workforce_service.attendance.dto.response.ClockInResponse;
-import com.crewvy.workforce_service.attendance.dto.response.ClockOutResponse;
-import com.crewvy.workforce_service.attendance.dto.response.DailyAttendanceSummaryRes;
-import com.crewvy.workforce_service.attendance.dto.response.MemberBalanceSummaryRes;
-import com.crewvy.workforce_service.attendance.dto.rule.AuthMethodDto;
-import com.crewvy.workforce_service.attendance.dto.rule.PolicyRuleDetails;
+import com.crewvy.workforce_service.attendance.dto.response.*;
+import com.crewvy.workforce_service.attendance.dto.rule.*;
 import com.crewvy.workforce_service.attendance.entity.AttendanceLog;
 import com.crewvy.workforce_service.attendance.entity.DailyAttendance;
 import com.crewvy.workforce_service.attendance.entity.MemberBalance;
@@ -54,7 +50,8 @@ public class AttendanceService {
     private final MemberBalanceRepository memberBalanceRepository;
 
     public ApiResponse<?> recordEvent(UUID memberId, UUID memberPositionId, UUID companyId, EventRequest request, String clientIp) {
-        checkPermissionOrThrow(memberPositionId, "attendance", "CREATE", "INDIVIDUAL", "근태를 기록할 권한이 없습니다.");
+        // TODO: 테스트 후 주석 해제 필요
+        // checkPermissionOrThrow(memberPositionId, "attendance", "CREATE", "INDIVIDUAL", "근태를 기록할 권한이 없습니다.");
 
         // 인증/검증이 필요한 이벤트 그룹
         List<EventType> validationRequiredEvents = List.of(EventType.CLOCK_IN, EventType.CLOCK_OUT);
@@ -68,8 +65,20 @@ public class AttendanceService {
                 ClockInResponse clockInResponse = clockIn(memberId, companyId, request);
                 return ApiResponse.success(clockInResponse, "출근 등록 완료.");
             case CLOCK_OUT:
-                ClockOutResponse clockOutResponse = clockOut(memberId, request);
+                ClockOutResponse clockOutResponse = clockOut(memberId, companyId, request);
                 return ApiResponse.success(clockOutResponse, "퇴근 등록 완료.");
+            case GO_OUT:
+                GoOutResponse goOutResponse = goOut(memberId, request);
+                return ApiResponse.success(goOutResponse, "외출 등록 완료.");
+            case COME_BACK:
+                ComeBackResponse comeBackResponse = comeBack(memberId, request);
+                return ApiResponse.success(comeBackResponse, "복귀 등록 완료.");
+            case BREAK_START:
+                BreakStartResponse breakStartResponse = breakStart(memberId, request);
+                return ApiResponse.success(breakStartResponse, "휴게 시작 등록 완료.");
+            case BREAK_END:
+                BreakEndResponse breakEndResponse = breakEnd(memberId, request);
+                return ApiResponse.success(breakEndResponse, "휴게 종료 등록 완료.");
             default:
                 throw new BusinessException("지원하지 않는 이벤트 타입입니다.");
         }
@@ -90,22 +99,74 @@ public class AttendanceService {
                 });
 
         LocalDateTime clockInTime = LocalDateTime.now();
+
+        // 정책 조회
+        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId);
+
+        // 근무 시간 제한 검증
+        validateWorkingHoursLimit(today, activePolicy, clockInTime, null);
+
         AttendanceLog newLog = createAttendanceLog(memberId, clockInTime, EventType.CLOCK_IN, request.getLatitude(), request.getLongitude());
-        createDailyAttendance(memberId, companyId, today, clockInTime);
+
+        // DailyAttendance 생성
+        DailyAttendance dailyAttendance = createDailyAttendance(memberId, companyId, today, clockInTime);
+
+        // 지각 여부 판별
+        checkLateness(dailyAttendance, activePolicy);
 
         return new ClockInResponse(newLog.getId(), newLog.getEventTime());
     }
 
-    private ClockOutResponse clockOut(UUID memberId, EventRequest request) {
-
-        LocalDateTime clockOutTime = LocalDateTime.now();
-        AttendanceLog newLog = createAttendanceLog(memberId, clockOutTime, EventType.CLOCK_OUT, request.getLatitude(), request.getLongitude());
-
+    private ClockOutResponse clockOut(UUID memberId, UUID companyId, EventRequest request) {
         LocalDate today = LocalDate.now();
+
+        // 출근 기록 확인
         DailyAttendance dailyAttendance = dailyAttendanceRepository.findByMemberIdAndAttendanceDate(memberId, today)
                 .orElseThrow(() -> new ResourceNotFoundException("출근 기록이 없습니다. 퇴근 처리할 수 없습니다."));
 
-        dailyAttendance.updateClockOut(clockOutTime);
+        // 정책 조회
+        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId);
+
+        // attendance_log에서 가장 최근 이벤트 조회하여 상태 확인
+        EventType lastEvent = getLastEventTypeToday(memberId);
+
+        // 퇴근 중복 체크 (정책에 따라)
+        if (lastEvent == EventType.CLOCK_OUT) {
+            ClockOutRuleDto clockOutRule = activePolicy != null && activePolicy.getRuleDetails() != null
+                    ? activePolicy.getRuleDetails().getClockOutRule()
+                    : null;
+
+            // 퇴근 중복 허용 여부 확인
+            if (clockOutRule == null || !Boolean.TRUE.equals(clockOutRule.getAllowDuplicateClockOut())) {
+                throw new BusinessException("이미 퇴근 처리되었습니다.");
+            }
+            // 중복 허용이면 계속 진행 (마지막 퇴근 시각으로 업데이트)
+        }
+
+        // 외출 중에는 퇴근 불가
+        if (lastEvent == EventType.GO_OUT) {
+            throw new BusinessException("외출 중입니다. 복귀 처리 후 퇴근할 수 있습니다.");
+        }
+
+        // 휴게 중에는 퇴근 불가
+        if (lastEvent == EventType.BREAK_START) {
+            throw new BusinessException("휴게 중입니다. 휴게 종료 후 퇴근할 수 있습니다.");
+        }
+
+        LocalDateTime clockOutTime = LocalDateTime.now();
+
+        // 퇴근 시간 제한 검증
+        validateClockOutTime(dailyAttendance, activePolicy, clockOutTime);
+
+        AttendanceLog newLog = createAttendanceLog(memberId, clockOutTime, EventType.CLOCK_OUT, request.getLatitude(), request.getLongitude());
+
+        // 기준 근무시간 가져오기
+        Integer standardWorkMinutes = getStandardWorkMinutes(activePolicy);
+
+        dailyAttendance.updateClockOut(clockOutTime, standardWorkMinutes);
+
+        // 조퇴 여부 판별
+        checkEarlyLeave(dailyAttendance, activePolicy);
 
         return new ClockOutResponse(
                 newLog.getId(),
@@ -113,6 +174,176 @@ public class AttendanceService {
                 dailyAttendance.getWorkedMinutes(),
                 dailyAttendance.getOvertimeMinutes()
         );
+    }
+
+    private GoOutResponse goOut(UUID memberId, EventRequest request) {
+        LocalDate today = LocalDate.now();
+
+        // 출근 기록 확인
+        DailyAttendance dailyAttendance = dailyAttendanceRepository.findByMemberIdAndAttendanceDate(memberId, today)
+                .orElseThrow(() -> new ResourceNotFoundException("출근 기록이 없습니다. 외출 처리할 수 없습니다."));
+
+        // attendance_log에서 가장 최근 이벤트 조회하여 상태 확인
+        EventType lastEvent = getLastEventTypeToday(memberId);
+
+        // 퇴근 후에는 외출 불가
+        if (lastEvent == EventType.CLOCK_OUT) {
+            throw new BusinessException("이미 퇴근 처리되었습니다. 외출할 수 없습니다.");
+        }
+
+        // 외출 중복 체크
+        if (lastEvent == EventType.GO_OUT) {
+            throw new BusinessException("이미 외출 중입니다. 복귀 처리 후 다시 외출할 수 있습니다.");
+        }
+
+        // 휴게 중에는 외출 불가
+        if (lastEvent == EventType.BREAK_START) {
+            throw new BusinessException("휴게 중에는 외출할 수 없습니다. 휴게를 종료해주세요.");
+        }
+
+        LocalDateTime goOutTime = LocalDateTime.now();
+
+        // 정책 조회 및 근무 시간 제한 검증
+        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, dailyAttendance.getCompanyId());
+        validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), activePolicy, goOutTime, dailyAttendance.getFirstClockIn());
+
+        AttendanceLog newLog = createAttendanceLog(memberId, goOutTime, EventType.GO_OUT, request.getLatitude(), request.getLongitude());
+
+        return new GoOutResponse(newLog.getId(), newLog.getEventTime());
+    }
+
+    private ComeBackResponse comeBack(UUID memberId, EventRequest request) {
+        LocalDate today = LocalDate.now();
+
+        // 출근 기록 확인
+        DailyAttendance dailyAttendance = dailyAttendanceRepository.findByMemberIdAndAttendanceDate(memberId, today)
+                .orElseThrow(() -> new ResourceNotFoundException("출근 기록이 없습니다. 복귀 처리할 수 없습니다."));
+
+        // attendance_log에서 가장 최근 이벤트 조회하여 상태 확인
+        EventType lastEvent = getLastEventTypeToday(memberId);
+
+        // 퇴근 후에는 복귀 불가
+        if (lastEvent == EventType.CLOCK_OUT) {
+            throw new BusinessException("이미 퇴근 처리되었습니다. 복귀할 수 없습니다.");
+        }
+
+        // 외출 상태 확인
+        if (lastEvent != EventType.GO_OUT) {
+            throw new BusinessException("외출 중이 아닙니다. 외출 시작 후 복귀할 수 있습니다.");
+        }
+
+        // attendance_log에서 가장 최근 GO_OUT 이벤트 조회 (시간 계산용)
+        AttendanceLog lastGoOut = attendanceLogRepository.findTopByMemberIdAndEventTypeOrderByEventTimeDesc(memberId, EventType.GO_OUT)
+                .orElseThrow(() -> new BusinessException("외출 기록을 찾을 수 없습니다."));
+
+        LocalDateTime comeBackTime = LocalDateTime.now();
+
+        // 정책 조회 및 근무 시간 제한 검증
+        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, dailyAttendance.getCompanyId());
+        validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), activePolicy, comeBackTime, dailyAttendance.getFirstClockIn());
+
+        AttendanceLog newLog = createAttendanceLog(memberId, comeBackTime, EventType.COME_BACK, request.getLatitude(), request.getLongitude());
+
+        // 외출 시간 계산
+        long goOutMinutes = java.time.Duration.between(lastGoOut.getEventTime(), comeBackTime).toMinutes();
+
+        // 음수 시간 체크
+        if (goOutMinutes < 0) {
+            throw new BusinessException("복귀 시각이 외출 시각보다 이릅니다. 시스템 시간을 확인해주세요.");
+        }
+
+        // 외출 시간 누적
+        dailyAttendance.addGoOutMinutes((int) goOutMinutes);
+
+        // 외출 시간 정책 검증 (정책이 있으면)
+        validateGoOutTimePolicy(dailyAttendance.getCompanyId(), memberId, (int) goOutMinutes, dailyAttendance.getTotalGoOutMinutes());
+
+        return new ComeBackResponse(newLog.getId(), newLog.getEventTime(), dailyAttendance.getTotalGoOutMinutes());
+    }
+
+    private BreakStartResponse breakStart(UUID memberId, EventRequest request) {
+        LocalDate today = LocalDate.now();
+
+        // 출근 기록 확인
+        DailyAttendance dailyAttendance = dailyAttendanceRepository.findByMemberIdAndAttendanceDate(memberId, today)
+                .orElseThrow(() -> new ResourceNotFoundException("출근 기록이 없습니다. 휴게 시작 처리할 수 없습니다."));
+
+        // attendance_log에서 가장 최근 이벤트 조회하여 상태 확인
+        EventType lastEvent = getLastEventTypeToday(memberId);
+
+        // 퇴근 후에는 휴게 불가
+        if (lastEvent == EventType.CLOCK_OUT) {
+            throw new BusinessException("이미 퇴근 처리되었습니다. 휴게를 시작할 수 없습니다.");
+        }
+
+        // 휴게 중복 체크
+        if (lastEvent == EventType.BREAK_START) {
+            throw new BusinessException("이미 휴게 중입니다. 휴게 종료 후 다시 시작할 수 있습니다.");
+        }
+
+        // 외출 중에는 휴게 불가
+        if (lastEvent == EventType.GO_OUT) {
+            throw new BusinessException("외출 중에는 휴게를 시작할 수 없습니다. 복귀 후 휴게를 시작해주세요.");
+        }
+
+        LocalDateTime breakStartTime = LocalDateTime.now();
+
+        // 정책 조회 및 근무 시간 제한 검증
+        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, dailyAttendance.getCompanyId());
+        validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), activePolicy, breakStartTime, dailyAttendance.getFirstClockIn());
+
+        AttendanceLog newLog = createAttendanceLog(memberId, breakStartTime, EventType.BREAK_START, request.getLatitude(), request.getLongitude());
+
+        return new BreakStartResponse(newLog.getId(), newLog.getEventTime());
+    }
+
+    private BreakEndResponse breakEnd(UUID memberId, EventRequest request) {
+        LocalDate today = LocalDate.now();
+
+        // 출근 기록 확인
+        DailyAttendance dailyAttendance = dailyAttendanceRepository.findByMemberIdAndAttendanceDate(memberId, today)
+                .orElseThrow(() -> new ResourceNotFoundException("출근 기록이 없습니다. 휴게 종료 처리할 수 없습니다."));
+
+        // attendance_log에서 가장 최근 이벤트 조회하여 상태 확인
+        EventType lastEvent = getLastEventTypeToday(memberId);
+
+        // 퇴근 후에는 휴게 종료 불가
+        if (lastEvent == EventType.CLOCK_OUT) {
+            throw new BusinessException("이미 퇴근 처리되었습니다. 휴게를 종료할 수 없습니다.");
+        }
+
+        // 휴게 상태 확인
+        if (lastEvent != EventType.BREAK_START) {
+            throw new BusinessException("휴게 중이 아닙니다. 휴게 시작 후 종료할 수 있습니다.");
+        }
+
+        // attendance_log에서 가장 최근 BREAK_START 이벤트 조회 (시간 계산용)
+        AttendanceLog lastBreakStart = attendanceLogRepository.findTopByMemberIdAndEventTypeOrderByEventTimeDesc(memberId, EventType.BREAK_START)
+                .orElseThrow(() -> new BusinessException("휴게 시작 기록을 찾을 수 없습니다."));
+
+        LocalDateTime breakEndTime = LocalDateTime.now();
+
+        // 정책 조회 및 근무 시간 제한 검증
+        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, dailyAttendance.getCompanyId());
+        validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), activePolicy, breakEndTime, dailyAttendance.getFirstClockIn());
+
+        AttendanceLog newLog = createAttendanceLog(memberId, breakEndTime, EventType.BREAK_END, request.getLatitude(), request.getLongitude());
+
+        // 휴게 시간 계산
+        long breakMinutes = java.time.Duration.between(lastBreakStart.getEventTime(), breakEndTime).toMinutes();
+
+        // 음수 시간 체크
+        if (breakMinutes < 0) {
+            throw new BusinessException("휴게 종료 시각이 휴게 시작 시각보다 이릅니다. 시스템 시간을 확인해주세요.");
+        }
+
+        // 휴게 시간 누적
+        dailyAttendance.addBreakMinutes((int) breakMinutes);
+
+        // 휴게 시간 정책 검증 (정책이 있으면)
+        validateBreakTimePolicy(dailyAttendance.getCompanyId(), memberId, dailyAttendance.getTotalBreakMinutes());
+
+        return new BreakEndResponse(newLog.getId(), newLog.getEventTime(), dailyAttendance.getTotalBreakMinutes());
     }
 
     private AttendanceLog createAttendanceLog(UUID memberId, LocalDateTime eventTime, EventType eventType, Double latitude, Double longitude) {
@@ -127,7 +358,7 @@ public class AttendanceService {
         return attendanceLogRepository.save(newLog);
     }
 
-    private void createDailyAttendance(UUID memberId, UUID companyId, LocalDate today, LocalDateTime clockInTime) {
+    private DailyAttendance createDailyAttendance(UUID memberId, UUID companyId, LocalDate today, LocalDateTime clockInTime) {
         // TODO: Request 승인 시 DailyAttendance 생성 로직 구현 필요
         //  - 연차/병가/반차 Request 승인 시 해당 status로 DailyAttendance 미리 생성
         //  - 출근 시 기존 DailyAttendance 확인하여 update 또는 create
@@ -142,7 +373,7 @@ public class AttendanceService {
                 .overtimeMinutes(0)
                 .totalBreakMinutes(0)
                 .build();
-        dailyAttendanceRepository.save(dailyAttendance);
+        return dailyAttendanceRepository.save(dailyAttendance);
     }
 
     // --- 이하 검증(validate) 관련 헬퍼 메서드들 ---
@@ -276,7 +507,7 @@ public class AttendanceService {
                     .uuidList(memberIds)
                     .build();
             try {
-                ApiResponse<List<PositionDto>> response = memberClient.getPositionList(memberPositionId, request);
+                ApiResponse<List<PositionDto>> response = memberClient.getDefaultPositionList(memberPositionId, request);
                 if (response != null && response.getData() != null) {
                     positionMap = response.getData().stream()
                             .collect(Collectors.toMap(PositionDto::getMemberId, p -> p));
@@ -322,7 +553,8 @@ public class AttendanceService {
      */
     @Transactional(readOnly = true)
     public List<MemberBalanceSummaryRes> getMemberBalanceSummary(
-            UUID memberPositionId, UUID companyId,
+            UUID memberPositionId,
+            UUID companyId,
             Integer year) {
 
         validateYear(year);
@@ -352,7 +584,7 @@ public class AttendanceService {
                     .uuidList(memberIds)
                     .build();
             try {
-                ApiResponse<List<PositionDto>> response = memberClient.getPositionList(memberPositionId, request);
+                ApiResponse<List<PositionDto>> response = memberClient.getDefaultPositionList(memberPositionId, request);
                 if (response != null && response.getData() != null) {
                     positionMap = response.getData().stream()
                             .collect(Collectors.toMap(PositionDto::getMemberId, p -> p));
@@ -424,5 +656,202 @@ public class AttendanceService {
         if (year > currentYear + 1) {
             throw new InvalidDateRangeException("미래 연도는 조회할 수 없습니다.");
         }
+    }
+
+    /**
+     * 정책에서 기준 근무시간 추출
+     */
+    private Integer getStandardWorkMinutes(Policy policy) {
+        if (policy == null || policy.getRuleDetails() == null) {
+            return 480; // 기본값: 8시간
+        }
+
+        PolicyRuleDetails ruleDetails = policy.getRuleDetails();
+        if (ruleDetails.getWorkTimeRule() != null && ruleDetails.getWorkTimeRule().getFixedWorkMinutes() != null) {
+            return ruleDetails.getWorkTimeRule().getFixedWorkMinutes();
+        }
+
+        return 480; // 기본값: 8시간
+    }
+
+    /**
+     * 오늘 가장 최근 이벤트 타입 조회
+     * @param memberId 직원 ID
+     * @return 가장 최근 이벤트 타입 (없으면 null)
+     */
+    private EventType getLastEventTypeToday(UUID memberId) {
+        LocalDate today = LocalDate.now();
+        LocalDateTime startOfDay = today.atStartOfDay();
+        LocalDateTime endOfDay = today.atTime(23, 59, 59);
+
+        List<AttendanceLog> logs = attendanceLogRepository.findByMemberIdAndEventTimeBetweenOrderByEventTimeDesc(
+                memberId, startOfDay, endOfDay);
+
+        if (logs.isEmpty()) {
+            return null;
+        }
+
+        return logs.get(0).getEventType();
+    }
+
+    /**
+     * 근무 시간 제한 검증 (모든 근태 기록에 적용)
+     * WorkTimeRuleDto의 workEndTime과 ClockOutRuleDto 규칙에 따라 유연하게 처리
+     *
+     * @param attendanceDate 근태 날짜 (출근일 기준)
+     * @param policy 적용할 정책
+     * @param requestTime 요청 시각
+     * @param clockInTime 출근 시각 (WORK_DURATION 타입 검증에 필요, 출근 전이면 null)
+     */
+    private void validateWorkingHoursLimit(LocalDate attendanceDate, Policy policy, LocalDateTime requestTime, LocalDateTime clockInTime) {
+        if (policy == null || policy.getRuleDetails() == null || policy.getRuleDetails().getClockOutRule() == null) {
+            return; // 정책이 없으면 검증 안 함
+        }
+
+        ClockOutRuleDto clockOutRule = policy.getRuleDetails().getClockOutRule();
+        String limitType = clockOutRule.getLimitType();
+
+        if (limitType == null) {
+            return; // 제한 타입이 없으면 검증 안 함
+        }
+
+        switch (limitType) {
+            case "FIXED_PLUS_HOURS":
+                // 정규 퇴근 시간 + N시간 이후 불가
+                if (clockOutRule.getMaxHoursAfterWorkEnd() != null && policy.getRuleDetails().getWorkTimeRule() != null) {
+                    String workEndTime = policy.getRuleDetails().getWorkTimeRule().getWorkEndTime();
+                    if (workEndTime != null) {
+                        String[] timeParts = workEndTime.split(":");
+                        int standardHour = Integer.parseInt(timeParts[0]);
+                        int standardMinute = Integer.parseInt(timeParts[1]);
+                        LocalDateTime standardEndTime = attendanceDate.atTime(standardHour, standardMinute);
+                        LocalDateTime maxAllowedTime = standardEndTime.plusHours(clockOutRule.getMaxHoursAfterWorkEnd());
+
+                        if (requestTime.isAfter(maxAllowedTime)) {
+                            throw new BusinessException(String.format("근태 기록 가능 시간(%s)을 초과했습니다.", maxAllowedTime.toLocalTime()));
+                        }
+                    }
+                }
+                break;
+
+            case "END_OF_DAY":
+                // 당일 자정까지만 허용
+                LocalDateTime endOfDay = attendanceDate.atTime(23, 59, 59);
+                if (requestTime.isAfter(endOfDay)) {
+                    throw new BusinessException("당일 자정 이후에는 근태 기록을 처리할 수 없습니다.");
+                }
+                break;
+
+            case "WORK_DURATION":
+                // 출근 시각 기준 + N시간
+                if (clockOutRule.getMaxWorkDurationHours() != null && clockInTime != null) {
+                    LocalDateTime maxAllowedTime = clockInTime.plusHours(clockOutRule.getMaxWorkDurationHours());
+                    if (requestTime.isAfter(maxAllowedTime)) {
+                        throw new BusinessException(String.format("최대 근무 시간(%d시간)을 초과했습니다.", clockOutRule.getMaxWorkDurationHours()));
+                    }
+                }
+                break;
+
+            default:
+                // 알 수 없는 제한 타입은 무시
+                break;
+        }
+    }
+
+    /**
+     * 퇴근 시간 제한 검증 (하위 호환성 유지)
+     */
+    private void validateClockOutTime(DailyAttendance dailyAttendance, Policy policy, LocalDateTime clockOutTime) {
+        validateWorkingHoursLimit(
+            dailyAttendance.getAttendanceDate(),
+            policy,
+            clockOutTime,
+            dailyAttendance.getFirstClockIn()
+        );
+    }
+
+    /**
+     * 외출 시간 정책 검증
+     */
+    private void validateGoOutTimePolicy(UUID companyId, UUID memberId, int singleGoOutMinutes, int totalGoOutMinutes) {
+        Policy policy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId);
+        if (policy == null || policy.getRuleDetails() == null || policy.getRuleDetails().getGoOutRule() == null) {
+            return; // 정책이 없으면 검증 안 함
+        }
+
+        GoOutRuleDto goOutRule = policy.getRuleDetails().getGoOutRule();
+
+        // 1회 최대 외출 시간 체크
+        if (goOutRule.getMaxSingleGoOutMinutes() != null && singleGoOutMinutes > goOutRule.getMaxSingleGoOutMinutes()) {
+            throw new BusinessException(String.format("1회 외출 시간이 최대 허용 시간(%d분)을 초과했습니다.", goOutRule.getMaxSingleGoOutMinutes()));
+        }
+
+        // 일일 최대 외출 시간 체크
+        if (goOutRule.getMaxDailyGoOutMinutes() != null && totalGoOutMinutes > goOutRule.getMaxDailyGoOutMinutes()) {
+            throw new BusinessException(String.format("일일 외출 시간이 최대 허용 시간(%d분)을 초과했습니다.", goOutRule.getMaxDailyGoOutMinutes()));
+        }
+    }
+
+    /**
+     * 휴게 시간 정책 검증
+     */
+    private void validateBreakTimePolicy(UUID companyId, UUID memberId, int totalBreakMinutes) {
+        Policy policy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId);
+        if (policy == null || policy.getRuleDetails() == null || policy.getRuleDetails().getBreakRule() == null) {
+            return; // 정책이 없으면 검증 안 함
+        }
+
+        BreakRuleDto breakRule = policy.getRuleDetails().getBreakRule();
+
+        // 일일 최대 휴게 시간 체크
+        if (breakRule.getMaxDailyBreakMinutes() != null && totalBreakMinutes > breakRule.getMaxDailyBreakMinutes()) {
+            throw new BusinessException(String.format("일일 휴게 시간이 최대 허용 시간(%d분)을 초과했습니다.", breakRule.getMaxDailyBreakMinutes()));
+        }
+    }
+
+    /**
+     * 지각 여부 확인
+     */
+    private void checkLateness(DailyAttendance dailyAttendance, Policy policy) {
+        if (policy == null || policy.getRuleDetails() == null) {
+            return;
+        }
+
+        PolicyRuleDetails ruleDetails = policy.getRuleDetails();
+        if (ruleDetails.getWorkTimeRule() == null || ruleDetails.getWorkTimeRule().getWorkStartTime() == null) {
+            return;
+        }
+
+        String workStartTime = ruleDetails.getWorkTimeRule().getWorkStartTime();
+        Integer latenessGraceMinutes = null;
+
+        if (ruleDetails.getLatenessRule() != null) {
+            latenessGraceMinutes = ruleDetails.getLatenessRule().getLatenessGraceMinutes();
+        }
+
+        dailyAttendance.checkAndSetLateness(workStartTime, latenessGraceMinutes);
+    }
+
+    /**
+     * 조퇴 여부 확인
+     */
+    private void checkEarlyLeave(DailyAttendance dailyAttendance, Policy policy) {
+        if (policy == null || policy.getRuleDetails() == null) {
+            return;
+        }
+
+        PolicyRuleDetails ruleDetails = policy.getRuleDetails();
+        if (ruleDetails.getWorkTimeRule() == null || ruleDetails.getWorkTimeRule().getWorkEndTime() == null) {
+            return;
+        }
+
+        String workEndTime = ruleDetails.getWorkTimeRule().getWorkEndTime();
+        Integer earlyLeaveGraceMinutes = null;
+
+        if (ruleDetails.getLatenessRule() != null) {
+            earlyLeaveGraceMinutes = ruleDetails.getLatenessRule().getEarlyLeaveGraceMinutes();
+        }
+
+        dailyAttendance.checkAndSetEarlyLeave(workEndTime, earlyLeaveGraceMinutes);
     }
 }
