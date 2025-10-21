@@ -55,12 +55,14 @@ public class JwtTokenProvider {
     public String createAtToken(Member member, MemberPosition memberPosition) {
         String memberId = member.getId().toString();
         String memberPositionId = memberPosition.getId().toString();
-        String role = memberPosition.getRole().getName();
+        String organizationId = memberPosition.getOrganization().getId().toString();
+        String companyId = member.getCompany().getId().toString();
         String name = member.getName();
 
         Claims claims = Jwts.claims().setSubject(memberId);
-        claims.put("MemberPositionId", memberPositionId);
-        claims.put("role", role);
+        claims.put("memberPositionId", memberPositionId);
+        claims.put("organizationId", organizationId);
+        claims.put("companyId", companyId);
         claims.put("name", name);
 
         Date now = new Date();
