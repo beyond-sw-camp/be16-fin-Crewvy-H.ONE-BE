@@ -1,4 +1,4 @@
-package com.crewvy.workforce_service.performance.dto;
+package com.crewvy.workforce_service.performance.dto.request;
 
 import com.crewvy.workforce_service.performance.constant.EvaluationType;
 import com.crewvy.workforce_service.performance.constant.Grade;

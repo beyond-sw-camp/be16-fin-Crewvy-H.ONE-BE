@@ -1,6 +1,5 @@
 package com.crewvy.workspace_service.notification.repository;
 
-import com.crewvy.workspace_service.notification.dto.response.NotificationSettingResDto;
 import com.crewvy.workspace_service.notification.entity.NotificationSetting;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;

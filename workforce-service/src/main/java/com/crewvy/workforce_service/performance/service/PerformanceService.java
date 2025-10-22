@@ -2,15 +2,14 @@ package com.crewvy.workforce_service.performance.service;
 
 import com.crewvy.common.S3.S3Uploader;
 import com.crewvy.common.dto.ApiResponse;
+import com.crewvy.common.exception.BusinessException;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
 import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
 import com.crewvy.workforce_service.performance.constant.GoalStatus;
-import com.crewvy.workforce_service.performance.dto.*;
-import com.crewvy.workforce_service.performance.entity.Evaluation;
-import com.crewvy.workforce_service.performance.entity.Evidence;
-import com.crewvy.workforce_service.performance.entity.Goal;
-import com.crewvy.workforce_service.performance.entity.TeamGoal;
+import com.crewvy.workforce_service.performance.dto.request.*;
+import com.crewvy.workforce_service.performance.dto.response.*;
+import com.crewvy.workforce_service.performance.entity.*;
 import com.crewvy.workforce_service.performance.repository.EvaluationRepository;
 import com.crewvy.workforce_service.performance.repository.PerformanceRepository;
 import com.crewvy.workforce_service.performance.repository.TeamGoalRepository;
@@ -35,7 +34,8 @@ public class PerformanceService {
 
 //    팀 목표 리스트
     public List<TeamGoalResponseDto> getTeamGoal(UUID memberPositionId) {
-        List<TeamGoal> teamGoalList = teamGoalRepository.findAll();
+        List<TeamGoal> teamGoalList = teamGoalRepository.findAllByMemberPositionId(memberPositionId);
+
         IdListReq mpidList = new IdListReq(teamGoalList.stream()
                         .map(TeamGoal::getMemberPositionId)
                         .distinct()
@@ -66,33 +66,36 @@ public class PerformanceService {
 
     //    팀 목표 하위 목표 리스트
     public TeamGoalDetailResponseDto getSubGoal(UUID teamGoalId) {
-        // 1. 팀 목표와 하위 목표 리스트를 조회합니다.
-        TeamGoal teamGoal = teamGoalRepository.findById(teamGoalId)
+        // 1. 팀 목표 엔티티를 조회합니다.
+        TeamGoal teamGoal = teamGoalRepository.findByIdWithMembers(teamGoalId)
                 .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 팀목표 입니다."));
-        List<Goal> subGoalList = performanceRepository.findByTeamGoal(teamGoal);
 
-        // 👇 1. final로 선언하고, 할당은 if-else 블록 안에서 한 번만 하도록 변경
+        List<UUID> allMemberPositionIds = teamGoal.getTeamGoalMembers().stream()
+                .map(TeamGoalMember::getMemberPositionId)
+                .distinct()
+                .toList();
+
         final Map<UUID, PositionDto> positionMap;
+        if (!allMemberPositionIds.isEmpty()) {
+            IdListReq mpidList = new IdListReq(allMemberPositionIds);
 
-        if (!subGoalList.isEmpty()) {
-            IdListReq mpidList = new IdListReq(subGoalList.stream()
-                    .map(Goal::getMemberPositionId)
-                    .distinct()
-                    .toList());
-
+            // API 호출
             ApiResponse<List<PositionDto>> response = memberClient.getPositionList(teamGoal.getMemberPositionId(), mpidList);
 
             if (response.isSuccess() && response.getData() != null) {
                 positionMap = response.getData().stream()
                         .collect(Collectors.toMap(PositionDto::getMemberPositionId, position -> position));
             } else {
-                positionMap = Collections.emptyMap(); // API 호출 실패 시 빈 맵 할당
+                positionMap = Collections.emptyMap(); // API 호출 실패 시
             }
         } else {
-            positionMap = Collections.emptyMap(); // 하위 목표가 없을 시 빈 맵 할당
+            positionMap = Collections.emptyMap(); // 팀 멤버가 아무도 없을 시
         }
 
-        // 이제 람다에서 final 변수인 positionMap을 안전하게 사용할 수 있습니다.
+        // 4. 하위 목표 리스트를 조회합니다.
+        List<Goal> subGoalList = performanceRepository.findByTeamGoal(teamGoal);
+
+        // 5. 하위 목표 DTO 리스트를 변환합니다.
         List<GoalResponseDto> goalDtoList = subGoalList.stream().map(goal -> {
             PositionDto matchingPosition = positionMap.get(goal.getMemberPositionId());
 
@@ -110,14 +113,29 @@ public class PerformanceService {
                     .build();
         }).toList();
 
-        // 4. 최종 응답 DTO를 조립하여 반환합니다.
+        // 6. 팀 멤버 DTO 리스트를 변환합니다.
+        List<TeamGoalMemberResDto> memberDtoList = teamGoal.getTeamGoalMembers().stream().map(member -> {
+            PositionDto matchingPosition = positionMap.get(member.getMemberPositionId());
+
+            return TeamGoalMemberResDto.builder()
+                    .memberPositionId(member.getMemberPositionId())
+                    .memberName(matchingPosition != null ? matchingPosition.getMemberName() : null)
+                    .memberTitleName(matchingPosition != null ? matchingPosition.getTitleName() : null)
+                    .memberOrganizationName(matchingPosition != null ? matchingPosition.getOrganizationName() : null)
+                    .isCreater(member.getIsCreater())
+                    .build();
+        }).toList();
+
+
+        // 7. 최종 응답 DTO를 조립하여 반환합니다.
         return TeamGoalDetailResponseDto.builder()
                 .title(teamGoal.getTitle())
                 .contents(teamGoal.getContents())
                 .startDate(teamGoal.getStartDate())
                 .endDate(teamGoal.getEndDate())
                 .memberPositionId(teamGoal.getMemberPositionId())
-                .goalList(goalDtoList) // 변환된 DTO 리스트를 설정
+                .goalList(goalDtoList)
+                .memberList(memberDtoList)
                 .build();
     }
 
@@ -130,6 +148,15 @@ public class PerformanceService {
                 .endDate(dto.getEndDate())
                 .memberPositionId(memberPositionId)
                 .build();
+
+        for(TeamGoalMemberReqDto t : dto.getMembers()) {
+            TeamGoalMember teamGoalMember = TeamGoalMember.builder()
+                    .teamGoal(newTeamGoal)
+                    .memberPositionId(t.getMemberPositionId())
+                    .isCreater(t.getIsCreater())
+                    .build();
+            newTeamGoal.getTeamGoalMembers().add(teamGoalMember);
+        }
         teamGoalRepository.save(newTeamGoal);
 
         return newTeamGoal.getId();
@@ -173,6 +200,7 @@ public class PerformanceService {
                 .status(goal.getStatus())
                 .teamGoalTitle(goal.getTeamGoal().getTitle())
                 .teamGoalContents(goal.getTeamGoal().getContents())
+                .teamGoalMemberPositionId(goal.getTeamGoal().getMemberPositionId())
                 .gradingSystem(goal.getGradingSystem())
                 .evidenceList(evidenceList)
                 // 조회한 PositionDto 데이터 추가
@@ -306,6 +334,49 @@ public class PerformanceService {
         }
     }
 
-//    member쪽 데이터가 전혀 들어가지 않았기에 추후 수정 예정
-//    평가쪽 API의 경우 추가적으로 수정 예정
+//    팀 목표 수정
+    public void updateTeamGoal(UUID id, CreateTeamGoalDto dto, UUID memberPositionId) {
+        TeamGoal teamGoal = teamGoalRepository.findByIdWithMembers(id)
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 팀 목표 입니다."));
+        if(!teamGoal.getMemberPositionId().equals(memberPositionId)) {
+            throw new BusinessException("수정 권한이 없습니다.");
+        }
+
+        teamGoal.updateTeamGoal(dto.getTitle(), dto.getContents(), dto.getStartDate(), dto.getEndDate());
+
+        // 2. (성능 개선) 효율적인 컬렉션 업데이트
+
+        // 2-1. 새로 전달된 멤버 ID 목록 (빠른 조회를 위해 Set 사용)
+        Set<UUID> newMemberIds = dto.getMembers().stream()
+                .map(TeamGoalMemberReqDto::getMemberPositionId)
+                .collect(Collectors.toSet());
+
+        // 2-2. 기존 멤버 목록
+        List<TeamGoalMember> existingMembers = teamGoal.getTeamGoalMembers();
+
+        // 2-3. 기존 멤버 ID 목록 (중복 추가 방지를 위해 Set 사용)
+        Set<UUID> existingMemberIds = existingMembers.stream()
+                .map(TeamGoalMember::getMemberPositionId)
+                .collect(Collectors.toSet());
+
+        // 2-4. [삭제] 기존 멤버 중 -> 새 목록에 없는 멤버를 제거
+        // (Iterator를 사용해야 ConcurrentModificationException이 발생하지 않음)
+        existingMembers.removeIf(member -> !newMemberIds.contains(member.getMemberPositionId()));
+
+        // 2-5. [추가] 새 멤버 중 -> 기존 목록에 없는 멤버만 추가
+        for (TeamGoalMemberReqDto m : dto.getMembers()) {
+            if (!existingMemberIds.contains(m.getMemberPositionId())) {
+                TeamGoalMember member = TeamGoalMember.builder()
+                        .memberPositionId(m.getMemberPositionId())
+                        .isCreater(m.getIsCreater()) // <-- (오타 참고)
+                        .teamGoal(teamGoal)
+                        .build();
+                existingMembers.add(member); // teamGoal.getTeamGoalMembers()와 같은 참조입니다.
+            }
+        }
+    }
+
+    public void deleteTeamGoal(UUID id) {
+
+    }
 }

@@ -4,7 +4,7 @@ import com.crewvy.common.converter.JsonToMapConverter;
 import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.workforce_service.performance.constant.GoalStatus;
 import com.crewvy.workforce_service.performance.converter.GoalStatusConverter;
-import com.crewvy.workforce_service.performance.dto.UpdateMyGoalDto;
+import com.crewvy.workforce_service.performance.dto.request.UpdateMyGoalDto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

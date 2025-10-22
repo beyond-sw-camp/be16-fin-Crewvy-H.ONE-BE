@@ -1,4 +1,4 @@
-package com.crewvy.workforce_service.performance.dto;
+package com.crewvy.workforce_service.performance.dto.request;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

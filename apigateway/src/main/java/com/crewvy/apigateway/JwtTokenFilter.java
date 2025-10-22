@@ -15,7 +15,6 @@ import reactor.core.publisher.Mono;
 
 import java.security.Key;
 import java.util.List;
-import java.util.UUID;
 
 @Component
 public class JwtTokenFilter implements GlobalFilter {

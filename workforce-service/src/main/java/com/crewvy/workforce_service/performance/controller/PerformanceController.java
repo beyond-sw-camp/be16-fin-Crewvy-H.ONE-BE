@@ -1,7 +1,11 @@
 package com.crewvy.workforce_service.performance.controller;
 
 import com.crewvy.common.dto.ApiResponse;
-import com.crewvy.workforce_service.performance.dto.*;
+import com.crewvy.workforce_service.performance.dto.request.*;
+import com.crewvy.workforce_service.performance.dto.response.EvaluationResponseDto;
+import com.crewvy.workforce_service.performance.dto.response.GoalResponseDto;
+import com.crewvy.workforce_service.performance.dto.response.TeamGoalDetailResponseDto;
+import com.crewvy.workforce_service.performance.dto.response.TeamGoalResponseDto;
 import com.crewvy.workforce_service.performance.service.PerformanceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -45,6 +49,18 @@ public class PerformanceController {
                 ApiResponse.success(newTeamGoalId, "팀 목표 생성"),
                 HttpStatus.CREATED
         );
+    }
+
+    @PatchMapping("/update-team-goal/{id}")
+    public ResponseEntity<?> updateteamGoal(@PathVariable UUID id,
+                                            @RequestBody CreateTeamGoalDto dto,
+                                            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId
+    ) {
+        performanceService.updateTeamGoal(id, dto, memberPositionId);
+        return new ResponseEntity<>(
+                ApiResponse.success(id, "팀 목표 업데이트"),
+                HttpStatus.OK
+        )
     }
 
     @GetMapping("/get-goal-detail/{id}")
