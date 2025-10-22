@@ -14,7 +14,6 @@ import com.crewvy.member_service.member.repository.*;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,14 +41,14 @@ public class MemberService {
     private final PermissionRepository permissionRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final OutboxRepository outboxRepository;
 
     public MemberService(CompanyRepository companyRepository, OrganizationRepository organizationRepository
             , MemberRepository memberRepository, MemberPositionRepository memberPositionRepository
             , RoleRepository roleRepository, RolePermissionRepository rolePermissionRepository
             , GradeRepository gradeRepository, GradeHistoryRepository gradeHistoryRepository
             , TitleRepository titleRepository, PermissionRepository permissionRepository
-            , PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider, KafkaTemplate<String, Object> kafkaTemplate) {
+            , PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider, OutboxRepository outboxRepository) {
         this.companyRepository = companyRepository;
         this.organizationRepository = organizationRepository;
         this.memberRepository = memberRepository;
@@ -62,7 +61,7 @@ public class MemberService {
         this.permissionRepository = permissionRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
-        this.kafkaTemplate = kafkaTemplate;
+        this.outboxRepository = outboxRepository;
     }
 
     // 회원가입
@@ -75,6 +74,15 @@ public class MemberService {
         }
         String encodePassword = passwordEncoder.encode(createAdminReq.getPassword());
         Member adminMember = createAdminReq.toEntity(encodePassword, company);
+        memberRepository.save(adminMember);
+
+        OutboxEvent outbox = OutboxEvent.builder()
+                .topic("member-create")
+                .memberId(adminMember.getId())
+                .processed(Bool.FALSE)
+                .build();
+        outboxRepository.save(outbox);
+
         Member savedMember = memberRepository.save(adminMember);
 
         // Publish event to Kafka
@@ -131,6 +139,15 @@ public class MemberService {
 
         MemberPosition memberPosition = createMemberPosition(createMemberReq.getMemberPositionName(), savedMember, organization, title, role, LocalDate.now(), null);
         savedMember.updateDefaultMemberPosition(memberPosition);
+
+        OutboxEvent outbox = OutboxEvent.builder()
+                .topic("member-create")
+                .memberId(savedMember.getId())
+                .processed(Bool.FALSE)
+                .build();
+
+        outboxRepository.save(outbox);
+
         return savedMember.getId();
     }
 
