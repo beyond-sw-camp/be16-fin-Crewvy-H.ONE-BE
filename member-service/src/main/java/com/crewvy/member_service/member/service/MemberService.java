@@ -4,6 +4,7 @@ import com.crewvy.common.entity.Bool;
 import com.crewvy.common.event.MemberDeletedEvent;
 import com.crewvy.common.event.MemberSavedEvent;
 import com.crewvy.common.exception.PermissionDeniedException;
+import com.crewvy.common.exception.SerializationException;
 import com.crewvy.member_service.member.auth.JwtTokenProvider;
 import com.crewvy.member_service.member.constant.Action;
 import com.crewvy.member_service.member.constant.PermissionRange;
@@ -11,6 +12,8 @@ import com.crewvy.member_service.member.dto.request.*;
 import com.crewvy.member_service.member.dto.response.*;
 import com.crewvy.member_service.member.entity.*;
 import com.crewvy.member_service.member.repository.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -42,13 +45,16 @@ public class MemberService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final OutboxRepository outboxRepository;
+    private final SearchOutboxEventRepository searchOutboxEventRepository;
+    private final ObjectMapper objectMapper;
 
     public MemberService(CompanyRepository companyRepository, OrganizationRepository organizationRepository
             , MemberRepository memberRepository, MemberPositionRepository memberPositionRepository
             , RoleRepository roleRepository, RolePermissionRepository rolePermissionRepository
             , GradeRepository gradeRepository, GradeHistoryRepository gradeHistoryRepository
             , TitleRepository titleRepository, PermissionRepository permissionRepository
-            , PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider, OutboxRepository outboxRepository) {
+            , PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider, OutboxRepository outboxRepository
+            , SearchOutboxEventRepository searchOutboxEventRepository, ObjectMapper objectMapper) {
         this.companyRepository = companyRepository;
         this.organizationRepository = organizationRepository;
         this.memberRepository = memberRepository;
@@ -62,6 +68,8 @@ public class MemberService {
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.outboxRepository = outboxRepository;
+        this.searchOutboxEventRepository = searchOutboxEventRepository;
+        this.objectMapper = objectMapper;
     }
 
     // 회원가입
@@ -74,23 +82,33 @@ public class MemberService {
         }
         String encodePassword = passwordEncoder.encode(createAdminReq.getPassword());
         Member adminMember = createAdminReq.toEntity(encodePassword, company);
-        memberRepository.save(adminMember);
-
-        OutboxEvent outbox = OutboxEvent.builder()
-                .topic("member-create")
-                .memberId(adminMember.getId())
-                .processed(Bool.FALSE)
-                .build();
-        outboxRepository.save(outbox);
-
         Member savedMember = memberRepository.save(adminMember);
 
-        // Publish event to Kafka
-        kafkaTemplate.send("member-saved-events", MemberSavedEvent.builder()
+        // 알림 kafka
+        NotificationOutboxEvent notificationOutbox = NotificationOutboxEvent.builder()
+                .topic("member-create")
                 .memberId(savedMember.getId())
-                .name(savedMember.getName())
-                .phoneNumber(savedMember.getPhoneNumber())
-                .build());
+                .build();
+        outboxRepository.save(notificationOutbox);
+
+        // 통합검색 kafka
+        try {
+            MemberSavedEvent event = MemberSavedEvent.builder()
+                    .memberId(savedMember.getId())
+                    .name(savedMember.getName())
+                    .phoneNumber(savedMember.getPhoneNumber())
+                    .build();
+            String payload = objectMapper.writeValueAsString(event);
+
+            SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
+                    .topic("member-saved-events")
+                    .memberId(savedMember.getId())
+                    .payload(payload)
+                    .build();
+            searchOutboxEventRepository.save(searchOutbox);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("데이터 직렬화 실패");
+        }
 
         return savedMember;
     }
@@ -111,12 +129,23 @@ public class MemberService {
         String encodePassword = passwordEncoder.encode(createMemberReq.getPassword());
         Member savedMember = memberRepository.save(createMemberReq.memberToEntity(encodePassword, company));
 
-        // Publish event to Kafka
-        kafkaTemplate.send("member-saved-events", MemberSavedEvent.builder()
-                .memberId(savedMember.getId())
-                .name(savedMember.getName())
-                .phoneNumber(savedMember.getPhoneNumber())
-                .build());
+        try {
+            MemberSavedEvent event = MemberSavedEvent.builder()
+                    .memberId(savedMember.getId())
+                    .name(savedMember.getName())
+                    .phoneNumber(savedMember.getPhoneNumber())
+                    .build();
+            String payload = objectMapper.writeValueAsString(event);
+
+            SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
+                    .topic("member-saved-events")
+                    .memberId(savedMember.getId())
+                    .payload(payload)
+                    .build();
+            searchOutboxEventRepository.save(searchOutbox);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("데이터 직렬화 실패");
+        }
 
         Grade grade = gradeRepository.findById(createMemberReq.getGradeId()).orElseThrow(()
                 -> new IllegalArgumentException("존재하지 않는 직급입니다."));
@@ -140,7 +169,7 @@ public class MemberService {
         MemberPosition memberPosition = createMemberPosition(createMemberReq.getMemberPositionName(), savedMember, organization, title, role, LocalDate.now(), null);
         savedMember.updateDefaultMemberPosition(memberPosition);
 
-        OutboxEvent outbox = OutboxEvent.builder()
+        NotificationOutboxEvent outbox = NotificationOutboxEvent.builder()
                 .topic("member-create")
                 .memberId(savedMember.getId())
                 .processed(Bool.FALSE)
@@ -396,11 +425,23 @@ public class MemberService {
                     memberPositionRepository.save(mp);
                 });
 
-        kafkaTemplate.send("member-saved-events", MemberSavedEvent.builder()
-                .memberId(member.getId())
-                .name(member.getName())
-                .phoneNumber(member.getPhoneNumber())
-                .build());
+        try {
+            MemberSavedEvent event = MemberSavedEvent.builder()
+                    .memberId(member.getId())
+                    .name(member.getName())
+                    .phoneNumber(member.getPhoneNumber())
+                    .build();
+            String payload = objectMapper.writeValueAsString(event);
+
+            SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
+                    .topic("member-saved-events")
+                    .memberId(member.getId())
+                    .payload(payload)
+                    .build();
+            searchOutboxEventRepository.save(searchOutbox);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("데이터 직렬화 실패");
+        }
 
         return member.getId();
     }
@@ -415,9 +456,21 @@ public class MemberService {
         member.delete();
         memberRepository.save(member);
 
-        kafkaTemplate.send("member-deleted-events", MemberDeletedEvent.builder()
-                .memberId(member.getId())
-                .build());
+        try {
+            MemberDeletedEvent event = MemberDeletedEvent.builder()
+                    .memberId(member.getId())
+                    .build();
+            String payload = objectMapper.writeValueAsString(event);
+
+            SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
+                    .topic("member-deleted-events")
+                    .memberId(member.getId())
+                    .payload(payload)
+                    .build();
+            searchOutboxEventRepository.save(searchOutbox);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("데이터 직렬화 실패");
+        }
     }
 
     // 직원 복원
@@ -430,11 +483,23 @@ public class MemberService {
         member.restore();
         memberRepository.save(member);
 
-        kafkaTemplate.send("member-saved-events", MemberSavedEvent.builder()
-                .memberId(member.getId())
-                .name(member.getName())
-                .phoneNumber(member.getPhoneNumber())
-                .build());
+        try {
+            MemberSavedEvent event = MemberSavedEvent.builder()
+                    .memberId(member.getId())
+                    .name(member.getName())
+                    .phoneNumber(member.getPhoneNumber())
+                    .build();
+            String payload = objectMapper.writeValueAsString(event);
+
+            SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
+                    .topic("member-saved-events")
+                    .memberId(member.getId())
+                    .payload(payload)
+                    .build();
+            searchOutboxEventRepository.save(searchOutbox);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("데이터 직렬화 실패");
+        }
     }
 
     // 직원 상세 조회
