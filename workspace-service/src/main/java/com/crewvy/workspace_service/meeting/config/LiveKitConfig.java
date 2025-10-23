@@ -1,7 +1,6 @@
 package com.crewvy.workspace_service.meeting.config;
 
 import io.livekit.server.EgressServiceClient;
-import io.livekit.server.RoomService;
 import io.livekit.server.RoomServiceClient;
 import io.livekit.server.WebhookReceiver;
 import livekit.LivekitEgress;
