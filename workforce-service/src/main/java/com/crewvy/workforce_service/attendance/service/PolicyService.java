@@ -15,6 +15,7 @@ import com.crewvy.workforce_service.attendance.repository.PolicyAssignmentReposi
 import com.crewvy.workforce_service.attendance.repository.PolicyRepository;
 import com.crewvy.workforce_service.attendance.repository.PolicyTypeRepository;
 import com.crewvy.workforce_service.feignClient.MemberClient;
+import com.crewvy.workforce_service.attendance.validation.PolicyValidatorFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -38,6 +39,7 @@ public class PolicyService {
     private final PolicyAssignmentRepository policyAssignmentRepository;
     private final ObjectMapper objectMapper;
     private final MemberClient memberClient;
+    private final PolicyValidatorFactory validatorFactory;
 
     public PolicyResponse createPolicy(UUID memberpositionId, UUID companyId, UUID organizationId, PolicyCreateRequest request) {
 //        checkPermissionOrThrow(memberpositionId, "CREATE", "COMPANY", "회사 정책 생성 권한이 없습니다.");
@@ -154,32 +156,16 @@ public class PolicyService {
         try {
             PolicyRuleDetails ruleDetails = objectMapper.convertValue(rawDetails, PolicyRuleDetails.class);
 
-            // PolicyTypeCode에 따른 ruleDetails 유효성 검증
-            switch (typeCode) {
-                case STANDARD_WORK:
-                    if (ruleDetails.getWorkTimeRule() == null) {
-                        throw new InvalidPolicyRuleException("기본 근무 정책에는 근무 시간 규칙(workTimeRule)이 필수입니다.");
-                    }
-                    break;
-                case ANNUAL_LEAVE:
-                case MATERNITY_LEAVE:
-                case PATERNITY_LEAVE:
-                    // 휴가 관련 정책은 특정 규칙이 필수 아닐 수 있음 (타입 자체가 중요)
-                    // 필요 시 여기에 유효성 검증 추가
-                    break;
-                case BUSINESS_TRIP:
-                    if (ruleDetails.getTripRule() == null) {
-                        throw new InvalidPolicyRuleException("출장 정책에는 출장 규칙(tripRule)이 필수입니다.");
-                    }
-                    break;
-                // TODO: 다른 PolicyTypeCode에 대한 유효성 검증 케이스 추가
-                default:
-                    break;
-            }
+            PolicyRuleValidator validator = validatorFactory.getValidator(typeCode);
+            validator.validate(ruleDetails);
+
             return ruleDetails;
         } catch (IllegalArgumentException e) {
             throw new InvalidPolicyRuleException("제공된 규칙 상세 정보(ruleDetails)의 형식이 올바르지 않습니다.");
         }
     }
 }
+
+
+
 
