@@ -2,19 +2,14 @@ package com.crewvy.workforce_service.attendance.controller;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.attendance.dto.request.EventRequest;
-import com.crewvy.workforce_service.attendance.dto.response.DailyAttendanceSummaryRes;
-import com.crewvy.workforce_service.attendance.dto.response.MemberBalanceSummaryRes;
 import com.crewvy.workforce_service.attendance.service.AttendanceService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDate;
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -29,12 +24,13 @@ public class AttendanceController {
             @RequestHeader("X-User-UUID") UUID memberId,
             @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
             @RequestHeader("X-User-CompanyId") UUID companyId,
+            @RequestHeader("X-User-OrganizationId") UUID organizationId,
             @RequestBody @Valid EventRequest request,
             HttpServletRequest httpServletRequest) {
 
         String clientIp = getClientIp(httpServletRequest);
 
-        Object response = attendanceService.recordEvent(memberId, memberPositionId, companyId, request, clientIp);
+        Object response = attendanceService.recordEvent(memberId, memberPositionId, companyId, organizationId, request, clientIp);
         return new ResponseEntity<>(ApiResponse.success(response), HttpStatus.OK);
     }
 

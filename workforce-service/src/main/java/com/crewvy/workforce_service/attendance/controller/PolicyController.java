@@ -38,7 +38,7 @@ public class PolicyController {
     @GetMapping("/{policyId}")
     public ResponseEntity<ApiResponse<PolicyResponse>> findPolicyById(
             @RequestHeader("X-User-MemberPositionId") UUID memberpositionId,
-            @RequestParam("companyId") UUID companyId,
+            @RequestHeader("X-User-CompanyId") UUID companyId,
             @PathVariable UUID policyId) {
         PolicyResponse response = policyService.findPolicyById(memberpositionId, companyId, policyId);
         return new ResponseEntity<>(ApiResponse.success(response, "정책 조회"), HttpStatus.OK);
@@ -47,7 +47,7 @@ public class PolicyController {
     @GetMapping
     public ResponseEntity<ApiResponse<Page<PolicyResponse>>> findAllPolicies(
             @RequestHeader("X-User-MemberPositionId") UUID memberpositionId,
-            @RequestParam("companyId") UUID companyId,
+            @RequestHeader("X-User-CompanyId") UUID companyId,
             Pageable pageable) {
         Page<PolicyResponse> response = policyService.findAllPoliciesByCompany(memberpositionId, companyId, pageable);
         return new ResponseEntity<>(ApiResponse.success(response, "전체 정책 조회"), HttpStatus.OK);
@@ -96,5 +96,14 @@ public class PolicyController {
             @RequestHeader("X-User-CompanyId") UUID companyId) {
         List<PolicyTypeResponse> response = policyService.findPolicyTypesByCompany(memberpositionId, companyId);
         return new ResponseEntity<>(ApiResponse.success(response, "정책 유형 목록 조회"), HttpStatus.OK);
+    }
+
+    @GetMapping("/my-effective-policy")
+    public ResponseEntity<ApiResponse<PolicyResponse>> getMyEffectivePolicy(
+            @RequestHeader("X-User-UUID") UUID memberId,
+            @RequestHeader("X-User-CompanyId") UUID companyId,
+            @RequestHeader("X-User-OrganizationId") UUID organizationId) {
+        PolicyResponse response = policyService.findMyEffectivePolicy(memberId, companyId, organizationId);
+        return new ResponseEntity<>(ApiResponse.success(response, "나의 유효 정책 조회 완료"), HttpStatus.OK);
     }
 }

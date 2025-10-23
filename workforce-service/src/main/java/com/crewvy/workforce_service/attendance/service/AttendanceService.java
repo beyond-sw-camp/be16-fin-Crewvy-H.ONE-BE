@@ -17,7 +17,7 @@ import com.crewvy.workforce_service.attendance.repository.*;
 import com.crewvy.workforce_service.attendance.util.DistanceCalculator;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
-import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
+import com.crewvy.workforce_service.feignClient.dto.response.MemberPositionListRes;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -49,35 +49,34 @@ public class AttendanceService {
     private final PolicyAssignmentService policyAssignmentService;
     private final MemberBalanceRepository memberBalanceRepository;
 
-    public ApiResponse<?> recordEvent(UUID memberId, UUID memberPositionId, UUID companyId, EventRequest request, String clientIp) {
-        // TODO: 테스트 후 주석 해제 필요
-        // checkPermissionOrThrow(memberPositionId, "attendance", "CREATE", "INDIVIDUAL", "근태를 기록할 권한이 없습니다.");
+    public ApiResponse<?> recordEvent(UUID memberId, UUID memberPositionId, UUID companyId, UUID organizationId, EventRequest request, String clientIp) {
+        checkPermissionOrThrow(memberPositionId, "attendance", "CREATE", "INDIVIDUAL", "근태를 기록할 권한이 없습니다.");
 
         // 인증/검증이 필요한 이벤트 그룹
         List<EventType> validationRequiredEvents = List.of(EventType.CLOCK_IN, EventType.CLOCK_OUT);
 
         if (validationRequiredEvents.contains(request.getEventType())) {
-            validate(memberId, companyId, request.getDeviceId(), request.getDeviceType(), request.getLatitude(), request.getLongitude(), clientIp);
+            validate(memberId, companyId, organizationId, request.getDeviceId(), request.getDeviceType(), request.getLatitude(), request.getLongitude(), clientIp);
         }
 
         switch (request.getEventType()) {
             case CLOCK_IN:
-                ClockInResponse clockInResponse = clockIn(memberId, companyId, request);
+                ClockInResponse clockInResponse = clockIn(memberId, companyId, organizationId, request);
                 return ApiResponse.success(clockInResponse, "출근 등록 완료.");
             case CLOCK_OUT:
-                ClockOutResponse clockOutResponse = clockOut(memberId, companyId, request);
+                ClockOutResponse clockOutResponse = clockOut(memberId, companyId, organizationId, request);
                 return ApiResponse.success(clockOutResponse, "퇴근 등록 완료.");
             case GO_OUT:
-                GoOutResponse goOutResponse = goOut(memberId, request);
+                GoOutResponse goOutResponse = goOut(memberId, organizationId, request);
                 return ApiResponse.success(goOutResponse, "외출 등록 완료.");
             case COME_BACK:
-                ComeBackResponse comeBackResponse = comeBack(memberId, request);
+                ComeBackResponse comeBackResponse = comeBack(memberId, organizationId, request);
                 return ApiResponse.success(comeBackResponse, "복귀 등록 완료.");
             case BREAK_START:
-                BreakStartResponse breakStartResponse = breakStart(memberId, request);
+                BreakStartResponse breakStartResponse = breakStart(memberId, organizationId, request);
                 return ApiResponse.success(breakStartResponse, "휴게 시작 등록 완료.");
             case BREAK_END:
-                BreakEndResponse breakEndResponse = breakEnd(memberId, request);
+                BreakEndResponse breakEndResponse = breakEnd(memberId, organizationId, request);
                 return ApiResponse.success(breakEndResponse, "휴게 종료 등록 완료.");
             default:
                 throw new BusinessException("지원하지 않는 이벤트 타입입니다.");
@@ -91,7 +90,7 @@ public class AttendanceService {
         }
     }
 
-    private ClockInResponse clockIn(UUID memberId, UUID companyId, EventRequest request) {
+    private ClockInResponse clockIn(UUID memberId, UUID companyId, UUID organizationId, EventRequest request) {
         LocalDate today = LocalDate.now();
         dailyAttendanceRepository.findByMemberIdAndAttendanceDate(memberId, today)
                 .ifPresent(d -> {
@@ -101,7 +100,7 @@ public class AttendanceService {
         LocalDateTime clockInTime = LocalDateTime.now();
 
         // 정책 조회
-        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId);
+        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId, organizationId);
 
         // 근무 시간 제한 검증
         validateWorkingHoursLimit(today, activePolicy, clockInTime, null);
@@ -117,7 +116,7 @@ public class AttendanceService {
         return new ClockInResponse(newLog.getId(), newLog.getEventTime());
     }
 
-    private ClockOutResponse clockOut(UUID memberId, UUID companyId, EventRequest request) {
+    private ClockOutResponse clockOut(UUID memberId, UUID companyId, UUID organizationId, EventRequest request) {
         LocalDate today = LocalDate.now();
 
         // 출근 기록 확인
@@ -125,7 +124,7 @@ public class AttendanceService {
                 .orElseThrow(() -> new ResourceNotFoundException("출근 기록이 없습니다. 퇴근 처리할 수 없습니다."));
 
         // 정책 조회
-        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId);
+        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId, organizationId);
 
         // attendance_log에서 가장 최근 이벤트 조회하여 상태 확인
         EventType lastEvent = getLastEventTypeToday(memberId);
@@ -176,7 +175,7 @@ public class AttendanceService {
         );
     }
 
-    private GoOutResponse goOut(UUID memberId, EventRequest request) {
+    private GoOutResponse goOut(UUID memberId, UUID organizationId, EventRequest request) {
         LocalDate today = LocalDate.now();
 
         // 출근 기록 확인
@@ -204,7 +203,7 @@ public class AttendanceService {
         LocalDateTime goOutTime = LocalDateTime.now();
 
         // 정책 조회 및 근무 시간 제한 검증
-        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, dailyAttendance.getCompanyId());
+        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, dailyAttendance.getCompanyId(), organizationId);
         validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), activePolicy, goOutTime, dailyAttendance.getFirstClockIn());
 
         AttendanceLog newLog = createAttendanceLog(memberId, goOutTime, EventType.GO_OUT, request.getLatitude(), request.getLongitude());
@@ -212,7 +211,7 @@ public class AttendanceService {
         return new GoOutResponse(newLog.getId(), newLog.getEventTime());
     }
 
-    private ComeBackResponse comeBack(UUID memberId, EventRequest request) {
+    private ComeBackResponse comeBack(UUID memberId, UUID organizationId, EventRequest request) {
         LocalDate today = LocalDate.now();
 
         // 출근 기록 확인
@@ -239,7 +238,7 @@ public class AttendanceService {
         LocalDateTime comeBackTime = LocalDateTime.now();
 
         // 정책 조회 및 근무 시간 제한 검증
-        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, dailyAttendance.getCompanyId());
+        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, dailyAttendance.getCompanyId(), organizationId);
         validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), activePolicy, comeBackTime, dailyAttendance.getFirstClockIn());
 
         AttendanceLog newLog = createAttendanceLog(memberId, comeBackTime, EventType.COME_BACK, request.getLatitude(), request.getLongitude());
@@ -256,12 +255,12 @@ public class AttendanceService {
         dailyAttendance.addGoOutMinutes((int) goOutMinutes);
 
         // 외출 시간 정책 검증 (정책이 있으면)
-        validateGoOutTimePolicy(dailyAttendance.getCompanyId(), memberId, (int) goOutMinutes, dailyAttendance.getTotalGoOutMinutes());
+        validateGoOutTimePolicy(dailyAttendance.getCompanyId(), memberId, organizationId, (int) goOutMinutes, dailyAttendance.getTotalGoOutMinutes());
 
         return new ComeBackResponse(newLog.getId(), newLog.getEventTime(), dailyAttendance.getTotalGoOutMinutes());
     }
 
-    private BreakStartResponse breakStart(UUID memberId, EventRequest request) {
+    private BreakStartResponse breakStart(UUID memberId, UUID organizationId, EventRequest request) {
         LocalDate today = LocalDate.now();
 
         // 출근 기록 확인
@@ -289,7 +288,7 @@ public class AttendanceService {
         LocalDateTime breakStartTime = LocalDateTime.now();
 
         // 정책 조회 및 근무 시간 제한 검증
-        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, dailyAttendance.getCompanyId());
+        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, dailyAttendance.getCompanyId(), organizationId);
         validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), activePolicy, breakStartTime, dailyAttendance.getFirstClockIn());
 
         AttendanceLog newLog = createAttendanceLog(memberId, breakStartTime, EventType.BREAK_START, request.getLatitude(), request.getLongitude());
@@ -297,7 +296,7 @@ public class AttendanceService {
         return new BreakStartResponse(newLog.getId(), newLog.getEventTime());
     }
 
-    private BreakEndResponse breakEnd(UUID memberId, EventRequest request) {
+    private BreakEndResponse breakEnd(UUID memberId, UUID organizationId, EventRequest request) {
         LocalDate today = LocalDate.now();
 
         // 출근 기록 확인
@@ -324,7 +323,7 @@ public class AttendanceService {
         LocalDateTime breakEndTime = LocalDateTime.now();
 
         // 정책 조회 및 근무 시간 제한 검증
-        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, dailyAttendance.getCompanyId());
+        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, dailyAttendance.getCompanyId(), organizationId);
         validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), activePolicy, breakEndTime, dailyAttendance.getFirstClockIn());
 
         AttendanceLog newLog = createAttendanceLog(memberId, breakEndTime, EventType.BREAK_END, request.getLatitude(), request.getLongitude());
@@ -341,7 +340,7 @@ public class AttendanceService {
         dailyAttendance.addBreakMinutes((int) breakMinutes);
 
         // 휴게 시간 정책 검증 (정책이 있으면)
-        validateBreakTimePolicy(dailyAttendance.getCompanyId(), memberId, dailyAttendance.getTotalBreakMinutes());
+        validateBreakTimePolicy(dailyAttendance.getCompanyId(), memberId, organizationId, dailyAttendance.getTotalBreakMinutes());
 
         return new BreakEndResponse(newLog.getId(), newLog.getEventTime(), dailyAttendance.getTotalBreakMinutes());
     }
@@ -377,9 +376,9 @@ public class AttendanceService {
     }
 
     // --- 이하 검증(validate) 관련 헬퍼 메서드들 ---
-    private void validate(UUID memberId, UUID companyId, String deviceId, DeviceType deviceType, Double latitude, Double longitude, String clientIp) {
+    private void validate(UUID memberId, UUID companyId, UUID organizationId, String deviceId, DeviceType deviceType, Double latitude, Double longitude, String clientIp) {
         validateApprovedDevice(deviceId, memberId, deviceType);
-        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId);
+        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId, organizationId);
         PolicyRuleDetails ruleDetails = activePolicy.getRuleDetails();
         validateAuthRule(ruleDetails, deviceType, latitude, longitude, clientIp);
     }
@@ -501,16 +500,16 @@ public class AttendanceService {
                 .distinct()
                 .collect(Collectors.toList());
 
-        Map<UUID, PositionDto> positionMap = new HashMap<>();
+        Map<UUID, MemberPositionListRes> positionMap = new HashMap<>();
         if (!memberIds.isEmpty()) {
             IdListReq request = IdListReq.builder()
                     .uuidList(memberIds)
                     .build();
             try {
-                ApiResponse<List<PositionDto>> response = memberClient.getDefaultPositionList(memberPositionId, request);
+                ApiResponse<List<MemberPositionListRes>> response = memberClient.getDefaultPositionList(memberPositionId, request);
                 if (response != null && response.getData() != null) {
                     positionMap = response.getData().stream()
-                            .collect(Collectors.toMap(PositionDto::getMemberId, p -> p));
+                            .collect(Collectors.toMap(MemberPositionListRes::getMemberId, p -> p));
                 }
             } catch (Exception e) {
                 log.error("Failed to fetch position info from member-service", e);
@@ -518,10 +517,10 @@ public class AttendanceService {
         }
 
         // 응답 조립 (근태 데이터 + 직책 정보)
-        final Map<UUID, PositionDto> finalPositionMap = positionMap;
+        final Map<UUID, MemberPositionListRes> finalPositionMap = positionMap;
         return dailyAttendances.stream()
                 .map(da -> {
-                    PositionDto position = finalPositionMap.get(da.getMemberId());
+                    MemberPositionListRes position = finalPositionMap.get(da.getMemberId());
                     return DailyAttendanceSummaryRes.builder()
                             .memberId(da.getMemberId())
                             .memberName(position != null ? position.getMemberName() : null)
@@ -578,16 +577,16 @@ public class AttendanceService {
                 .distinct()
                 .collect(Collectors.toList());
 
-        Map<UUID, PositionDto> positionMap = new HashMap<>();
+        Map<UUID, MemberPositionListRes> positionMap = new HashMap<>();
         if (!memberIds.isEmpty()) {
             IdListReq request = IdListReq.builder()
                     .uuidList(memberIds)
                     .build();
             try {
-                ApiResponse<List<PositionDto>> response = memberClient.getDefaultPositionList(memberPositionId, request);
+                ApiResponse<List<MemberPositionListRes>> response = memberClient.getDefaultPositionList(memberPositionId, request);
                 if (response != null && response.getData() != null) {
                     positionMap = response.getData().stream()
-                            .collect(Collectors.toMap(PositionDto::getMemberId, p -> p));
+                            .collect(Collectors.toMap(MemberPositionListRes::getMemberId, p -> p));
                 }
             } catch (Exception e) {
                 log.error("Failed to fetch position info from member-service", e);
@@ -595,10 +594,10 @@ public class AttendanceService {
         }
 
         // 응답 조립 (잔여 일수 데이터 + 직책 정보)
-        final Map<UUID, PositionDto> finalPositionMap = positionMap;
+        final Map<UUID, MemberPositionListRes> finalPositionMap = positionMap;
         return balances.stream()
                 .map(mb -> {
-                    PositionDto position = finalPositionMap.get(mb.getMemberId());
+                    MemberPositionListRes position = finalPositionMap.get(mb.getMemberId());
                     return MemberBalanceSummaryRes.builder()
                             .memberId(mb.getMemberId())
                             .memberName(position != null ? position.getMemberName() : null)
@@ -773,8 +772,8 @@ public class AttendanceService {
     /**
      * 외출 시간 정책 검증
      */
-    private void validateGoOutTimePolicy(UUID companyId, UUID memberId, int singleGoOutMinutes, int totalGoOutMinutes) {
-        Policy policy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId);
+    private void validateGoOutTimePolicy(UUID companyId, UUID memberId, UUID organizationId, int singleGoOutMinutes, int totalGoOutMinutes) {
+        Policy policy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId, organizationId);
         if (policy == null || policy.getRuleDetails() == null || policy.getRuleDetails().getGoOutRule() == null) {
             return; // 정책이 없으면 검증 안 함
         }
@@ -795,8 +794,8 @@ public class AttendanceService {
     /**
      * 휴게 시간 정책 검증
      */
-    private void validateBreakTimePolicy(UUID companyId, UUID memberId, int totalBreakMinutes) {
-        Policy policy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId);
+    private void validateBreakTimePolicy(UUID companyId, UUID memberId, UUID organizationId, int totalBreakMinutes) {
+        Policy policy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId, organizationId);
         if (policy == null || policy.getRuleDetails() == null || policy.getRuleDetails().getBreakRule() == null) {
             return; // 정책이 없으면 검증 안 함
         }
