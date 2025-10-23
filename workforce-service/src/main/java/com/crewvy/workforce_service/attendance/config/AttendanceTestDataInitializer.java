@@ -30,7 +30,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     private final PolicyRepository policyRepository;
 
     // member-service의 AutoCreateAdmin에서 생성되는 H.ONE 컴퍼니 ID
-    private static final UUID COMPANY_ID = UUID.fromString("32f6b7ea-cc6a-499f-b370-62e0d953e9a0");
+    private static final UUID COMPANY_ID = UUID.fromString("5568d353-2fa6-483d-8e79-dbd735dd71c2");
 
     @Override
     @Transactional

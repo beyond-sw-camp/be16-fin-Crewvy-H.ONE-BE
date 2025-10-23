@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.attendance.dto.response;
 
 import com.crewvy.workforce_service.attendance.constant.PolicyScopeType;
 import com.crewvy.workforce_service.attendance.entity.PolicyAssignment;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
@@ -20,6 +21,7 @@ public class PolicyAssignmentResponse {
     private PolicyScopeType scopeType;
     private String targetName;
     private String targetAffiliation; // 소속 필드 추가
+    @JsonProperty("isActive")
     private boolean isActive;
     private UUID assignedBy;
     private LocalDateTime assignedAt;

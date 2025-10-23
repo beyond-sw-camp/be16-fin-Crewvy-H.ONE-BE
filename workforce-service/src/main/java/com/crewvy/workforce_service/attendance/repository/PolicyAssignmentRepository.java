@@ -26,5 +26,5 @@ public interface PolicyAssignmentRepository extends JpaRepository<PolicyAssignme
 
     List<PolicyAssignment> findByTargetIdIn(List<UUID> targetIds);
 
-    boolean existsByPolicy_Id(UUID policyId);
+    boolean existsByPolicy_IdAndIsActiveTrue(UUID policyId);
 }

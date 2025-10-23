@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.attendance.controller;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.attendance.constant.PolicyScopeType;
+import com.crewvy.workforce_service.attendance.dto.request.PolicyAssignmentIdListRequest;
 import com.crewvy.workforce_service.attendance.dto.request.PolicyAssignmentRequest;
 import com.crewvy.workforce_service.attendance.dto.response.PolicyAssignmentResponse;
 import com.crewvy.workforce_service.attendance.service.PolicyAssignmentService;
@@ -74,6 +75,24 @@ public class PolicyAssignmentController {
             @RequestBody @Valid com.crewvy.workforce_service.attendance.dto.request.PolicyAssignmentIdListRequest request) {
         
         policyAssignmentService.revokeAssignments(memberPositionId, request.getAssignmentIds());
-        return new ResponseEntity<>(ApiResponse.success(null, "선택된 정책 할당이 모두 해지되었습니다."), HttpStatus.OK);
+        return new ResponseEntity<>(ApiResponse.success(null, "선택된 정책 할당들이 해지되었습니다."), HttpStatus.OK);
+    }
+
+    @PatchMapping("/reactivate")
+    public ResponseEntity<ApiResponse<Void>> reactivateAssignments(
+            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+            @RequestBody @Valid PolicyAssignmentIdListRequest request) {
+        
+        policyAssignmentService.reactivateAssignments(memberPositionId, request.getAssignmentIds());
+        return new ResponseEntity<>(ApiResponse.success(null, "선택된 정책 할당들이 재활성화되었습니다."), HttpStatus.OK);
+    }
+
+    @DeleteMapping
+    public ResponseEntity<ApiResponse<Void>> deleteAssignments(
+            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+            @RequestBody @Valid com.crewvy.workforce_service.attendance.dto.request.PolicyAssignmentIdListRequest request) {
+        
+        policyAssignmentService.deleteAssignments(memberPositionId, request.getAssignmentIds());
+        return new ResponseEntity<>(ApiResponse.success(null, "선택된 정책 할당들이 삭제되었습니다."), HttpStatus.OK);
     }
 }

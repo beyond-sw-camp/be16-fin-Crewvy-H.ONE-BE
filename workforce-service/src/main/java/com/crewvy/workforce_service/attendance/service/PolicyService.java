@@ -107,9 +107,9 @@ public class PolicyService {
     public void deletePolicy(UUID memberpositionId, UUID companyId, UUID policyId) {
 //        checkPermissionOrThrow(memberpositionId, "DELETE", "COMPANY", "회사 정책 삭제 권한이 없습니다.");
 
-        // 삭제하려는 정책이 다른 곳에 할당되어 있는지 확인
-        if (policyAssignmentRepository.existsByPolicy_Id(policyId)) {
-            throw new BusinessException("이 정책은 현재 하나 이상의 대상에 할당되어 있어 삭제할 수 없습니다. 할당을 먼저 해지해주세요.");
+        // 삭제하려는 정책이 '활성 상태'로 다른 곳에 할당되어 있는지 확인
+        if (policyAssignmentRepository.existsByPolicy_IdAndIsActiveTrue(policyId)) {
+            throw new BusinessException("이 정책은 현재 활성 상태로 할당되어 있어 삭제할 수 없습니다. 할당을 먼저 해지해주세요.");
         }
 
         if (!policyRepository.existsById(policyId)) {

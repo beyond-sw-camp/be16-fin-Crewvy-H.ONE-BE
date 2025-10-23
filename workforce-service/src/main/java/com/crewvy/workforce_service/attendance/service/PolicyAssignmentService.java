@@ -254,4 +254,26 @@ public class PolicyAssignmentService {
         }
         assignmentsToRevoke.forEach(PolicyAssignment::deactivate);
     }
+
+    /**
+     * [관리자용] 여러 정책 할당을 일괄 재활성화합니다.
+     */
+    @Transactional
+    public void reactivateAssignments(UUID memberPositionId, List<UUID> assignmentIds) {
+        // TODO: 권한 검사
+        List<PolicyAssignment> assignmentsToReactivate = policyAssignmentRepository.findAllById(assignmentIds);
+        if (assignmentsToReactivate.size() != assignmentIds.size()) {
+            throw new BusinessException("요청된 ID 목록에 존재하지 않는 할당이 포함되어 있습니다.");
+        }
+        assignmentsToReactivate.forEach(PolicyAssignment::activate);
+    }
+
+    /**
+     * [관리자용] 여러 정책 할당을 일괄 삭제합니다.
+     */
+    @Transactional
+    public void deleteAssignments(UUID memberPositionId, List<UUID> assignmentIds) {
+        // TODO: 권한 검사
+        policyAssignmentRepository.deleteAllById(assignmentIds);
+    }
 }
