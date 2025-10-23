@@ -34,6 +34,9 @@ public class PolicyAssignment {
     @Column(name = "target_type", nullable = false)
     private PolicyScopeType targetType; // 할당 대상의 종류 (COMPANY, ORGANIZATION, MEMBER)
 
+    @Column(name = "scope_type", nullable = false)
+    private PolicyScopeType scopeType;
+
     @Column(name = "is_active", nullable = false)
     private boolean isActive;
 

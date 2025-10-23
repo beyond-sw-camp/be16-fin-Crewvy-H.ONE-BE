@@ -2,9 +2,7 @@ package com.crewvy.workforce_service.feignClient;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
-import com.crewvy.workforce_service.feignClient.dto.response.NameDto;
-import com.crewvy.workforce_service.feignClient.dto.response.OrganizationNodeDto;
-import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
+import com.crewvy.workforce_service.feignClient.dto.response.*;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,10 +16,9 @@ public interface MemberClient {
                                                     @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                                     @RequestBody IdListReq idListReq
     );
-    @PostMapping("/default-position-list")
-    ApiResponse<List<PositionDto>> getDefaultPositionList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                                    @RequestBody IdListReq idListReq
-    );
+    @PostMapping("/member/default-position-list")
+    ApiResponse<List<MemberPositionListRes>> getDefaultPositionList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                                              @RequestBody IdListReq idListReq);
 
     @GetMapping("/organization/tree-with-members")
     ApiResponse<List<OrganizationNodeDto>> getOrganization(@RequestHeader("X-User-UUID") UUID uuid);
@@ -35,13 +32,11 @@ public interface MemberClient {
             @RequestParam("range") String range
     );
 
-    // TODO: member-service에 API 구현 필요
-    // 직원의 조직 계층 조회 (MEMBER -> TEAM -> DEPARTMENT -> ... -> COMPANY)
-//    @GetMapping("/member/{memberId}/organization-hierarchy")
-//    ApiResponse<List<UUID>> getOrganizationHierarchy(@PathVariable("memberId") UUID memberId);
-
-
     @PostMapping("/member/name-list")
     ApiResponse<List<NameDto>> getNameList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                            @RequestBody IdListReq idListReq);
+
+    // memberPositionId -> 조직 List( 0: 내 부서, 1: 상위 부서, 2: 1의 상위 부서, ... , n: 회사 )
+    @GetMapping("/member/organization-list")
+    ApiResponse<List<OrganizationRes>> getOrganizationList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId);
 }
