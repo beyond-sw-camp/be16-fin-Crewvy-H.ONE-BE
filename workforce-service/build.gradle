@@ -55,6 +55,9 @@ dependencies {
 
 	// Spring Cloud OpenFeign 의존성
 	implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+
+	// Spring Batch
+	implementation 'org.springframework.boot:spring-boot-starter-batch'
 }
 
 dependencyManagement {

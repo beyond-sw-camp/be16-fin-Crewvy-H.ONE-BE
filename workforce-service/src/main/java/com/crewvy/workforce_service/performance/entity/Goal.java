@@ -59,6 +59,10 @@ public class Goal extends BaseEntity {
         this.comment = comment;
     }
 
+    public void updateStatus(GoalStatus status) {
+        this.status = status;
+    }
+
     public void updateGoal(UpdateMyGoalDto dto) {
         this.title = dto.getTitle();
         this.contents = dto.getContents();

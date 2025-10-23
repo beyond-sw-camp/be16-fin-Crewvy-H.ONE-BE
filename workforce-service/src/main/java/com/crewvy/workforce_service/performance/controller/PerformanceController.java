@@ -52,7 +52,7 @@ public class PerformanceController {
     }
 
     @PatchMapping("/update-team-goal/{id}")
-    public ResponseEntity<?> updateteamGoal(@PathVariable UUID id,
+    public ResponseEntity<?> updateTeamGoal(@PathVariable UUID id,
                                             @RequestBody CreateTeamGoalDto dto,
                                             @RequestHeader("X-User-MemberPositionId") UUID memberPositionId
     ) {
@@ -60,7 +60,18 @@ public class PerformanceController {
         return new ResponseEntity<>(
                 ApiResponse.success(id, "팀 목표 업데이트"),
                 HttpStatus.OK
-        )
+        );
+    }
+
+    @DeleteMapping("/delete-team-goal/{id}")
+    public ResponseEntity<?> deleteTeamGoal(@PathVariable UUID id,
+                                            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId
+    ) {
+        performanceService.deleteTeamGoal(id, memberPositionId);
+        return new ResponseEntity<>(
+                ApiResponse.success(id, "팀 목표 삭제"),
+                HttpStatus.OK
+        );
     }
 
     @GetMapping("/get-goal-detail/{id}")

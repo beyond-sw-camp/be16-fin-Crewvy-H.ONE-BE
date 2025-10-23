@@ -7,6 +7,7 @@ import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
 import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
 import com.crewvy.workforce_service.performance.constant.GoalStatus;
+import com.crewvy.workforce_service.performance.constant.TeamGoalStatus;
 import com.crewvy.workforce_service.performance.dto.request.*;
 import com.crewvy.workforce_service.performance.dto.response.*;
 import com.crewvy.workforce_service.performance.entity.*;
@@ -212,24 +213,27 @@ public class PerformanceService {
 
     //    내 목표 조회
     public List<GoalResponseDto> getMyGoal(UUID memberPositionId) {
-        List<Goal> goalList = performanceRepository.findByMemberPositionId(memberPositionId);
-//        List<Goal> goalList = performanceRepository.findAll();
-        List<GoalResponseDto> dtoList = new ArrayList<>();
-        for(Goal g : goalList) {
-            GoalResponseDto dto = GoalResponseDto.builder()
-                    .goalId(g.getId())
-                    .title(g.getTitle())
-                    .contents(g.getContents())
-                    .memberPositionId(g.getMemberPositionId())
-                    .status(g.getStatus())
-                    .startDate(g.getStartDate())
-                    .endDate(g.getEndDate())
-                    .teamGoalTitle(g.getTeamGoal().getTitle())
-                    .build();
-            dtoList.add(dto);
-        }
 
-        return dtoList;
+        // 1. CANCELED 상태를 제외하고, N+1 문제도 해결된 메서드 호출
+        List<Goal> goalList = performanceRepository.findActiveGoalsByMemberPositionIdWithTeamGoal(
+                memberPositionId,
+                GoalStatus.CANCELED // 제외할 상태
+        );
+
+        // 2. Stream을 사용한 DTO 변환 (for-loop 대체)
+        return goalList.stream()
+                .map(g -> GoalResponseDto.builder()
+                        .goalId(g.getId())
+                        .title(g.getTitle())
+                        .contents(g.getContents())
+                        .memberPositionId(g.getMemberPositionId())
+                        .status(g.getStatus())
+                        .startDate(g.getStartDate())
+                        .endDate(g.getEndDate())
+                        // Fetch Join을 했기 때문에 추가 쿼리 없이 바로 사용 가능
+                        .teamGoalTitle(g.getTeamGoal() != null ? g.getTeamGoal().getTitle() : null)
+                        .build())
+                .toList();
     }
 
     //    내 목표 생성
@@ -376,7 +380,16 @@ public class PerformanceService {
         }
     }
 
-    public void deleteTeamGoal(UUID id) {
+    public void deleteTeamGoal(UUID id, UUID memberPositionId) {
+        TeamGoal teamGoal = teamGoalRepository.findByIdWithGoals(id)
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 팀 목표 입니다."));
 
+        if(!teamGoal.getMemberPositionId().equals(memberPositionId)) {
+            throw new BusinessException("수정 권한이 없습니다.");
+        }
+
+        teamGoal.updateStatus(TeamGoalStatus.CANCELED);
+
+        teamGoal.getGoalList().forEach(goal -> goal.updateStatus(GoalStatus.CANCELED));
     }
 }
