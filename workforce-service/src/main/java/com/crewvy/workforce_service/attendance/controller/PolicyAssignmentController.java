@@ -32,12 +32,13 @@ public class PolicyAssignmentController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<PolicyAssignmentResponse>>> findAssignments(
+    public ResponseEntity<ApiResponse<Page<PolicyAssignmentResponse>>> findAssignments(
             @RequestHeader("X-User-UUID") UUID memberId,
             @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-            @RequestHeader("X-User-CompanyId") UUID companyId) {
+            @RequestHeader("X-User-CompanyId") UUID companyId,
+            Pageable pageable) {
         
-        List<PolicyAssignmentResponse> response = policyAssignmentService.findAssignments(memberId, memberPositionId, companyId);
+        Page<PolicyAssignmentResponse> response = policyAssignmentService.findAssignments(memberId, memberPositionId, companyId, pageable);
         return new ResponseEntity<>(ApiResponse.success(response, "정책 할당 목록 조회 완료"), HttpStatus.OK);
     }
 

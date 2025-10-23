@@ -17,6 +17,8 @@ import com.crewvy.workforce_service.feignClient.dto.response.OrganizationNodeDto
 import com.crewvy.workforce_service.feignClient.dto.response.OrganizationRes;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -116,11 +118,11 @@ public class PolicyAssignmentService {
      * [관리자용] 특정 회사의 모든 정책 할당 목록을 조회합니다.
      */
     @Transactional(readOnly = true)
-    public List<PolicyAssignmentResponse> findAssignments(UUID memberId, UUID memberPositionId, UUID companyId) {
-        List<PolicyAssignment> assignments = policyAssignmentRepository.findAllByCompanyId(companyId);
+    public Page<PolicyAssignmentResponse> findAssignments(UUID memberId, UUID memberPositionId, UUID companyId, Pageable pageable) {
+        Page<PolicyAssignment> assignmentsPage = policyAssignmentRepository.findAllByCompanyId(companyId, pageable);
 
-        // 1. 직원 정보 조회
-        List<UUID> memberIds = assignments.stream()
+        // 1. 직원 정보 조회를 위해 ID 추출
+        List<UUID> memberIds = assignmentsPage.getContent().stream()
                 .filter(a -> a.getScopeType() == PolicyScopeType.MEMBER)
                 .map(PolicyAssignment::getTargetId).distinct().collect(Collectors.toList());
 
@@ -137,7 +139,7 @@ public class PolicyAssignmentService {
             }
         }
 
-        // 2. 회사의 전체 조직도 정보 조회 및 평탄화
+        // 2. 회사의 전체 조직도 정보 조회
         final Map<UUID, String> orgNameMap = new HashMap<>();
         final Map<UUID, UUID> childToParentMap = new HashMap<>();
         final OrganizationNodeDto companyInfo;
@@ -147,7 +149,6 @@ public class PolicyAssignmentService {
             if (response != null && response.getData() != null && !response.getData().isEmpty()) {
                 companyInfo = response.getData().get(0); // 최상위 노드가 회사
 
-                // 재귀 함수 또는 스택/큐를 사용하여 트리 순회
                 Queue<OrganizationNodeDto> queue = new LinkedList<>(response.getData());
                 while (!queue.isEmpty()) {
                     OrganizationNodeDto node = queue.poll();
@@ -166,39 +167,37 @@ public class PolicyAssignmentService {
             throw new BusinessException("Member-service에서 조직 정보를 가져오는 데 실패했습니다.", e);
         }
 
-        // 3. 데이터 조합 및 최종 응답 생성
-        return assignments.stream()
-                .map(assignment -> {
-                    PolicyAssignmentResponse responseDto = new PolicyAssignmentResponse(assignment);
-                    PolicyScopeType scopeType = assignment.getScopeType();
-                    UUID targetId = assignment.getTargetId();
+        // 3. Page.map을 사용하여 DTO로 변환 및 정보 채우기
+        return assignmentsPage.map(assignment -> {
+            PolicyAssignmentResponse responseDto = new PolicyAssignmentResponse(assignment);
+            PolicyScopeType scopeType = assignment.getScopeType();
+            UUID targetId = assignment.getTargetId();
 
-                    switch (scopeType) {
-                        case MEMBER:
-                            if (memberInfoMap.containsKey(targetId)) {
-                                MemberPositionListRes memberInfo = memberInfoMap.get(targetId);
-                                responseDto.setTargetName(memberInfo.getMemberName());
-                                responseDto.setTargetAffiliation(memberInfo.getOrganizationName());
-                            }
-                            break;
-                        case ORGANIZATION:
-                            if (orgNameMap.containsKey(targetId)) {
-                                responseDto.setTargetName(orgNameMap.get(targetId));
-                                UUID parentId = childToParentMap.get(targetId);
-                                String parentName = (parentId != null) ? orgNameMap.get(parentId) : (companyInfo != null ? companyInfo.getLabel() : "-");
-                                responseDto.setTargetAffiliation(parentName);
-                            }
-                            break;
-                        case COMPANY:
-                            if (companyInfo != null && companyInfo.getId().equals(targetId)) {
-                                responseDto.setTargetName(companyInfo.getLabel());
-                                responseDto.setTargetAffiliation("-");
-                            }
-                            break;
+            switch (scopeType) {
+                case MEMBER:
+                    if (memberInfoMap.containsKey(targetId)) {
+                        MemberPositionListRes memberInfo = memberInfoMap.get(targetId);
+                        responseDto.setTargetName(memberInfo.getMemberName());
+                        responseDto.setTargetAffiliation(memberInfo.getOrganizationName());
                     }
-                    return responseDto;
-                })
-                .collect(Collectors.toList());
+                    break;
+                case ORGANIZATION:
+                    if (orgNameMap.containsKey(targetId)) {
+                        responseDto.setTargetName(orgNameMap.get(targetId));
+                        UUID parentId = childToParentMap.get(targetId);
+                        String parentName = (parentId != null) ? orgNameMap.get(parentId) : (companyInfo != null ? companyInfo.getLabel() : "-");
+                        responseDto.setTargetAffiliation(parentName);
+                    }
+                    break;
+                case COMPANY:
+                    if (companyInfo != null && companyInfo.getId().equals(targetId)) {
+                        responseDto.setTargetName(companyInfo.getLabel());
+                        responseDto.setTargetAffiliation("-");
+                    }
+                    break;
+            }
+            return responseDto;
+        });
     }
 
     @Transactional
