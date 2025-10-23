@@ -28,6 +28,13 @@ public interface PerformanceRepository extends JpaRepository<Goal, UUID> {
             @Param("status") GoalStatus status
     );
 
+    @Query("SELECT g FROM Goal g " +
+            "LEFT JOIN FETCH g.teamGoal tg " + // g.teamGoal을 즉시 로딩
+            "WHERE g.memberPositionId = :memberPositionId " +
+            "AND g.status = :status")
+    List<Goal> findGoalsByMemberPositionIdAndStatus(@Param("memberPositionId") UUID memberPositionId,
+                                                    @Param("status") GoalStatus status);
+
     @Modifying(clearAutomatically = true) // DB 상태 변경 후 1차 캐시를 비워 정합성 보장
     @Transactional // 이 쿼리는 트랜잭션 내에서 실행되어야 함
     @Query("UPDATE Goal g " +

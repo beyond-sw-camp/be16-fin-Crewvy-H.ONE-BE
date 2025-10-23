@@ -152,4 +152,20 @@ public class PerformanceController {
                 HttpStatus.OK
         );
     }
+
+    @GetMapping("/find-teamgoal-evaluation")
+    public ResponseEntity<?> findMyTeamGoalToEvaluation(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+        return new ResponseEntity<>(
+                ApiResponse.success(performanceService.findMyTeamGoalsToEvaluate(memberPositionId), "평가대상 팀 목표 조회"),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/find-goal-evaluation")
+    public ResponseEntity<?> findMyGoalToEvaluation(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+        return new ResponseEntity<>(
+                ApiResponse.success(performanceService.findMyGoalToEvaluate(memberPositionId), "평가대상 팀 목표 조회"),
+                HttpStatus.OK
+        );
+    }
 }

@@ -6,6 +6,7 @@ import com.crewvy.common.exception.BusinessException;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
 import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
+import com.crewvy.workforce_service.performance.constant.EvaluationType;
 import com.crewvy.workforce_service.performance.constant.GoalStatus;
 import com.crewvy.workforce_service.performance.constant.TeamGoalStatus;
 import com.crewvy.workforce_service.performance.dto.request.*;
@@ -55,6 +56,7 @@ public class PerformanceService {
                     .teamGoalId(teamGoal.getId())
                     .title(teamGoal.getTitle())
                     .contents(teamGoal.getContents())
+                    .status(teamGoal.getStatus().getCodeName())
                     .startDate(teamGoal.getStartDate())
                     .endDate(teamGoal.getEndDate())
                     .memberPositionId(teamGoal.getMemberPositionId())
@@ -107,7 +109,7 @@ public class PerformanceService {
                     .memberPositionId(goal.getMemberPositionId())
                     .startDate(goal.getStartDate())
                     .endDate(goal.getEndDate())
-                    .status(goal.getStatus())
+                    .status(goal.getStatus().getCodeName())
                     .memberName(matchingPosition != null ? matchingPosition.getMemberName() : null)
                     .memberPostion(matchingPosition != null ? matchingPosition.getTitleName() : null)
                     .memberOrganization(matchingPosition != null ? matchingPosition.getOrganizationName() : null)
@@ -160,6 +162,8 @@ public class PerformanceService {
         }
         teamGoalRepository.save(newTeamGoal);
 
+//        목표 생성 이후 목표에 초대된 팀원들에게 알림 발송
+
         return newTeamGoal.getId();
     }
 
@@ -198,7 +202,7 @@ public class PerformanceService {
                 .memberPositionId(goal.getMemberPositionId())
                 .startDate(goal.getStartDate())
                 .endDate(goal.getEndDate())
-                .status(goal.getStatus())
+                .status(goal.getStatus().getCodeName())
                 .teamGoalTitle(goal.getTeamGoal().getTitle())
                 .teamGoalContents(goal.getTeamGoal().getContents())
                 .teamGoalMemberPositionId(goal.getTeamGoal().getMemberPositionId())
@@ -227,7 +231,7 @@ public class PerformanceService {
                         .title(g.getTitle())
                         .contents(g.getContents())
                         .memberPositionId(g.getMemberPositionId())
-                        .status(g.getStatus())
+                        .status(g.getStatus().getCodeName())
                         .startDate(g.getStartDate())
                         .endDate(g.getEndDate())
                         // Fetch Join을 했기 때문에 추가 쿼리 없이 바로 사용 가능
@@ -278,6 +282,13 @@ public class PerformanceService {
                 .build();
 
         evaluationRepository.save(evaluation);
+
+        if(dto.getType().equals(EvaluationType.SELF)){
+            goal.updateStatus(GoalStatus.SELF_EVAL_COMPLETED);
+        }
+        else if(dto.getType().equals(EvaluationType.SUPERVISOR)) {
+            goal.updateStatus(GoalStatus.MANAGER_EVAL_COMPLETED);
+        }
 
         return evaluation.getId();
     }
@@ -391,5 +402,69 @@ public class PerformanceService {
         teamGoal.updateStatus(TeamGoalStatus.CANCELED);
 
         teamGoal.getGoalList().forEach(goal -> goal.updateStatus(GoalStatus.CANCELED));
+    }
+
+//    평가대상 팀 목표 조회
+    public List<TeamGoalResponseDto> findMyTeamGoalsToEvaluate(UUID memberPositionId) {
+        // 1. 내가 관리자(생성자)인 '평가 대기' 팀 목표 조회
+        List<TeamGoal> teamGoalList = teamGoalRepository.findAllByMemberPositionIdAndStatus(memberPositionId, TeamGoalStatus.AWAITING_EVALUATION);
+
+        // 2. (최적화) 조회된 팀 목표가 없으면 API 호출 없이 바로 빈 리스트 반환
+        if (teamGoalList.isEmpty()) {
+            return new ArrayList<>(); // 또는 Collections.emptyList()
+        }
+
+        // 3. (수정) 나의 Position 정보 1건만 조회 (Map 불필요)
+        ApiResponse<List<PositionDto>> response = memberClient.getPositionList(
+                memberPositionId,
+                new IdListReq(List.of(memberPositionId))
+        );
+
+        // 4. (수정) Map 대신 단일 PositionDto 객체로 관리
+        // API 응답이 정상이면서, 데이터가 있고, 비어있지 않은지 확인
+        PositionDto creatorInfo = null;
+        if (response != null && response.getData() != null && !response.getData().isEmpty()) {
+            creatorInfo = response.getData().get(0); // 1건만 있으므로 0번째 인덱스
+        }
+
+        // 5. DTO 변환 (람다에서 사용하기 위해 effectively final 변수 사용)
+        final PositionDto finalCreatorInfo = creatorInfo;
+
+        return teamGoalList.stream().map(teamGoal -> {
+            // (수정) Map 조회 로직 삭제, finalCreatorInfo 변수 직접 사용
+            return TeamGoalResponseDto.builder()
+                    .teamGoalId(teamGoal.getId())
+                    .title(teamGoal.getTitle())
+                    .contents(teamGoal.getContents())
+                    .status(teamGoal.getStatus().getCodeName())
+                    .startDate(teamGoal.getStartDate())
+                    .endDate(teamGoal.getEndDate())
+                    .memberPositionId(teamGoal.getMemberPositionId()) // 이 ID는 항상 memberPositionId와 동일
+                    .memberName(finalCreatorInfo != null ? finalCreatorInfo.getMemberName() : null)
+                    .memberPosition(finalCreatorInfo != null ? finalCreatorInfo.getTitleName() : null)
+                    .memberOrganization(finalCreatorInfo != null ? finalCreatorInfo.getOrganizationName() : null)
+                    .build();
+        }).toList();
+    }
+
+    //    본인평가 대상 내 목표 조회
+    public List<GoalResponseDto> findMyGoalToEvaluate(UUID memberPositionId) {
+        List<Goal> goalList = performanceRepository.findGoalsByMemberPositionIdAndStatus(
+                memberPositionId,
+                GoalStatus.AWAITING_EVALUATION // 제외할 상태
+        );
+
+        return goalList.stream()
+                .map(g -> GoalResponseDto.builder()
+                        .goalId(g.getId())
+                        .title(g.getTitle())
+                        .contents(g.getContents())
+                        .memberPositionId(g.getMemberPositionId())
+                        .status(g.getStatus().getCodeName())
+                        .startDate(g.getStartDate())
+                        .endDate(g.getEndDate())
+                        .teamGoalTitle(g.getTeamGoal() != null ? g.getTeamGoal().getTitle() : null)
+                        .build())
+                .toList();
     }
 }

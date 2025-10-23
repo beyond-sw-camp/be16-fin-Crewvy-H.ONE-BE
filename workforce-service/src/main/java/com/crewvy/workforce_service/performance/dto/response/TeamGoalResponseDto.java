@@ -16,6 +16,7 @@ public class TeamGoalResponseDto {
     private UUID teamGoalId;
     private String title;
     private String contents;
+    private String status;
     private LocalDate startDate;
     private LocalDate endDate;
     private UUID memberPositionId;
