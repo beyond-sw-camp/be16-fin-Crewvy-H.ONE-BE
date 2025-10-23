@@ -1,5 +1,7 @@
 package com.crewvy.search_service.config;
 
+import com.crewvy.common.event.MemberSavedEvent;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,27 +23,31 @@ public class KafkaConsumerConfig {
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
 
+    @Value("${spring.kafka.consumer.group-id}")
+    private String groupId;
+
+    private final ObjectMapper objectMapper;
+
+    public KafkaConsumerConfig(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
+
     @Bean
-    public ConsumerFactory<String, Object> consumerFactory() {
+    public ConsumerFactory<String, MemberSavedEvent> consumerFactory() {
         Map<String, Object> props = new HashMap<>();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, "search-service-group");
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
-
-        // Configure the JsonDeserializer via properties
-        props.put("spring.json.trusted.packages", "com.crewvy.common.event");
-        props.put("spring.json.use.type.headers", false);
-        props.put("spring.json.type.mapping", 
-                  "member-saved-events:com.crewvy.common.event.MemberSavedEvent,"
-                  + "member-deleted-events:com.crewvy.common.event.MemberDeletedEvent");
+        props.put(JsonDeserializer.TRUSTED_PACKAGES, "com.crewvy.common.event"); // Trust the package where MemberSavedEvent resides
+        props.put(JsonDeserializer.VALUE_DEFAULT_TYPE, MemberSavedEvent.class.getName()); // Explicitly set default type
 
         return new DefaultKafkaConsumerFactory<>(props);
     }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
+    public ConcurrentKafkaListenerContainerFactory<String, MemberSavedEvent> kafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, MemberSavedEvent> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
         return factory;
     }

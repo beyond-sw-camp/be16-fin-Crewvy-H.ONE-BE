@@ -9,6 +9,8 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.*;
 
+import java.util.List;
+
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
@@ -26,16 +28,17 @@ public class MemberDocument {
     private String name;
 
     @Field(type = FieldType.Text)
+    private List<String> organizationName;
+
+    @Field(type = FieldType.Text)
+    private List<String> titleName;
+
+    @Field(type = FieldType.Keyword, name = "phoneNumber")
     private String phoneNumber;
 
-    // Note: The 'Member' entity is not available in search-service. 
-    // You will need to decide how MemberDocument is created/updated in search-service.
-    // This 'fromEntity' method might need to be removed or adapted.
-    // public static MemberDocument fromEntity(Member member){
-    //     return MemberDocument.builder()
-    //             .memberId(member.getId().toString())
-    //             .name(member.getName())
-    //             .phoneNumber(member.getPhoneNumber())
-    //             .build();
-    // }
+    @Field(type = FieldType.Text)
+    private String memberStatus;
+
+    @CompletionField(maxInputLength = 100)
+    private String suggest;
 }

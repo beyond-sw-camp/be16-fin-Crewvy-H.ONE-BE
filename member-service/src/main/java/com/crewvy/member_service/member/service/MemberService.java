@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.*;
+import java.util.Collections;
 import java.util.stream.Collectors;
 
 import static java.lang.Boolean.FALSE;
@@ -91,25 +92,6 @@ public class MemberService {
                 .build();
         outboxRepository.save(notificationOutbox);
 
-        // 통합검색 kafka
-        try {
-            MemberSavedEvent event = MemberSavedEvent.builder()
-                    .memberId(savedMember.getId())
-                    .name(savedMember.getName())
-                    .phoneNumber(savedMember.getPhoneNumber())
-                    .build();
-            String payload = objectMapper.writeValueAsString(event);
-
-            SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
-                    .topic("member-saved-events")
-                    .memberId(savedMember.getId())
-                    .payload(payload)
-                    .build();
-            searchOutboxEventRepository.save(searchOutbox);
-        } catch (JsonProcessingException e) {
-            throw new SerializationException("데이터 직렬화 실패");
-        }
-
         return savedMember;
     }
 
@@ -128,24 +110,6 @@ public class MemberService {
         Company company = admin.getCompany();
         String encodePassword = passwordEncoder.encode(createMemberReq.getPassword());
         Member savedMember = memberRepository.save(createMemberReq.memberToEntity(encodePassword, company));
-
-        try {
-            MemberSavedEvent event = MemberSavedEvent.builder()
-                    .memberId(savedMember.getId())
-                    .name(savedMember.getName())
-                    .phoneNumber(savedMember.getPhoneNumber())
-                    .build();
-            String payload = objectMapper.writeValueAsString(event);
-
-            SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
-                    .topic("member-saved-events")
-                    .memberId(savedMember.getId())
-                    .payload(payload)
-                    .build();
-            searchOutboxEventRepository.save(searchOutbox);
-        } catch (JsonProcessingException e) {
-            throw new SerializationException("데이터 직렬화 실패");
-        }
 
         Grade grade = gradeRepository.findById(createMemberReq.getGradeId()).orElseThrow(()
                 -> new IllegalArgumentException("존재하지 않는 직급입니다."));
@@ -174,8 +138,9 @@ public class MemberService {
                 .memberId(savedMember.getId())
                 .processed(Bool.FALSE)
                 .build();
-
         outboxRepository.save(outbox);
+
+        createAndSaveSearchOutboxEvent(savedMember);
 
         return savedMember.getId();
     }
@@ -348,7 +313,7 @@ public class MemberService {
         currentGradeHistorySet.stream()
                 .filter(gh -> !newGradeHistoryIdSet.contains(gh.getId()))
                 .forEach(gh -> {
-                    gh.updateYnDel(Bool.FALSE);
+                    gh.updateYnDel(Bool.TRUE);
                     gradeHistoryRepository.save(gh);
                 });
 
@@ -412,7 +377,6 @@ public class MemberService {
                 }
 
                 memberPosition.update(organization, title, role, req.getStartDate(), req.getEndDate());
-                memberPosition.delete();
                 memberPositionRepository.save(memberPosition);
             }
         }
@@ -425,11 +389,35 @@ public class MemberService {
                     memberPositionRepository.save(mp);
                 });
 
+        memberRepository.flush();
+        List<MemberPosition> freshPositions = memberPositionRepository.findAllByMemberIdAndYnDel(memberId, Bool.FALSE);
+
         try {
+            List<String> organizationNameList = freshPositions.stream()
+                    .map(MemberPosition::getOrganization)
+                    .map(Organization::getName)
+                    .collect(Collectors.toList());
+            if (organizationNameList.isEmpty()) {
+                organizationNameList.add("미정");
+            }
+
+            List<String> titleNameList = freshPositions.stream()
+                    .map(MemberPosition::getTitle)
+                    .map(Title::getName)
+                    .collect(Collectors.toList());
+            if (titleNameList.isEmpty()) {
+
+
+                titleNameList.add("미정");
+            }
+
             MemberSavedEvent event = MemberSavedEvent.builder()
                     .memberId(member.getId())
                     .name(member.getName())
+                    .organizationName(organizationNameList)
+                    .titleName(titleNameList)
                     .phoneNumber(member.getPhoneNumber())
+                    .memberStatus(member.getMemberStatus().getCodeName())
                     .build();
             String payload = objectMapper.writeValueAsString(event);
 
@@ -442,7 +430,7 @@ public class MemberService {
         } catch (JsonProcessingException e) {
             throw new SerializationException("데이터 직렬화 실패");
         }
-
+        
         return member.getId();
     }
 
@@ -483,23 +471,7 @@ public class MemberService {
         member.restore();
         memberRepository.save(member);
 
-        try {
-            MemberSavedEvent event = MemberSavedEvent.builder()
-                    .memberId(member.getId())
-                    .name(member.getName())
-                    .phoneNumber(member.getPhoneNumber())
-                    .build();
-            String payload = objectMapper.writeValueAsString(event);
-
-            SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
-                    .topic("member-saved-events")
-                    .memberId(member.getId())
-                    .payload(payload)
-                    .build();
-            searchOutboxEventRepository.save(searchOutbox);
-        } catch (JsonProcessingException e) {
-            throw new SerializationException("데이터 직렬화 실패");
-        }
+        createAndSaveSearchOutboxEvent(member);
     }
 
     // 직원 상세 조회
@@ -1135,7 +1107,59 @@ public class MemberService {
             }
             organizationResList.add(OrganizationRes.fromEntity(organization));
 
-            return  organizationResList;
+            return organizationResList;
         }).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 직원입니다."));
+    }
+
+    public void createAndSaveSearchOutboxEvent(Member member) {
+        try {
+            List<MemberPosition> positionList = member.getMemberPositionList().stream().toList();
+            if (positionList == null || positionList.isEmpty()) {
+                MemberPosition defaultPosition = member.getDefaultMemberPosition();
+                if (defaultPosition != null) {
+                    positionList = List.of(defaultPosition);
+                } else {
+                    positionList = Collections.emptyList();
+                }
+            }
+
+            List<MemberPosition> finalPositionList = positionList.stream()
+                    .filter(position -> position.getYnDel() == Bool.FALSE).toList();
+
+            List<String> organizationNameList = finalPositionList.stream()
+                    .map(MemberPosition::getOrganization)
+                    .map(Organization::getName)
+                    .collect(Collectors.toList());
+            if (organizationNameList.isEmpty()) {
+                organizationNameList.add("미정");
+            }
+
+            List<String> titleNameList = finalPositionList.stream()
+                    .map(MemberPosition::getTitle)
+                    .map(Title::getName)
+                    .collect(Collectors.toList());
+            if (titleNameList.isEmpty()) {
+                titleNameList.add("미정");
+            }
+
+            MemberSavedEvent event = MemberSavedEvent.builder()
+                    .memberId(member.getId())
+                    .name(member.getName())
+                    .organizationName(organizationNameList)
+                    .titleName(titleNameList)
+                    .phoneNumber(member.getPhoneNumber())
+                    .memberStatus(member.getMemberStatus().getCodeName())
+                    .build();
+            String payload = objectMapper.writeValueAsString(event);
+
+            SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
+                    .topic("member-saved-events")
+                    .memberId(member.getId())
+                    .payload(payload)
+                    .build();
+            searchOutboxEventRepository.save(searchOutbox);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("데이터 직렬화 실패");
+        }
     }
 }

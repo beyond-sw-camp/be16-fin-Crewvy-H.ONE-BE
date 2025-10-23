@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -17,5 +18,8 @@ public class MemberSavedEvent implements Serializable {
 
     private UUID memberId;
     private String name;
+    private List<String> organizationName;
+    private List<String> titleName;
     private String phoneNumber;
+    private String memberStatus;
 }

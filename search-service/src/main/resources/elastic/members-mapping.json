@@ -4,10 +4,26 @@
       "type": "keyword"
     },
     "name": {
-      "type": "text"
+      "type": "text",
+      "analyzer": "korean_analyzer"
+    },
+    "organizationName": {
+      "type": "text",
+      "analyzer": "korean_analyzer"
+    },
+    "titleName": {
+      "type": "text",
+      "analyzer": "korean_analyzer"
     },
     "phoneNumber": {
-      "type": "text"
+      "type": "keyword"
+    },
+    "memberStatus": {
+      "type": "text",
+      "analyzer": "korean_analyzer"
+    },
+    "suggest": {
+      "type": "completion"
     }
   }
 }

@@ -4,6 +4,8 @@ import com.crewvy.common.entity.Bool;
 import com.crewvy.member_service.member.dto.request.CreateAdminReq;
 import com.crewvy.member_service.member.entity.*;
 import com.crewvy.member_service.member.repository.GradeHistoryRepository;
+import com.crewvy.member_service.member.repository.SearchOutboxEventRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,16 +18,19 @@ public class OnboardingService {
     private final MemberService memberService;
     private final OrganizationService organizationService;
     private final GradeHistoryRepository gradeHistoryRepository;
-
+    private final SearchOutboxEventRepository searchOutboxEventRepository;
+    private final ObjectMapper objectMapper;
 
     public OnboardingService(MemberService memberService, OrganizationService organizationService
-            , GradeHistoryRepository gradeHistoryRepository) {
+            , GradeHistoryRepository gradeHistoryRepository, SearchOutboxEventRepository searchOutboxEventRepository, ObjectMapper objectMapper) {
         this.memberService = memberService;
         this.organizationService = organizationService;
         this.gradeHistoryRepository = gradeHistoryRepository;
+        this.searchOutboxEventRepository = searchOutboxEventRepository;
+        this.objectMapper = objectMapper;
     }
 
-     // 관리자 계정 생성과 회사, 조직, 역할 등 초기 설정
+    // 관리자 계정 생성과 회사, 조직, 역할 등 초기 설정
     public UUID createAdminAndInitialSetup(CreateAdminReq createAdminReq) {
         Company company = organizationService.createCompany(createAdminReq.getCompanyName(), createAdminReq.getBusinessNumber());
 
@@ -45,6 +50,9 @@ public class OnboardingService {
         gradeHistoryRepository.save(gradeHistory);
 
         memberService.createAndAssignDefaultPosition(null, adminMember, organization, adminTitle, adminRole);
+
+        // 통합검색 kafka
+        memberService.createAndSaveSearchOutboxEvent(adminMember);
 
         return adminMember.getId();
     }
