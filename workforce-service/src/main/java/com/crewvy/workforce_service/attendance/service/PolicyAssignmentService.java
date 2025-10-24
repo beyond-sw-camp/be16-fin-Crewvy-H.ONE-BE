@@ -88,7 +88,7 @@ public class PolicyAssignmentService {
      */
     @Transactional
     public List<PolicyAssignmentResponse> createAssignments(UUID memberPositionId, PolicyAssignmentRequest request) {
-        // TODO: memberPositionId를 사용하여 권한 검사 로직 추가
+        checkPermission(memberPositionId, "attendance", "CREATE", "COMPANY");
 
         List<PolicyAssignment> newAssignments = request.getAssignments().stream()
                 .map(singleRequest -> {
@@ -202,8 +202,8 @@ public class PolicyAssignmentService {
 
     @Transactional
     public void deleteAssignment(UUID memberPositionId, UUID assignmentId) {
-        // TODO: memberPositionId를 사용하여 권한 검사 로직 추가
-        
+        checkPermission(memberPositionId, "attendance", "DELETE", "COMPANY");
+
         PolicyAssignment assignment = policyAssignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("해당 정책 할당을 찾을 수 없습니다. ID: " + assignmentId));
         
@@ -215,7 +215,7 @@ public class PolicyAssignmentService {
      */
     @Transactional(readOnly = true)
     public List<PolicyAssignmentResponse> findPolicyAssignmentsByTarget(UUID memberPositionId, UUID targetId, PolicyScopeType scopeType) {
-        // TODO: 권한 검사
+        checkPermission(memberPositionId, "attendance", "READ", "COMPANY");
         List<PolicyAssignment> assignments;
         if (scopeType != null) {
             assignments = policyAssignmentRepository.findByTargetIdAndScopeType(targetId, scopeType);
@@ -234,7 +234,7 @@ public class PolicyAssignmentService {
      */
     @Transactional
     public void revokePolicyAssignment(UUID memberPositionId, UUID assignmentId) {
-        // TODO: 권한 검사
+        checkPermission(memberPositionId, "attendance", "UPDATE", "COMPANY");
         PolicyAssignment assignment = policyAssignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("해당 정책 할당을 찾을 수 없습니다. ID: " + assignmentId));
 
@@ -246,7 +246,7 @@ public class PolicyAssignmentService {
      */
     @Transactional
     public void revokeAssignments(UUID memberPositionId, List<UUID> assignmentIds) {
-        // TODO: 권한 검사
+        checkPermission(memberPositionId, "attendance", "UPDATE", "COMPANY");
         List<PolicyAssignment> assignmentsToRevoke = policyAssignmentRepository.findAllById(assignmentIds);
         if (assignmentsToRevoke.size() != assignmentIds.size()) {
             throw new BusinessException("요청된 ID 목록에 존재하지 않는 할당이 포함되어 있습니다.");
@@ -259,7 +259,7 @@ public class PolicyAssignmentService {
      */
     @Transactional
     public void reactivateAssignments(UUID memberPositionId, List<UUID> assignmentIds) {
-        // TODO: 권한 검사
+        checkPermission(memberPositionId, "attendance", "UPDATE", "COMPANY");
         List<PolicyAssignment> assignmentsToReactivate = policyAssignmentRepository.findAllById(assignmentIds);
         if (assignmentsToReactivate.size() != assignmentIds.size()) {
             throw new BusinessException("요청된 ID 목록에 존재하지 않는 할당이 포함되어 있습니다.");
@@ -272,7 +272,22 @@ public class PolicyAssignmentService {
      */
     @Transactional
     public void deleteAssignments(UUID memberPositionId, List<UUID> assignmentIds) {
-        // TODO: 권한 검사
+        checkPermission(memberPositionId, "attendance", "DELETE", "COMPANY");
         policyAssignmentRepository.deleteAllById(assignmentIds);
+    }
+
+    /**
+     * 권한 체크 헬퍼 메서드
+     * @param memberPositionId 권한을 확인할 직원의 memberPositionId
+     * @param resource 리소스 (예: "attendance")
+     * @param action 액션 (예: "CREATE", "READ", "UPDATE", "DELETE")
+     * @param range 권한 범위 (예: "INDIVIDUAL", "DEPARTMENT", "COMPANY")
+     * @throws com.crewvy.common.exception.PermissionDeniedException 권한이 없는 경우
+     */
+    private void checkPermission(UUID memberPositionId, String resource, String action, String range) {
+        Boolean hasPermission = memberClient.checkPermission(memberPositionId, resource, action, range).getData();
+        if (hasPermission == null || !hasPermission) {
+            throw new com.crewvy.common.exception.PermissionDeniedException("권한이 없습니다.");
+        }
     }
 }

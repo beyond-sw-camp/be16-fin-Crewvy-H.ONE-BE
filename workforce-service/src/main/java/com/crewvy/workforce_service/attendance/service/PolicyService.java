@@ -133,14 +133,16 @@ public class PolicyService {
     }
 
     public void deactivatePolicies(UUID memberpositionId, UUID companyId, List<UUID> policyIds) {
-        // TODO: 권한 검사
+        checkPermission(memberpositionId, "attendance", "UPDATE", "COMPANY");
+
         List<Policy> policies = policyRepository.findAllById(policyIds);
         policies.forEach(Policy::deactivate);
         policyRepository.saveAll(policies);
     }
 
     public List<PolicyTypeResponse> findPolicyTypesByCompany(UUID memberpositionId, UUID companyId) {
-        // TODO: 권한 검사
+        checkPermission(memberpositionId, "attendance", "READ", "COMPANY");
+
         List<PolicyType> policyTypes = policyTypeRepository.findByCompanyId(companyId);
         return policyTypes.stream().map(PolicyTypeResponse::new).collect(Collectors.toList());
     }
@@ -163,6 +165,21 @@ public class PolicyService {
             return ruleDetails;
         } catch (IllegalArgumentException e) {
             throw new InvalidPolicyRuleException("제공된 규칙 상세 정보(ruleDetails)의 형식이 올바르지 않습니다.");
+        }
+    }
+
+    /**
+     * 권한 체크 헬퍼 메서드
+     * @param memberPositionId 권한을 확인할 직원의 memberPositionId
+     * @param resource 리소스 (예: "attendance")
+     * @param action 액션 (예: "CREATE", "READ", "UPDATE", "DELETE")
+     * @param range 권한 범위 (예: "INDIVIDUAL", "DEPARTMENT", "COMPANY")
+     * @throws com.crewvy.common.exception.PermissionDeniedException 권한이 없는 경우
+     */
+    private void checkPermission(UUID memberPositionId, String resource, String action, String range) {
+        Boolean hasPermission = memberClient.checkPermission(memberPositionId, resource, action, range).getData();
+        if (hasPermission == null || !hasPermission) {
+            throw new com.crewvy.common.exception.PermissionDeniedException("권한이 없습니다.");
         }
     }
 }
