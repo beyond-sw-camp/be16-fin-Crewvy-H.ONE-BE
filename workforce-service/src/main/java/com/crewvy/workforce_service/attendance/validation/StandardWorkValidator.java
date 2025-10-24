@@ -1,8 +1,11 @@
 package com.crewvy.workforce_service.attendance.validation;
 
 import com.crewvy.common.exception.InvalidPolicyRuleException;
+import com.crewvy.workforce_service.attendance.dto.rule.OvertimeRuleDto;
 import com.crewvy.workforce_service.attendance.dto.rule.PolicyRuleDetails;
 import org.springframework.stereotype.Component;
+
+import java.math.BigDecimal;
 
 @Component("standard_workValidator") // Factory에서 찾을 수 있도록 Bean 이름 지정
 public class StandardWorkValidator implements PolicyRuleValidator {
@@ -35,6 +38,30 @@ public class StandardWorkValidator implements PolicyRuleValidator {
             if (breakRule.getMandatoryBreakMinutes() == null || breakRule.getMandatoryBreakMinutes() < 30) {
                 throw new InvalidPolicyRuleException("법규 위반: 4시간 이상 근무 시, 휴게 시간은 30분 이상이어야 합니다.");
             }
+        }
+
+        // 4. 연장/야간/휴일 근무 규칙 검증 (OvertimeRuleDto)
+        if (details.getOvertimeRule() != null) {
+            validateOvertimeRule(details.getOvertimeRule());
+        }
+    }
+
+    private void validateOvertimeRule(OvertimeRuleDto overtimeRule) {
+        // 주 12시간 연장근무 한도 검증 (근로기준법 제53조)
+        if (overtimeRule.getMaxWeeklyOvertimeMinutes() != null && overtimeRule.getMaxWeeklyOvertimeMinutes() > 720) {
+            throw new InvalidPolicyRuleException("법규 위반: 주간 최대 연장근무 한도는 12시간(720분)을 초과할 수 없습니다.");
+        }
+
+        // 가산 수당률 법적 최소치 검증 (근로기준법 제56조)
+        validateRate("연장근무 가산 수당률", overtimeRule.getOvertimeRate(), new BigDecimal("1.5"));
+        validateRate("야간근무 가산 수당률", overtimeRule.getNightWorkRate(), new BigDecimal("1.5"));
+        validateRate("휴일근무 가산 수당률", overtimeRule.getHolidayWorkRate(), new BigDecimal("1.5"));
+        validateRate("휴일 연장근무 가산 수당률", overtimeRule.getHolidayOvertimeRate(), new BigDecimal("2.0"));
+    }
+
+    private void validateRate(String rateName, BigDecimal rate, BigDecimal minimumRate) {
+        if (rate != null && rate.compareTo(minimumRate) < 0) {
+            throw new InvalidPolicyRuleException(String.format("법규 위반: %s은(는) %s 이상이어야 합니다.", rateName, minimumRate));
         }
     }
 }

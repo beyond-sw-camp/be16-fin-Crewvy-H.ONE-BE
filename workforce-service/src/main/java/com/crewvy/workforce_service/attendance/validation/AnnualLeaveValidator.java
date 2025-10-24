@@ -1,6 +1,7 @@
 package com.crewvy.workforce_service.attendance.validation;
 
 import com.crewvy.common.exception.InvalidPolicyRuleException;
+import com.crewvy.workforce_service.attendance.dto.rule.LeaveRuleDto;
 import com.crewvy.workforce_service.attendance.dto.rule.PolicyRuleDetails;
 import org.springframework.stereotype.Component;
 
@@ -12,7 +13,7 @@ public class AnnualLeaveValidator implements PolicyRuleValidator {
             throw new InvalidPolicyRuleException("연차 정책에는 휴가 규칙(leaveRule)이 필수입니다.");
         }
 
-        var leaveRule = details.getLeaveRule();
+        LeaveRuleDto leaveRule = details.getLeaveRule();
         if (leaveRule.getDefaultDays() == null) {
             throw new InvalidPolicyRuleException("연차 규칙에는 기본 부여 일수(defaultDays)가 필수입니다.");
         }
