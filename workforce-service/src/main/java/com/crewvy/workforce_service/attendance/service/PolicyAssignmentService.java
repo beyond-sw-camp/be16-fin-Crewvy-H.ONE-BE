@@ -119,7 +119,7 @@ public class PolicyAssignmentService {
      */
     @Transactional(readOnly = true)
     public Page<PolicyAssignmentResponse> findAssignments(UUID memberId, UUID memberPositionId, UUID companyId, Pageable pageable) {
-        Page<PolicyAssignment> assignmentsPage = policyAssignmentRepository.findAllByCompanyId(companyId, pageable);
+        Page<PolicyAssignment> assignmentsPage = policyAssignmentRepository.findAllByPolicy_CompanyId(companyId, pageable);
 
         // 1. 직원 정보 조회를 위해 ID 추출
         List<UUID> memberIds = assignmentsPage.getContent().stream()
