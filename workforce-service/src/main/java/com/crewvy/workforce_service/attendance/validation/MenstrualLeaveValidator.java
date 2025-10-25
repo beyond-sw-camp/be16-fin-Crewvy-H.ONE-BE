@@ -32,5 +32,28 @@ public class MenstrualLeaveValidator implements PolicyRuleValidator {
                 "법규 위반: 생리휴가는 최소 월 1일 이상이어야 합니다. (근로기준법 제73조)"
             );
         }
+
+        // 4. 실무적 상한선 (월 3일 정도가 적절)
+        if (leaveRule.getDefaultDays() > 3) {
+            throw new InvalidPolicyRuleException("생리휴가는 월 3일을 초과하여 설정할 수 없습니다.");
+        }
+
+        // 5. 주기별 제한 검증 (월간 제한)
+        if (leaveRule.getLimitPeriod() != null) {
+            if (!leaveRule.getLimitPeriod().equals("MONTHLY")) {
+                throw new InvalidPolicyRuleException("생리휴가의 제한 주기(limitPeriod)는 'MONTHLY'여야 합니다.");
+            }
+        }
+
+        if (leaveRule.getMaxDaysPerPeriod() != null) {
+            if (leaveRule.getMaxDaysPerPeriod() < 1) {
+                throw new InvalidPolicyRuleException(
+                    "법규 위반: 월간 최대 사용 일수(maxDaysPerPeriod)는 최소 1일 이상이어야 합니다. (근로기준법 제73조)"
+                );
+            }
+            if (leaveRule.getMaxDaysPerPeriod() > 3) {
+                throw new InvalidPolicyRuleException("월간 최대 사용 일수는 3일을 초과할 수 없습니다.");
+            }
+        }
     }
 }

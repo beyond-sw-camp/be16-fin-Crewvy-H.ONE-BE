@@ -32,5 +32,25 @@ public class PaternityLeaveValidator implements PolicyRuleValidator {
                 "법규 위반: 배우자 출산휴가는 최소 10일 이상이어야 합니다. (남녀고용평등법 제18조의2)"
             );
         }
+
+        // 4. 실무적 상한선 (법정 10일 기준)
+        if (leaveRule.getDefaultDays() > 20) {
+            throw new InvalidPolicyRuleException("배우자 출산휴가는 20일을 초과하여 설정할 수 없습니다.");
+        }
+
+        // 5. 사용 기한 검증 (출산일 기준 90일 이내 사용)
+        if (leaveRule.getMaxDaysFromEventDate() != null) {
+            if (leaveRule.getMaxDaysFromEventDate() < 30) {
+                throw new InvalidPolicyRuleException("배우자 출산휴가 사용 가능 기간은 최소 30일 이상이어야 합니다.");
+            }
+            if (leaveRule.getMaxDaysFromEventDate() > 365) {
+                throw new InvalidPolicyRuleException("배우자 출산휴가 사용 가능 기간은 365일을 초과할 수 없습니다.");
+            }
+        }
+
+        // 6. 분할 사용 규칙 (1회 또는 2회 분할 허용)
+        if (leaveRule.getMaxSplitCount() != null && leaveRule.getMaxSplitCount() > 2) {
+            throw new InvalidPolicyRuleException("배우자 출산휴가는 최대 2회까지 분할 사용 가능합니다.");
+        }
     }
 }

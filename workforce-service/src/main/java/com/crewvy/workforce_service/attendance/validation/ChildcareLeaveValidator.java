@@ -37,5 +37,27 @@ public class ChildcareLeaveValidator implements PolicyRuleValidator {
         if (leaveRule.getDefaultDays() <= 0) {
             throw new InvalidPolicyRuleException("육아휴직 기간은 최소 1일 이상이어야 합니다.");
         }
+
+        // 5. 분할 사용 규칙 검증
+        if (leaveRule.getMaxSplitCount() != null) {
+            if (leaveRule.getMaxSplitCount() < 1) {
+                throw new InvalidPolicyRuleException("최대 분할 횟수(maxSplitCount)는 1 이상이어야 합니다.");
+            }
+            // 실무적으로 분할은 최대 3회 정도가 적절
+            if (leaveRule.getMaxSplitCount() > 10) {
+                throw new InvalidPolicyRuleException("최대 분할 횟수(maxSplitCount)는 10 이하로 설정하는 것을 권장합니다.");
+            }
+        }
+
+        // 6. 최소 연속 사용 일수 검증
+        if (leaveRule.getMinConsecutiveDays() != null) {
+            if (leaveRule.getMinConsecutiveDays() < 1) {
+                throw new InvalidPolicyRuleException("최소 연속 사용 일수(minConsecutiveDays)는 1 이상이어야 합니다.");
+            }
+            // 최소 연속 일수가 전체 기간을 초과할 수 없음
+            if (leaveRule.getDefaultDays() != null && leaveRule.getMinConsecutiveDays() > leaveRule.getDefaultDays()) {
+                throw new InvalidPolicyRuleException("최소 연속 사용 일수는 전체 육아휴직 기간을 초과할 수 없습니다.");
+            }
+        }
     }
 }

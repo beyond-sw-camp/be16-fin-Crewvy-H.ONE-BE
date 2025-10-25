@@ -33,5 +33,15 @@ public class MaternityLeaveValidator implements PolicyRuleValidator {
                 "법규 위반: 출산전후휴가는 최소 90일 이상이어야 합니다. (근로기준법 제74조)"
             );
         }
+
+        // 4. 실무적 상한선 (다태아 120일, 일반 90일 기준)
+        if (leaveRule.getDefaultDays() > 150) {
+            throw new InvalidPolicyRuleException("출산전후휴가는 150일을 초과하여 설정할 수 없습니다.");
+        }
+
+        // 5. 분할 사용 규칙 검증 (출산 전후 배분)
+        if (leaveRule.getMaxSplitCount() != null && leaveRule.getMaxSplitCount() > 1) {
+            throw new InvalidPolicyRuleException("출산전후휴가는 분할 사용이 제한됩니다. (출산 전/후 1회씩만 가능)");
+        }
     }
 }

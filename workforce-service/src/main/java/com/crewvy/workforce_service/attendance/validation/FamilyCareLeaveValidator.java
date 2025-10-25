@@ -37,5 +37,23 @@ public class FamilyCareLeaveValidator implements PolicyRuleValidator {
         if (leaveRule.getDefaultDays() <= 0) {
             throw new InvalidPolicyRuleException("가족돌봄휴가 기간은 최소 1일 이상이어야 합니다.");
         }
+
+        // 5. 주기별 제한 검증 (연간 제한)
+        if (leaveRule.getLimitPeriod() != null) {
+            if (!leaveRule.getLimitPeriod().equals("YEARLY")) {
+                throw new InvalidPolicyRuleException("가족돌봄휴가의 제한 주기(limitPeriod)는 'YEARLY'여야 합니다.");
+            }
+        }
+
+        if (leaveRule.getMaxDaysPerPeriod() != null) {
+            if (leaveRule.getMaxDaysPerPeriod() > 10) {
+                throw new InvalidPolicyRuleException(
+                    "법규 위반: 연간 최대 사용 일수(maxDaysPerPeriod)는 10일을 초과할 수 없습니다. (남녀고용평등법 제22조의2)"
+                );
+            }
+            if (leaveRule.getMaxDaysPerPeriod() < 1) {
+                throw new InvalidPolicyRuleException("연간 최대 사용 일수는 1일 이상이어야 합니다.");
+            }
+        }
     }
 }
