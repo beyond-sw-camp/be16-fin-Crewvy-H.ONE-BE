@@ -48,6 +48,9 @@ public class PolicyService {
         PolicyType policyType = policyTypeRepository.findByCompanyIdAndTypeCode(companyId, request.getTypeCode())
                 .orElseThrow(() -> new ResourceNotFoundException("해당 회사에 존재하지 않는 정책 유형입니다."));
 
+        // 법정 필수 유급 휴가 검증
+        validateMandatoryPaidLeave(request.getTypeCode(), request.getIsPaid());
+
         PolicyRuleDetails ruleDetails = convertAndValidateRuleDetails(request.getRuleDetails(), request.getTypeCode());
 
         Policy newPolicy = Policy.builder()
@@ -92,10 +95,13 @@ public class PolicyService {
         PolicyType policyType = policyTypeRepository.findByCompanyIdAndTypeCode(policy.getCompanyId(), request.getTypeCode())
                 .orElseThrow(() -> new ResourceNotFoundException("존재하지 않는 정책 유형입니다."));
 
-        // 3. ruleDetails 변환 및 검증
+        // 3. 법정 필수 유급 휴가 검증
+        validateMandatoryPaidLeave(request.getTypeCode(), request.getIsPaid());
+
+        // 4. ruleDetails 변환 및 검증
         PolicyRuleDetails ruleDetails = convertAndValidateRuleDetails(request.getRuleDetails(), policyType.getTypeCode());
 
-        // 4. 엔티티 내용 업데이트
+        // 5. 엔티티 내용 업데이트
         policy.update(
                 policyType,
                 request.getName(),
@@ -180,6 +186,25 @@ public class PolicyService {
         Boolean hasPermission = memberClient.checkPermission(memberPositionId, resource, action, range).getData();
         if (hasPermission == null || !hasPermission) {
             throw new com.crewvy.common.exception.PermissionDeniedException("권한이 없습니다.");
+        }
+    }
+
+    /**
+     * 법정 필수 유급 휴가의 유급 여부를 검증합니다.
+     * @param typeCode 정책 타입 코드
+     * @param isPaid 유급 여부
+     * @throws BusinessException 법정 필수 유급 휴가가 무급으로 설정된 경우
+     */
+    private void validateMandatoryPaidLeave(PolicyTypeCode typeCode, Boolean isPaid) {
+        if (isPaid == null || !isPaid) {
+            switch (typeCode) {
+                case ANNUAL_LEAVE:
+                    throw new BusinessException("연차유급휴가는 반드시 유급이어야 합니다. (근로기준법 제60조)");
+                case MATERNITY_LEAVE:
+                    throw new BusinessException("출산전후휴가는 반드시 유급이어야 합니다. (근로기준법 제74조)");
+                case PATERNITY_LEAVE:
+                    throw new BusinessException("배우자 출산휴가는 반드시 유급이어야 합니다. (남녀고용평등법 제18조의2)");
+            }
         }
     }
 }
