@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -44,4 +45,6 @@ public interface PerformanceRepository extends JpaRepository<Goal, UUID> {
     int updateStatusForExpiredGoals(@Param("oldStatus") GoalStatus oldStatus,
                                     @Param("newStatus") GoalStatus newStatus,
                                     @Param("today") LocalDate today);
+
+    long countByTeamGoalAndStatusIn(TeamGoal teamGoal, Set<GoalStatus> pendingStatuses);
 }

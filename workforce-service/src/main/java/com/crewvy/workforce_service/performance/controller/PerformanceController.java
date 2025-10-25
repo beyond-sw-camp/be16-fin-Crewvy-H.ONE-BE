@@ -31,6 +31,15 @@ public class PerformanceController {
         );
     }
 
+    @GetMapping("/team-goal-processing")
+    public ResponseEntity<?> getTeamGoalProcessing(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+        List<TeamGoalResponseDto> teamGoalResponseDtoList = performanceService.getTeamGoalProcessing(memberPositionId);
+        return new ResponseEntity<>(
+                ApiResponse.success(teamGoalResponseDtoList, "팀 목표 조회"),
+                HttpStatus.OK
+        );
+    }
+
     @GetMapping("team-goal/{id}")
     public ResponseEntity<?> getSubGoal(@PathVariable UUID id) {
         TeamGoalDetailResponseDto dto = performanceService.getSubGoal(id);
@@ -113,7 +122,7 @@ public class PerformanceController {
     }
 
     @PostMapping("/create-evaluation")
-    public ResponseEntity<?> createEvaluation(CreateEvaluationDto dto,
+    public ResponseEntity<?> createEvaluation(@RequestBody CreateEvaluationDto dto,
                                               @RequestHeader("X-User-MemberPositionId") UUID memberPositionId
     ) {
         UUID evaluationId = performanceService.createEvaluation(dto, memberPositionId);
@@ -123,11 +132,10 @@ public class PerformanceController {
         );
     }
 
-    @GetMapping("/find-evaluation")
-    public ResponseEntity<?> findEvaluation(FindEvaluationDto dto) {
-        EvaluationResponseDto responseDto = performanceService.findEvaluation(dto);
+    @GetMapping("/find-evaluation/{goalId}")
+    public ResponseEntity<?> findEvaluation(@PathVariable UUID goalId) {
         return new ResponseEntity<>(
-                ApiResponse.success(responseDto, "평가 조회"),
+                ApiResponse.success(performanceService.findEvaluation(goalId), "평가 조회"),
                 HttpStatus.OK
         );
     }
@@ -164,7 +172,23 @@ public class PerformanceController {
     @GetMapping("/find-goal-evaluation")
     public ResponseEntity<?> findMyGoalToEvaluation(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
         return new ResponseEntity<>(
-                ApiResponse.success(performanceService.findMyGoalToEvaluate(memberPositionId), "평가대상 팀 목표 조회"),
+                ApiResponse.success(performanceService.findMyGoalToEvaluate(memberPositionId), "평가대상 개인 목표 조회"),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/find-complete-teamgoal")
+    public ResponseEntity<?> findTeamGoalComplete(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+        return new ResponseEntity<>(
+                ApiResponse.success(performanceService.findMyTeamGoalsComplete(memberPositionId), "평가완료상태 팀목표 조회"),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/find-complete-goal")
+    public ResponseEntity<?> findMyGoalComplete(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+        return new ResponseEntity<>(
+                ApiResponse.success(performanceService.findMyGoalComplete(memberPositionId), "평가완료상태 팀목표 조회"),
                 HttpStatus.OK
         );
     }

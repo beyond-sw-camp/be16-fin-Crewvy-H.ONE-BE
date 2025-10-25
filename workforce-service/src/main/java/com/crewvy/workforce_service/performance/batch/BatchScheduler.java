@@ -27,10 +27,13 @@ public class BatchScheduler {
     @Qualifier("updateTeamGoalStatusJob")
     private final Job updateTeamGoalStatusJob;
 
+    @Qualifier("completeTeamGoalEvaluationJob")
+    private final Job completeTeamGoalEvaluationJob;
+
     /**
      * 매일 새벽 1시에 실행
      */
-    @Scheduled(cron = "0 0 1 * * *")
+    @Scheduled(cron = "0 10 1 * * *")
     @Async // (권장) 스케줄러 스레드가 아닌 별도 스레드에서 배치를 비동기로 실행
     public void runAllExpiredStatusUpdateJobs() {
         log.info("스케줄러 실행: 마감된 목표 상태 변경 배치 시작");
@@ -54,6 +57,14 @@ public class BatchScheduler {
 
             log.info("Job 2 (updateTeamGoalStatusJob) 실행...");
             jobLauncher.run(updateTeamGoalStatusJob, teamGoalJobParams);
+
+            // --- Job 3 실행 (방금 추가한 Job) ---
+            JobParameters evaluationJobParams = new JobParametersBuilder()
+                    .addString("runTime", runTime)
+                    .toJobParameters();
+
+            log.info("Job 3 (completeTeamGoalEvaluationJob) 실행...");
+            jobLauncher.run(completeTeamGoalEvaluationJob, evaluationJobParams);
 
         } catch (Exception e) {
             log.error("배치 스케줄링 실행 중 오류 발생", e);

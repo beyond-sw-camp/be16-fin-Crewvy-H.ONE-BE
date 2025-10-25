@@ -33,6 +33,7 @@ public class PerformanceService {
     private final EvaluationRepository evaluationRepository;
     private final S3Uploader s3Uploader;
     private final MemberClient memberClient;
+    private final TeamGoalCompletionService teamGoalCompletionService;
 
 //    팀 목표 리스트
     public List<TeamGoalResponseDto> getTeamGoal(UUID memberPositionId) {
@@ -42,6 +43,39 @@ public class PerformanceService {
                         .map(TeamGoal::getMemberPositionId)
                         .distinct()
                         .toList());
+        ApiResponse<List<PositionDto>> response = memberClient.getPositionList(memberPositionId, mpidList);
+
+        Map<UUID, PositionDto> positionMap = response.getData().stream()
+                .collect(Collectors.toMap(PositionDto::getMemberPositionId, position -> position));
+
+        return teamGoalList.stream().map(teamGoal -> {
+            // Map에서 현재 teamGoal의 memberPositionId와 일치하는 PositionDto를 찾습니다.
+            PositionDto matchingPosition = positionMap.get(teamGoal.getMemberPositionId());
+
+            // TeamGoalResponseDto를 만들 때, 찾은 PositionDto의 데이터를 함께 넣어줍니다.
+            return TeamGoalResponseDto.builder()
+                    .teamGoalId(teamGoal.getId())
+                    .title(teamGoal.getTitle())
+                    .contents(teamGoal.getContents())
+                    .status(teamGoal.getStatus().getCodeName())
+                    .startDate(teamGoal.getStartDate())
+                    .endDate(teamGoal.getEndDate())
+                    .memberPositionId(teamGoal.getMemberPositionId())
+                    .memberName(matchingPosition != null ? matchingPosition.getMemberName() : null)
+                    .memberPosition(matchingPosition != null ? matchingPosition.getTitleName() : null)
+                    .memberOrganization(matchingPosition != null ? matchingPosition.getOrganizationName() : null)
+                    .build();
+        }).toList();
+    }
+
+    //    팀 목표 리스트
+    public List<TeamGoalResponseDto> getTeamGoalProcessing(UUID memberPositionId) {
+        List<TeamGoal> teamGoalList = teamGoalRepository.findAllByMemberPositionIdAndStatus(memberPositionId, TeamGoalStatus.PROCESSING);
+
+        IdListReq mpidList = new IdListReq(teamGoalList.stream()
+                .map(TeamGoal::getMemberPositionId)
+                .distinct()
+                .toList());
         ApiResponse<List<PositionDto>> response = memberClient.getPositionList(memberPositionId, mpidList);
 
         Map<UUID, PositionDto> positionMap = response.getData().stream()
@@ -203,6 +237,7 @@ public class PerformanceService {
                 .startDate(goal.getStartDate())
                 .endDate(goal.getEndDate())
                 .status(goal.getStatus().getCodeName())
+                .comment(goal.getComment())
                 .teamGoalTitle(goal.getTeamGoal().getTitle())
                 .teamGoalContents(goal.getTeamGoal().getContents())
                 .teamGoalMemberPositionId(goal.getTeamGoal().getMemberPositionId())
@@ -288,20 +323,17 @@ public class PerformanceService {
         }
         else if(dto.getType().equals(EvaluationType.SUPERVISOR)) {
             goal.updateStatus(GoalStatus.MANAGER_EVAL_COMPLETED);
+            teamGoalCompletionService.checkAndCompleteTeamGoal(goal.getTeamGoal());
         }
 
         return evaluation.getId();
     }
 
     //    평가 조회
-    public EvaluationResponseDto findEvaluation(FindEvaluationDto dto) {
-        Goal goal = performanceRepository.findById(dto.getGoalId()).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 목표입니다."));
-        Evaluation evaluation = evaluationRepository.findByGoalAndType(goal, dto.getType()).orElseThrow(() -> new EntityNotFoundException("평가가 존재하지 않습니다."));
-        return EvaluationResponseDto.builder()
-                .evaluationId(evaluation.getId())
-                .grade(evaluation.getGrade())
-                .comment(evaluation.getComment())
-                .build();
+    public List<EvaluationResponseDto> findEvaluation(UUID goalId) {
+        Goal goal = performanceRepository.findById(goalId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 목표입니다."));
+        List<Evaluation> evaluationList = evaluationRepository.findByGoal(goal);
+        return evaluationList.stream().map(EvaluationResponseDto::from).toList();
     }
 
     //    내 목표 업데이트
@@ -452,6 +484,70 @@ public class PerformanceService {
         List<Goal> goalList = performanceRepository.findGoalsByMemberPositionIdAndStatus(
                 memberPositionId,
                 GoalStatus.AWAITING_EVALUATION // 제외할 상태
+        );
+
+        return goalList.stream()
+                .map(g -> GoalResponseDto.builder()
+                        .goalId(g.getId())
+                        .title(g.getTitle())
+                        .contents(g.getContents())
+                        .memberPositionId(g.getMemberPositionId())
+                        .status(g.getStatus().getCodeName())
+                        .startDate(g.getStartDate())
+                        .endDate(g.getEndDate())
+                        .teamGoalTitle(g.getTeamGoal() != null ? g.getTeamGoal().getTitle() : null)
+                        .build())
+                .toList();
+    }
+
+//    평가완료 팀 목표 조회
+    public List<TeamGoalResponseDto> findMyTeamGoalsComplete(UUID memberPositionId) {
+        // 1. 내가 관리자(생성자)인 '평가 대기' 팀 목표 조회
+        List<TeamGoal> teamGoalList = teamGoalRepository.findAllByMemberPositionIdAndStatus(memberPositionId, TeamGoalStatus.EVALUATION_COMPLETED);
+
+        // 2. (최적화) 조회된 팀 목표가 없으면 API 호출 없이 바로 빈 리스트 반환
+        if (teamGoalList.isEmpty()) {
+            return new ArrayList<>(); // 또는 Collections.emptyList()
+        }
+
+        // 3. (수정) 나의 Position 정보 1건만 조회 (Map 불필요)
+        ApiResponse<List<PositionDto>> response = memberClient.getPositionList(
+                memberPositionId,
+                new IdListReq(List.of(memberPositionId))
+        );
+
+        // 4. (수정) Map 대신 단일 PositionDto 객체로 관리
+        // API 응답이 정상이면서, 데이터가 있고, 비어있지 않은지 확인
+        PositionDto creatorInfo = null;
+        if (response != null && response.getData() != null && !response.getData().isEmpty()) {
+            creatorInfo = response.getData().get(0); // 1건만 있으므로 0번째 인덱스
+        }
+
+        // 5. DTO 변환 (람다에서 사용하기 위해 effectively final 변수 사용)
+        final PositionDto finalCreatorInfo = creatorInfo;
+
+        return teamGoalList.stream().map(teamGoal -> {
+            // (수정) Map 조회 로직 삭제, finalCreatorInfo 변수 직접 사용
+            return TeamGoalResponseDto.builder()
+                    .teamGoalId(teamGoal.getId())
+                    .title(teamGoal.getTitle())
+                    .contents(teamGoal.getContents())
+                    .status(teamGoal.getStatus().getCodeName())
+                    .startDate(teamGoal.getStartDate())
+                    .endDate(teamGoal.getEndDate())
+                    .memberPositionId(teamGoal.getMemberPositionId()) // 이 ID는 항상 memberPositionId와 동일
+                    .memberName(finalCreatorInfo != null ? finalCreatorInfo.getMemberName() : null)
+                    .memberPosition(finalCreatorInfo != null ? finalCreatorInfo.getTitleName() : null)
+                    .memberOrganization(finalCreatorInfo != null ? finalCreatorInfo.getOrganizationName() : null)
+                    .build();
+        }).toList();
+    }
+
+    //    평가 완료 내 목표 조회
+    public List<GoalResponseDto> findMyGoalComplete(UUID memberPositionId) {
+        List<Goal> goalList = performanceRepository.findGoalsByMemberPositionIdAndStatus(
+                memberPositionId,
+                GoalStatus.MANAGER_EVAL_COMPLETED
         );
 
         return goalList.stream()
