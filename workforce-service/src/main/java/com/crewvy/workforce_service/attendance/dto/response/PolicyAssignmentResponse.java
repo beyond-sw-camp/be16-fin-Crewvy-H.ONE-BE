@@ -32,7 +32,7 @@ public class PolicyAssignmentResponse {
         this.policyId = entity.getPolicy().getId();
         this.policyName = entity.getPolicy().getName();
         this.targetId = entity.getTargetId();
-        this.scopeType = entity.getTargetType();
+        this.scopeType = entity.getScopeType();
         this.isActive = entity.isActive();
         this.assignedBy = entity.getAssignedBy();
         this.assignedAt = entity.getAssignedAt();

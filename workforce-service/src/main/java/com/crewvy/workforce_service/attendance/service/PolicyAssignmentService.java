@@ -98,7 +98,6 @@ public class PolicyAssignmentService {
                     return PolicyAssignment.builder()
                             .policy(policy)
                             .scopeType(singleRequest.getScopeType())
-                            .targetType(singleRequest.getScopeType()) // targetType 필드 추가
                             .targetId(singleRequest.getTargetId())
                             .assignedBy(memberPositionId) // 할당자 정보 추가
                             .assignedAt(LocalDateTime.now())
