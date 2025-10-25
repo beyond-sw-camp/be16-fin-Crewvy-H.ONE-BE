@@ -161,8 +161,9 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         LeaveRuleDto leaveRule = new LeaveRuleDto();
         leaveRule.setDefaultDays(15.0); // 법정 최소 15일
         leaveRule.setFirstYearMaxAccrual(11); // 1년 미만 근로자 최대 11일
-        leaveRule.setAccrualType("AUTO");
-        leaveRule.setMinimumRequestUnit("DAY");
+        leaveRule.setAccrualType("ACCRUAL"); // 자동 발생
+        leaveRule.setMinimumRequestUnit("DAY"); // 최소 단위: 1일
+        leaveRule.setRequestDeadlineDays(1); // 1일 전 신청
 
         PolicyRuleDetails ruleDetails = new PolicyRuleDetails();
         ruleDetails.setLeaveRule(leaveRule);
@@ -182,8 +183,8 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     private Policy createMaternityLeavePolicy(Map<PolicyTypeCode, PolicyType> policyTypes) {
         LeaveRuleDto leaveRule = new LeaveRuleDto();
         leaveRule.setDefaultDays(90.0); // 근로기준법 제74조 - 90일 (다태아 120일)
-        leaveRule.setAccrualType("MANUAL");
-        leaveRule.setMinimumRequestUnit("DAY");
+        leaveRule.setMinimumRequestUnit("DAY"); // 최소 단위: 1일
+        leaveRule.setRequestDeadlineDays(30); // 30일 전 신청
 
         PolicyRuleDetails ruleDetails = new PolicyRuleDetails();
         ruleDetails.setLeaveRule(leaveRule);
@@ -202,8 +203,10 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     private Policy createPaternityLeavePolicy(Map<PolicyTypeCode, PolicyType> policyTypes) {
         LeaveRuleDto leaveRule = new LeaveRuleDto();
         leaveRule.setDefaultDays(10.0); // 남녀고용평등법 제18조의2 - 10일
-        leaveRule.setAccrualType("MANUAL");
-        leaveRule.setMinimumRequestUnit("DAY");
+        leaveRule.setMinimumRequestUnit("DAY"); // 최소 단위: 1일
+        leaveRule.setRequestDeadlineDays(1); // 1일 전 신청
+        leaveRule.setMaxDaysFromEventDate(90); // 출산일 기준 ±90일 이내 사용
+        leaveRule.setMaxSplitCount(2); // 최대 2회 분할 사용 가능
 
         PolicyRuleDetails ruleDetails = new PolicyRuleDetails();
         ruleDetails.setLeaveRule(leaveRule);
@@ -222,8 +225,10 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     private Policy createChildcareLeavePolicy(Map<PolicyTypeCode, PolicyType> policyTypes) {
         LeaveRuleDto leaveRule = new LeaveRuleDto();
         leaveRule.setDefaultDays(365.0); // 남녀고용평등법 제19조 - 최대 1년
-        leaveRule.setAccrualType("MANUAL");
-        leaveRule.setMinimumRequestUnit("DAY");
+        leaveRule.setMinimumRequestUnit("DAY"); // 최소 단위: 1일
+        leaveRule.setRequestDeadlineDays(30); // 30일 전 신청
+        leaveRule.setMaxSplitCount(3); // 최대 3회 분할 사용 가능
+        leaveRule.setMinConsecutiveDays(30); // 1회당 최소 30일 연속 사용
 
         PolicyRuleDetails ruleDetails = new PolicyRuleDetails();
         ruleDetails.setLeaveRule(leaveRule);
@@ -242,8 +247,10 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     private Policy createFamilyCareLeavePolicy(Map<PolicyTypeCode, PolicyType> policyTypes) {
         LeaveRuleDto leaveRule = new LeaveRuleDto();
         leaveRule.setDefaultDays(10.0); // 남녀고용평등법 제22조의2 - 연간 최대 10일
-        leaveRule.setAccrualType("AUTO");
-        leaveRule.setMinimumRequestUnit("DAY");
+        leaveRule.setMinimumRequestUnit("DAY"); // 최소 단위: 1일
+        leaveRule.setRequestDeadlineDays(1); // 1일 전 신청
+        leaveRule.setLimitPeriod("YEARLY"); // 연간 제한
+        leaveRule.setMaxDaysPerPeriod(10); // 연간 최대 10일
 
         PolicyRuleDetails ruleDetails = new PolicyRuleDetails();
         ruleDetails.setLeaveRule(leaveRule);
@@ -262,8 +269,9 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     private Policy createMenstrualLeavePolicy(Map<PolicyTypeCode, PolicyType> policyTypes) {
         LeaveRuleDto leaveRule = new LeaveRuleDto();
         leaveRule.setDefaultDays(1.0); // 근로기준법 제73조 - 월 1일
-        leaveRule.setAccrualType("AUTO");
-        leaveRule.setMinimumRequestUnit("DAY");
+        leaveRule.setMinimumRequestUnit("DAY"); // 최소 단위: 1일
+        leaveRule.setLimitPeriod("MONTHLY"); // 월간 제한
+        leaveRule.setMaxDaysPerPeriod(1); // 월 최대 1일
 
         PolicyRuleDetails ruleDetails = new PolicyRuleDetails();
         ruleDetails.setLeaveRule(leaveRule);
