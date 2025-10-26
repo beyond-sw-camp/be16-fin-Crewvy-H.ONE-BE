@@ -1,10 +1,10 @@
 package com.crewvy.member_service.member.kafka;
 
-import com.crewvy.common.event.MemberSavedEvent;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.crewvy.common.entity.Bool;
+import com.crewvy.common.event.MemberSavedEvent;
 import com.crewvy.member_service.member.entity.SearchOutboxEvent;
 import com.crewvy.member_service.member.repository.SearchOutboxEventRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Pageable;

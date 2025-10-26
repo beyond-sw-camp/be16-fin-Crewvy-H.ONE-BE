@@ -52,7 +52,7 @@ public class OnboardingService {
         memberService.createAndAssignDefaultPosition(null, adminMember, organization, adminTitle, adminRole);
 
         // 통합검색 kafka
-        memberService.createAndSaveSearchOutboxEvent(adminMember);
+        memberService.saveSearchOutboxEvent(adminMember);
 
         return adminMember.getId();
     }

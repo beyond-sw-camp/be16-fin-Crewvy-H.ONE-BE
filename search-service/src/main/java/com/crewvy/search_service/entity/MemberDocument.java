@@ -1,6 +1,7 @@
 package com.crewvy.search_service.entity;
 
 
+import com.crewvy.common.event.OrganizationEvent;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -24,11 +25,14 @@ public class MemberDocument {
     @Field(type = FieldType.Keyword)
     private String memberId;
 
+    @Field(type = FieldType.Keyword, name = "companyId")
+    private String companyId;
+
     @Field(type = FieldType.Text)
     private String name;
 
     @Field(type = FieldType.Text)
-    private List<String> organizationName;
+    private List<OrganizationEvent> organizationList;
 
     @Field(type = FieldType.Text)
     private List<String> titleName;

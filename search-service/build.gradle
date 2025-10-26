@@ -55,9 +55,6 @@ dependencies {
 
     // elasticsearch
     implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
-
-    // common 모듈을 의존성으로 추가
-    implementation project(':common')
 }
 
 dependencyManagement {

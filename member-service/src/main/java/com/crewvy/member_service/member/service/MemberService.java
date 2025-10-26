@@ -3,6 +3,7 @@ package com.crewvy.member_service.member.service;
 import com.crewvy.common.entity.Bool;
 import com.crewvy.common.event.MemberDeletedEvent;
 import com.crewvy.common.event.MemberSavedEvent;
+import com.crewvy.common.event.OrganizationEvent;
 import com.crewvy.common.exception.PermissionDeniedException;
 import com.crewvy.common.exception.SerializationException;
 import com.crewvy.member_service.member.auth.JwtTokenProvider;
@@ -23,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.*;
-import java.util.Collections;
 import java.util.stream.Collectors;
 
 import static java.lang.Boolean.FALSE;
@@ -32,7 +32,6 @@ import static java.lang.Boolean.TRUE;
 @Service
 @Transactional
 public class MemberService {
-
     private final CompanyRepository companyRepository;
     private final OrganizationRepository organizationRepository;
     private final MemberRepository memberRepository;
@@ -130,7 +129,7 @@ public class MemberService {
         Role role = roleRepository.findById(createMemberReq.getRoleId()).orElseThrow(()
                 -> new IllegalArgumentException("존재하지 않는 역할입니다."));
 
-        MemberPosition memberPosition = createMemberPosition(createMemberReq.getMemberPositionName(), savedMember, organization, title, role, LocalDate.now(), null);
+        MemberPosition memberPosition = createMemberPosition(createMemberReq.getMemberPositionName(), savedMember, organization, title, role, LocalDate.now());
         savedMember.updateDefaultMemberPosition(memberPosition);
 
         NotificationOutboxEvent outbox = NotificationOutboxEvent.builder()
@@ -140,7 +139,7 @@ public class MemberService {
                 .build();
         outboxRepository.save(outbox);
 
-        createAndSaveSearchOutboxEvent(savedMember);
+        saveSearchOutboxEvent(savedMember);
 
         return savedMember.getId();
     }
@@ -390,46 +389,7 @@ public class MemberService {
                 });
 
         memberRepository.flush();
-        List<MemberPosition> freshPositions = memberPositionRepository.findAllByMemberIdAndYnDel(memberId, Bool.FALSE);
-
-        try {
-            List<String> organizationNameList = freshPositions.stream()
-                    .map(MemberPosition::getOrganization)
-                    .map(Organization::getName)
-                    .collect(Collectors.toList());
-            if (organizationNameList.isEmpty()) {
-                organizationNameList.add("미정");
-            }
-
-            List<String> titleNameList = freshPositions.stream()
-                    .map(MemberPosition::getTitle)
-                    .map(Title::getName)
-                    .collect(Collectors.toList());
-            if (titleNameList.isEmpty()) {
-
-
-                titleNameList.add("미정");
-            }
-
-            MemberSavedEvent event = MemberSavedEvent.builder()
-                    .memberId(member.getId())
-                    .name(member.getName())
-                    .organizationName(organizationNameList)
-                    .titleName(titleNameList)
-                    .phoneNumber(member.getPhoneNumber())
-                    .memberStatus(member.getMemberStatus().getCodeName())
-                    .build();
-            String payload = objectMapper.writeValueAsString(event);
-
-            SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
-                    .topic("member-saved-events")
-                    .memberId(member.getId())
-                    .payload(payload)
-                    .build();
-            searchOutboxEventRepository.save(searchOutbox);
-        } catch (JsonProcessingException e) {
-            throw new SerializationException("데이터 직렬화 실패");
-        }
+        saveSearchOutboxEvent(member);
         
         return member.getId();
     }
@@ -471,7 +431,7 @@ public class MemberService {
         member.restore();
         memberRepository.save(member);
 
-        createAndSaveSearchOutboxEvent(member);
+        saveSearchOutboxEvent(member);
     }
 
     // 직원 상세 조회
@@ -992,7 +952,7 @@ public class MemberService {
 
     // member_position 생성
     private MemberPosition createMemberPosition(String memberPositionName, Member member, Organization organization,
-                                                Title title, Role role, LocalDate startDate, LocalDate endDate) {
+                                                Title title, Role role, LocalDate startDate) {
         MemberPosition memberPosition = MemberPosition.builder()
                 .name(memberPositionName)
                 .member(member)
@@ -1000,14 +960,14 @@ public class MemberService {
                 .title(title)
                 .role(role)
                 .startDate(startDate)
-                .endDate(endDate)
+                .endDate(null)
                 .build();
         return memberPositionRepository.save(memberPosition);
     }
 
     // member_position 생성
     public void createAndAssignDefaultPosition(String memberPositionName, Member member, Organization organization, Title title, Role role) {
-        MemberPosition memberPosition = createMemberPosition(memberPositionName, member, organization, title, role, LocalDate.now(), null);
+        MemberPosition memberPosition = createMemberPosition(memberPositionName, member, organization, title, role, LocalDate.now());
         member.updateDefaultMemberPosition(memberPosition);
         memberRepository.save(member);
     }
@@ -1111,7 +1071,7 @@ public class MemberService {
         }).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 직원입니다."));
     }
 
-    public void createAndSaveSearchOutboxEvent(Member member) {
+    public void saveSearchOutboxEvent(Member member) {
         try {
             List<MemberPosition> positionList = member.getMemberPositionList().stream().toList();
             if (positionList == null || positionList.isEmpty()) {
@@ -1126,14 +1086,6 @@ public class MemberService {
             List<MemberPosition> finalPositionList = positionList.stream()
                     .filter(position -> position.getYnDel() == Bool.FALSE).toList();
 
-            List<String> organizationNameList = finalPositionList.stream()
-                    .map(MemberPosition::getOrganization)
-                    .map(Organization::getName)
-                    .collect(Collectors.toList());
-            if (organizationNameList.isEmpty()) {
-                organizationNameList.add("미정");
-            }
-
             List<String> titleNameList = finalPositionList.stream()
                     .map(MemberPosition::getTitle)
                     .map(Title::getName)
@@ -1142,13 +1094,36 @@ public class MemberService {
                 titleNameList.add("미정");
             }
 
+            Map<String, String> organizationParentId = new HashMap<>();
+            finalPositionList.stream()
+                    .map(MemberPosition::getOrganization)
+                    .forEach(org -> {
+                        if (org.getParent() != null) {
+                            organizationParentId.put(org.getId().toString(), org.getParent().getId().toString());
+                        } else {
+                            organizationParentId.put(org.getId().toString(), null);
+                        }
+                    });
+
+            List<OrganizationEvent> organizationEventList = finalPositionList.stream()
+                    .map(MemberPosition::getOrganization)
+                    .map(org -> OrganizationEvent.builder()
+                            .id(org.getId())
+                            .name(org.getName())
+                            .parentId(org.getParent() != null ? org.getParent().getId() : null)
+                            .build())
+                    .collect(Collectors.toList());
+
             MemberSavedEvent event = MemberSavedEvent.builder()
                     .memberId(member.getId())
+                    .companyId(member.getCompany().getId())
                     .name(member.getName())
-                    .organizationName(organizationNameList)
+                    .organizationList(organizationEventList)
                     .titleName(titleNameList)
                     .phoneNumber(member.getPhoneNumber())
                     .memberStatus(member.getMemberStatus().getCodeName())
+                    .position(member.getDefaultMemberPosition().getTitle().getName())
+                    .email(member.getEmail())
                     .build();
             String payload = objectMapper.writeValueAsString(event);
 
