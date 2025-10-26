@@ -18,8 +18,8 @@ public interface PolicyAssignmentRepository extends JpaRepository<PolicyAssignme
 
     List<PolicyAssignment> findByTargetId(UUID targetId);
 
-    @Query("SELECT pa FROM PolicyAssignment pa WHERE pa.targetId IN :targetIds AND pa.isActive = true AND pa.policy.effectiveFrom <= :currentDate AND (pa.policy.effectiveTo IS NULL OR pa.policy.effectiveTo >= :currentDate)")
-    List<PolicyAssignment> findActiveAssignmentsByTargets(@Param("targetIds") List<UUID> targetIds, @Param("currentDate") LocalDate currentDate);
+    @Query("SELECT pa FROM PolicyAssignment pa WHERE pa.targetId IN :targetIds AND pa.policy.companyId = :companyId AND pa.isActive = true AND pa.policy.effectiveFrom <= :currentDate AND (pa.policy.effectiveTo IS NULL OR pa.policy.effectiveTo >= :currentDate)")
+    List<PolicyAssignment> findActiveAssignmentsByTargets(@Param("targetIds") List<UUID> targetIds, @Param("companyId") UUID companyId, @Param("currentDate") LocalDate currentDate);
 
     Page<PolicyAssignment> findAllByPolicy_CompanyId(UUID companyId, Pageable pageable);
 

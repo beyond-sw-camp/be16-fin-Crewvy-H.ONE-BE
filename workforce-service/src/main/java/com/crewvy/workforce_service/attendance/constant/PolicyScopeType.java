@@ -11,7 +11,8 @@ import java.util.Arrays;
 public enum PolicyScopeType {
     COMPANY("PST001", "회사"),
     ORGANIZATION("PST002", "조직"),
-    MEMBER("PST003", "개인");
+    MEMBER("PST003", "개인"),
+    MEMBER_POSITION("PST004", "직책");
 
     private final String codeValue;
     private final String codeName;

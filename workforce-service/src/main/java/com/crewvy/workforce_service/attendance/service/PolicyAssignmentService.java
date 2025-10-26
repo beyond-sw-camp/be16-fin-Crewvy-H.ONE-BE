@@ -36,13 +36,70 @@ public class PolicyAssignmentService {
     private final MemberClient memberClient;
 
     /**
+     * 직원에 대한 특정 타입의 유효 정책을 계층 구조 우선순위에 따라 조회합니다.
+     * 우선순위: 직책(MEMBER_POSITION) > 개인(MEMBER) > 조직(ORGANIZATION) > 상위 조직 ... > 회사(COMPANY)
+     * @param memberId 직원 ID
+     * @param memberPositionId 직원의 직책 ID
+     * @param companyId 회사 ID (멀티테넌트 보안)
+     * @param typeCode 조회할 정책 타입 코드
+     * @return 적용될 최종 정책 (없으면 null 반환)
+     */
+    public Policy findEffectivePolicyForMemberByType(UUID memberId, UUID memberPositionId, UUID companyId, com.crewvy.workforce_service.attendance.constant.PolicyTypeCode typeCode) {
+        // 1. 조직 계층 조회 (내 부서 → 상위부서 → 회사)
+        List<OrganizationRes> orgPath = new ArrayList<>();
+        try {
+            ApiResponse<List<OrganizationRes>> response = memberClient.getOrganizationList(memberPositionId);
+            if (response != null && response.getData() != null) {
+                orgPath = response.getData();
+            }
+        } catch (Exception e) {
+            throw new BusinessException("Member-service에서 조직 정보를 가져오는 데 실패했습니다.", e);
+        }
+
+        // 2. 탐색 우선순위 구성 (MEMBER_POSITION → MEMBER → ORGANIZATION → 상위 ORG → COMPANY)
+        List<PolicyTarget> priorityTargets = new ArrayList<>();
+        priorityTargets.add(new PolicyTarget(memberPositionId, PolicyScopeType.MEMBER_POSITION));
+        priorityTargets.add(new PolicyTarget(memberId, PolicyScopeType.MEMBER));
+        orgPath.forEach(org -> priorityTargets.add(new PolicyTarget(org.getId(), PolicyScopeType.ORGANIZATION)));
+
+        // 3. 활성 정책 조회 (회사 ID로 필터링하여 멀티테넌트 보안 강화)
+        List<UUID> targetIds = priorityTargets.stream().map(PolicyTarget::id).collect(Collectors.toList());
+        List<PolicyAssignment> assignments = policyAssignmentRepository.findActiveAssignmentsByTargets(targetIds, companyId, LocalDateTime.now().toLocalDate());
+
+        // 4. 타입 필터링
+        List<PolicyAssignment> filtered = assignments.stream()
+                .filter(pa -> pa.getPolicy().getPolicyType().getTypeCode() == typeCode)
+                .collect(Collectors.toList());
+
+        // 5. 우선순위 순회 (scopeType + targetId 일치 시 즉시 반환)
+        for (PolicyTarget target : priorityTargets) {
+            for (PolicyAssignment pa : filtered) {
+                if (pa.getScopeType() == target.scopeType() &&
+                    pa.getTargetId().equals(target.id())) {
+                    return pa.getPolicy();
+                }
+            }
+        }
+
+        // 해당 타입의 정책이 없으면 null 반환
+        return null;
+    }
+
+    /**
+     * 정책 탐색을 위한 내부 레코드 (targetId + scopeType 쌍)
+     */
+    private record PolicyTarget(UUID id, PolicyScopeType scopeType) {}
+
+    /**
      * 직원에 대한 유효 정책을 계층 구조 우선순위에 따라 조회합니다.
+     * @deprecated 이 메서드는 첫 번째 정책만 반환하므로 사용을 권장하지 않습니다. findEffectivePolicyForMemberByType() 사용을 권장합니다.
      * 우선순위: 개인 > 직속 조직 > 상위 조직 ... > 회사
      * @param memberId 직원 ID
      * @param companyId 회사 ID
      * @param memberPositionId 직원의 직책 ID
      * @return 적용될 최종 정책
      */
+    @Deprecated
     public Policy findEffectivePolicyForMember(UUID memberId, UUID companyId, UUID memberPositionId) { // organizationId -> memberPositionId
         List<OrganizationRes> orgPath = new ArrayList<>();
         try {
@@ -59,7 +116,7 @@ public class PolicyAssignmentService {
         orgPath.forEach(org -> priorityList.add(org.getId()));
 
         // 1. 우선순위 경로에 있는 모든 활성 정책을 한 번에 조회
-        List<PolicyAssignment> assignments = policyAssignmentRepository.findActiveAssignmentsByTargets(priorityList, LocalDateTime.now().toLocalDate());
+        List<PolicyAssignment> assignments = policyAssignmentRepository.findActiveAssignmentsByTargets(priorityList, companyId, LocalDateTime.now().toLocalDate());
 
         // 2. 우선순위(priority)를 기준으로 정책들을 그룹핑
         Map<Integer, List<PolicyAssignment>> assignmentsByPriority = assignments.stream()
