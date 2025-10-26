@@ -6,8 +6,10 @@ import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
 import com.crewvy.workforce_service.attendance.dto.rule.*;
 import com.crewvy.workforce_service.attendance.entity.Policy;
 import com.crewvy.workforce_service.attendance.entity.PolicyType;
+import com.crewvy.workforce_service.attendance.entity.WorkLocation;
 import com.crewvy.workforce_service.attendance.repository.PolicyRepository;
 import com.crewvy.workforce_service.attendance.repository.PolicyTypeRepository;
+import com.crewvy.workforce_service.attendance.repository.WorkLocationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
@@ -27,6 +29,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
 
     private final PolicyTypeRepository policyTypeRepository;
     private final PolicyRepository policyRepository;
+    private final WorkLocationRepository workLocationRepository;
 
     // member-service의 AutoCreateAdmin에서 생성되는 H.ONE 컴퍼니 ID
     private static final UUID COMPANY_ID = UUID.fromString("14720b70-bfe3-4135-992a-e5f992338172");
@@ -44,17 +47,20 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
 
         // 2. 정책 (Policy) 생성
         createPolicies(policyTypes);
+
+        // 3. 근무지 (WorkLocation) 생성
+        createWorkLocations();
     }
 
     private Map<PolicyTypeCode, PolicyType> createPolicyTypes() {
         List<PolicyType> typesToCreate = List.of(
-                // 법정 휴가 (Priority 1)
+                // 법정 휴가 (Priority 1) - 연차만 잔여일수 차감
                 PolicyType.builder().companyId(COMPANY_ID).typeCode(PolicyTypeCode.ANNUAL_LEAVE).typeName("연차유급휴가").balanceDeductible(true).categoryCode(PolicyCategory.ABSENCE).priority(1).build(),
-                PolicyType.builder().companyId(COMPANY_ID).typeCode(PolicyTypeCode.MATERNITY_LEAVE).typeName("출산전후휴가").balanceDeductible(true).categoryCode(PolicyCategory.ABSENCE).priority(1).build(),
-                PolicyType.builder().companyId(COMPANY_ID).typeCode(PolicyTypeCode.PATERNITY_LEAVE).typeName("배우자 출산휴가").balanceDeductible(true).categoryCode(PolicyCategory.ABSENCE).priority(1).build(),
-                PolicyType.builder().companyId(COMPANY_ID).typeCode(PolicyTypeCode.CHILDCARE_LEAVE).typeName("육아휴직").balanceDeductible(true).categoryCode(PolicyCategory.ABSENCE).priority(1).build(),
-                PolicyType.builder().companyId(COMPANY_ID).typeCode(PolicyTypeCode.FAMILY_CARE_LEAVE).typeName("가족돌봄휴가").balanceDeductible(true).categoryCode(PolicyCategory.ABSENCE).priority(1).build(),
-                PolicyType.builder().companyId(COMPANY_ID).typeCode(PolicyTypeCode.MENSTRUAL_LEAVE).typeName("생리휴가").balanceDeductible(true).categoryCode(PolicyCategory.ABSENCE).priority(1).build(),
+                PolicyType.builder().companyId(COMPANY_ID).typeCode(PolicyTypeCode.MATERNITY_LEAVE).typeName("출산전후휴가").balanceDeductible(false).categoryCode(PolicyCategory.ABSENCE).priority(1).build(),
+                PolicyType.builder().companyId(COMPANY_ID).typeCode(PolicyTypeCode.PATERNITY_LEAVE).typeName("배우자 출산휴가").balanceDeductible(false).categoryCode(PolicyCategory.ABSENCE).priority(1).build(),
+                PolicyType.builder().companyId(COMPANY_ID).typeCode(PolicyTypeCode.CHILDCARE_LEAVE).typeName("육아휴직").balanceDeductible(false).categoryCode(PolicyCategory.ABSENCE).priority(1).build(),
+                PolicyType.builder().companyId(COMPANY_ID).typeCode(PolicyTypeCode.FAMILY_CARE_LEAVE).typeName("가족돌봄휴가").balanceDeductible(false).categoryCode(PolicyCategory.ABSENCE).priority(1).build(),
+                PolicyType.builder().companyId(COMPANY_ID).typeCode(PolicyTypeCode.MENSTRUAL_LEAVE).typeName("생리휴가").balanceDeductible(false).categoryCode(PolicyCategory.ABSENCE).priority(1).build(),
 
                 // 근무 유형 (Priority 2, 3)
                 PolicyType.builder().companyId(COMPANY_ID).typeCode(PolicyTypeCode.BUSINESS_TRIP).typeName("출장").balanceDeductible(false).categoryCode(PolicyCategory.WORK_SCHEDULE).priority(2).build(),
@@ -365,5 +371,56 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                 .effectiveFrom(LocalDate.of(2025, 1, 1))
                 .isActive(true)
                 .build();
+    }
+
+    private void createWorkLocations() {
+        List<WorkLocation> workLocations = new ArrayList<>();
+
+        // 1. 서울 본사 3층 개발팀 (GPS + WiFi + IP)
+        workLocations.add(WorkLocation.builder()
+                .companyId(COMPANY_ID)
+                .name("서울 본사 3층 개발팀")
+                .address("서울시 강남구 테헤란로 123")
+                .latitude(37.5041)
+                .longitude(127.0442)
+                .gpsRadius(300)
+                .ipAddress("192.168.3.0/24")
+                .wifiSsid("HONE-Dev-3F")
+                .wifiBssid("AA:BB:CC:DD:EE:F1")
+                .isActive(true)
+                .description("3층 개발팀 전용 근무지. WiFi 및 GPS 기반 출퇴근 인증.")
+                .build());
+
+        // 2. 서울 본사 4층 마케팅팀 (GPS + WiFi + IP)
+        workLocations.add(WorkLocation.builder()
+                .companyId(COMPANY_ID)
+                .name("서울 본사 4층 마케팅팀")
+                .address("서울시 강남구 테헤란로 123")
+                .latitude(37.5041)
+                .longitude(127.0442)
+                .gpsRadius(300)
+                .ipAddress("192.168.4.0/24")
+                .wifiSsid("HONE-Mkt-4F")
+                .wifiBssid("AA:BB:CC:DD:EE:F2")
+                .isActive(true)
+                .description("4층 마케팅팀 전용 근무지. WiFi 및 GPS 기반 출퇴근 인증.")
+                .build());
+
+        // 3. 부산 지점 (GPS만)
+        workLocations.add(WorkLocation.builder()
+                .companyId(COMPANY_ID)
+                .name("부산 지점")
+                .address("부산시 해운대구 센텀중앙로 99")
+                .latitude(35.1698)
+                .longitude(129.1308)
+                .gpsRadius(500)
+                .ipAddress(null)
+                .wifiSsid(null)
+                .wifiBssid(null)
+                .isActive(true)
+                .description("부산 지점. GPS 기반 출퇴근 인증.")
+                .build());
+
+        workLocationRepository.saveAll(workLocations);
     }
 }
