@@ -5,7 +5,9 @@ import com.crewvy.common.exception.ResourceNotFoundException;
 import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
 import com.crewvy.workforce_service.attendance.constant.RequestStatus;
 import com.crewvy.workforce_service.attendance.constant.RequestUnit;
+import com.crewvy.workforce_service.attendance.dto.request.DeviceRequestCreateDto;
 import com.crewvy.workforce_service.attendance.dto.request.LeaveRequestCreateDto;
+import com.crewvy.workforce_service.attendance.dto.response.DeviceRequestResponse;
 import com.crewvy.workforce_service.attendance.dto.response.LeaveRequestResponse;
 import com.crewvy.workforce_service.attendance.dto.rule.LeaveRuleDto;
 import com.crewvy.workforce_service.attendance.entity.MemberBalance;
@@ -256,4 +258,98 @@ public class RequestService {
     //         request.updateStatus(RequestStatus.REJECTED);
     //     }
     // }
+
+    // ==================== 디바이스 관리 ====================
+
+    /**
+     * 디바이스 등록 신청 (사용자)
+     */
+    public DeviceRequestResponse registerDevice(UUID memberId, DeviceRequestCreateDto dto) {
+        // 중복 등록 확인
+        boolean alreadyExists = requestRepository.existsByMemberIdAndDeviceIdAndDeviceType(
+                memberId, dto.getDeviceId(), dto.getDeviceType());
+
+        if (alreadyExists) {
+            throw new BusinessException("이미 등록된 디바이스입니다.");
+        }
+
+        // Request 엔티티 생성
+        Request request = Request.builder()
+                .memberId(memberId)
+                .deviceId(dto.getDeviceId())
+                .deviceName(dto.getDeviceName())
+                .deviceType(dto.getDeviceType())
+                .reason(dto.getReason())
+                .status(RequestStatus.PENDING)
+                .policy(null)  // 디바이스 등록은 정책이 없음
+                .requestUnit(null)
+                .startAt(null)
+                .endAt(null)
+                .deductionDays(null)
+                .build();
+
+        Request savedRequest = requestRepository.save(request);
+        log.info("디바이스 등록 신청 완료: memberId={}, deviceId={}, deviceType={}",
+                memberId, dto.getDeviceId(), dto.getDeviceType());
+
+        return DeviceRequestResponse.from(savedRequest);
+    }
+
+    /**
+     * 내 디바이스 등록 신청 목록 조회 (사용자)
+     */
+    @Transactional(readOnly = true)
+    public Page<DeviceRequestResponse> getMyDeviceRequests(UUID memberId, Pageable pageable) {
+        Page<Request> requests = requestRepository.findDeviceRequestsByMemberId(memberId, pageable);
+        return requests.map(DeviceRequestResponse::from);
+    }
+
+    /**
+     * 승인 대기 중인 디바이스 등록 신청 목록 (관리자)
+     */
+    @Transactional(readOnly = true)
+    public Page<DeviceRequestResponse> getPendingDeviceRequests(Pageable pageable) {
+        Page<Request> requests = requestRepository.findDeviceRequestsByStatus(RequestStatus.PENDING, pageable);
+        return requests.map(DeviceRequestResponse::from);
+    }
+
+    /**
+     * 디바이스 승인 (관리자)
+     */
+    public void approveDeviceRequest(UUID requestId) {
+        Request request = requestRepository.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("디바이스 등록 신청을 찾을 수 없습니다."));
+
+        if (request.getDeviceId() == null) {
+            throw new BusinessException("디바이스 등록 신청이 아닙니다.");
+        }
+
+        if (request.getStatus() != RequestStatus.PENDING) {
+            throw new BusinessException("대기 중인 신청만 승인할 수 있습니다.");
+        }
+
+        request.updateStatus(RequestStatus.APPROVED);
+        log.info("디바이스 승인 완료: requestId={}, memberId={}, deviceId={}",
+                requestId, request.getMemberId(), request.getDeviceId());
+    }
+
+    /**
+     * 디바이스 반려 (관리자)
+     */
+    public void rejectDeviceRequest(UUID requestId) {
+        Request request = requestRepository.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("디바이스 등록 신청을 찾을 수 없습니다."));
+
+        if (request.getDeviceId() == null) {
+            throw new BusinessException("디바이스 등록 신청이 아닙니다.");
+        }
+
+        if (request.getStatus() != RequestStatus.PENDING) {
+            throw new BusinessException("대기 중인 신청만 반려할 수 있습니다.");
+        }
+
+        request.updateStatus(RequestStatus.REJECTED);
+        log.info("디바이스 반려 완료: requestId={}, memberId={}, deviceId={}",
+                requestId, request.getMemberId(), request.getDeviceId());
+    }
 }
