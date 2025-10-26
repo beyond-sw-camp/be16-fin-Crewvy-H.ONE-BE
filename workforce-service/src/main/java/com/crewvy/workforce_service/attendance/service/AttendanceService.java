@@ -5,6 +5,7 @@ import com.crewvy.common.exception.*;
 import com.crewvy.workforce_service.attendance.constant.AttendanceStatus;
 import com.crewvy.workforce_service.attendance.constant.DeviceType;
 import com.crewvy.workforce_service.attendance.constant.EventType;
+import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
 import com.crewvy.workforce_service.attendance.constant.RequestStatus;
 import com.crewvy.workforce_service.attendance.dto.request.EventRequest;
 import com.crewvy.workforce_service.attendance.dto.response.*;
@@ -56,7 +57,7 @@ public class AttendanceService {
         List<EventType> validationRequiredEvents = List.of(EventType.CLOCK_IN, EventType.CLOCK_OUT);
 
         if (validationRequiredEvents.contains(request.getEventType())) {
-            validate(memberId, companyId, organizationId, request.getDeviceId(), request.getDeviceType(), request.getLatitude(), request.getLongitude(), clientIp);
+            validate(memberId, companyId, organizationId, request.getDeviceId(), request.getDeviceType(), request.getLatitude(), request.getLongitude(), clientIp, request.getWifiSsid());
         }
 
         switch (request.getEventType()) {
@@ -99,11 +100,12 @@ public class AttendanceService {
 
         LocalDateTime clockInTime = LocalDateTime.now();
 
-        // 정책 조회
-        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId, organizationId);
+        // 기본근무 정책 조회 (WorkTimeRule, LatenessRule 포함)
+        Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
+                memberId, organizationId, companyId, PolicyTypeCode.STANDARD_WORK);
 
         // 근무 시간 제한 검증
-        validateWorkingHoursLimit(today, activePolicy, clockInTime, null);
+        validateWorkingHoursLimit(today, standardWorkPolicy, clockInTime, null);
 
         AttendanceLog newLog = createAttendanceLog(memberId, clockInTime, EventType.CLOCK_IN, request.getLatitude(), request.getLongitude());
 
@@ -111,7 +113,7 @@ public class AttendanceService {
         DailyAttendance dailyAttendance = createDailyAttendance(memberId, companyId, today, clockInTime);
 
         // 지각 여부 판별
-        checkLateness(dailyAttendance, activePolicy);
+        checkLateness(dailyAttendance, standardWorkPolicy);
 
         return new ClockInResponse(newLog.getId(), newLog.getEventTime());
     }
@@ -123,16 +125,17 @@ public class AttendanceService {
         DailyAttendance dailyAttendance = dailyAttendanceRepository.findByMemberIdAndAttendanceDate(memberId, today)
                 .orElseThrow(() -> new ResourceNotFoundException("출근 기록이 없습니다. 퇴근 처리할 수 없습니다."));
 
-        // 정책 조회
-        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId, organizationId);
+        // 기본근무 정책 조회 (WorkTimeRule, LatenessRule, ClockOutRule 포함)
+        Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
+                memberId, organizationId, companyId, PolicyTypeCode.STANDARD_WORK);
 
         // attendance_log에서 가장 최근 이벤트 조회하여 상태 확인
         EventType lastEvent = getLastEventTypeToday(memberId);
 
         // 퇴근 중복 체크 (정책에 따라)
         if (lastEvent == EventType.CLOCK_OUT) {
-            ClockOutRuleDto clockOutRule = activePolicy != null && activePolicy.getRuleDetails() != null
-                    ? activePolicy.getRuleDetails().getClockOutRule()
+            ClockOutRuleDto clockOutRule = standardWorkPolicy != null && standardWorkPolicy.getRuleDetails() != null
+                    ? standardWorkPolicy.getRuleDetails().getClockOutRule()
                     : null;
 
             // 퇴근 중복 허용 여부 확인
@@ -155,17 +158,17 @@ public class AttendanceService {
         LocalDateTime clockOutTime = LocalDateTime.now();
 
         // 퇴근 시간 제한 검증
-        validateClockOutTime(dailyAttendance, activePolicy, clockOutTime);
+        validateClockOutTime(dailyAttendance, standardWorkPolicy, clockOutTime);
 
         AttendanceLog newLog = createAttendanceLog(memberId, clockOutTime, EventType.CLOCK_OUT, request.getLatitude(), request.getLongitude());
 
         // 기준 근무시간 가져오기
-        Integer standardWorkMinutes = getStandardWorkMinutes(activePolicy);
+        Integer standardWorkMinutes = getStandardWorkMinutes(standardWorkPolicy);
 
         dailyAttendance.updateClockOut(clockOutTime, standardWorkMinutes);
 
         // 조퇴 여부 판별
-        checkEarlyLeave(dailyAttendance, activePolicy);
+        checkEarlyLeave(dailyAttendance, standardWorkPolicy);
 
         return new ClockOutResponse(
                 newLog.getId(),
@@ -202,9 +205,10 @@ public class AttendanceService {
 
         LocalDateTime goOutTime = LocalDateTime.now();
 
-        // 정책 조회 및 근무 시간 제한 검증
-        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, dailyAttendance.getCompanyId(), organizationId);
-        validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), activePolicy, goOutTime, dailyAttendance.getFirstClockIn());
+        // 기본근무 정책 조회 및 근무 시간 제한 검증
+        Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
+                memberId, organizationId, dailyAttendance.getCompanyId(), PolicyTypeCode.STANDARD_WORK);
+        validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), standardWorkPolicy, goOutTime, dailyAttendance.getFirstClockIn());
 
         AttendanceLog newLog = createAttendanceLog(memberId, goOutTime, EventType.GO_OUT, request.getLatitude(), request.getLongitude());
 
@@ -237,9 +241,10 @@ public class AttendanceService {
 
         LocalDateTime comeBackTime = LocalDateTime.now();
 
-        // 정책 조회 및 근무 시간 제한 검증
-        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, dailyAttendance.getCompanyId(), organizationId);
-        validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), activePolicy, comeBackTime, dailyAttendance.getFirstClockIn());
+        // 기본근무 정책 조회 및 근무 시간 제한 검증
+        Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
+                memberId, organizationId, dailyAttendance.getCompanyId(), PolicyTypeCode.STANDARD_WORK);
+        validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), standardWorkPolicy, comeBackTime, dailyAttendance.getFirstClockIn());
 
         AttendanceLog newLog = createAttendanceLog(memberId, comeBackTime, EventType.COME_BACK, request.getLatitude(), request.getLongitude());
 
@@ -287,9 +292,10 @@ public class AttendanceService {
 
         LocalDateTime breakStartTime = LocalDateTime.now();
 
-        // 정책 조회 및 근무 시간 제한 검증
-        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, dailyAttendance.getCompanyId(), organizationId);
-        validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), activePolicy, breakStartTime, dailyAttendance.getFirstClockIn());
+        // 기본근무 정책 조회 및 근무 시간 제한 검증
+        Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
+                memberId, organizationId, dailyAttendance.getCompanyId(), PolicyTypeCode.STANDARD_WORK);
+        validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), standardWorkPolicy, breakStartTime, dailyAttendance.getFirstClockIn());
 
         AttendanceLog newLog = createAttendanceLog(memberId, breakStartTime, EventType.BREAK_START, request.getLatitude(), request.getLongitude());
 
@@ -322,9 +328,10 @@ public class AttendanceService {
 
         LocalDateTime breakEndTime = LocalDateTime.now();
 
-        // 정책 조회 및 근무 시간 제한 검증
-        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, dailyAttendance.getCompanyId(), organizationId);
-        validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), activePolicy, breakEndTime, dailyAttendance.getFirstClockIn());
+        // 기본근무 정책 조회 및 근무 시간 제한 검증
+        Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
+                memberId, organizationId, dailyAttendance.getCompanyId(), PolicyTypeCode.STANDARD_WORK);
+        validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), standardWorkPolicy, breakEndTime, dailyAttendance.getFirstClockIn());
 
         AttendanceLog newLog = createAttendanceLog(memberId, breakEndTime, EventType.BREAK_END, request.getLatitude(), request.getLongitude());
 
@@ -376,11 +383,15 @@ public class AttendanceService {
     }
 
     // --- 이하 검증(validate) 관련 헬퍼 메서드들 ---
-    private void validate(UUID memberId, UUID companyId, UUID organizationId, String deviceId, DeviceType deviceType, Double latitude, Double longitude, String clientIp) {
+    private void validate(UUID memberId, UUID companyId, UUID organizationId, String deviceId, DeviceType deviceType, Double latitude, Double longitude, String clientIp, String wifiSsid) {
         validateApprovedDevice(deviceId, memberId, deviceType);
-        Policy activePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId, organizationId);
-        PolicyRuleDetails ruleDetails = activePolicy.getRuleDetails();
-        validateAuthRule(ruleDetails, deviceType, latitude, longitude, clientIp);
+        // 기본근무 정책에서 AuthRule 조회
+        Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
+                memberId, organizationId, companyId, PolicyTypeCode.STANDARD_WORK);
+        if (standardWorkPolicy != null) {
+            PolicyRuleDetails ruleDetails = standardWorkPolicy.getRuleDetails();
+            validateAuthRule(ruleDetails, deviceType, latitude, longitude, clientIp, wifiSsid);
+        }
     }
 
     private void validateApprovedDevice(String deviceId, UUID memberId, DeviceType deviceType) {
@@ -407,7 +418,7 @@ public class AttendanceService {
         return policyPage.getContent().get(0);
     }
 
-    private void validateAuthRule(PolicyRuleDetails ruleDetails, DeviceType deviceType, Double latitude, Double longitude, String clientIp) {
+    private void validateAuthRule(PolicyRuleDetails ruleDetails, DeviceType deviceType, Double latitude, Double longitude, String clientIp, String wifiSsid) {
         if (ruleDetails == null || ruleDetails.getAuthRule() == null || ruleDetails.getAuthRule().getMethods() == null) {
             return; // 인증 규칙이 없으면 통과
         }
@@ -429,6 +440,12 @@ public class AttendanceService {
                 break;
             case "NETWORK_IP":
                 validateIpAddress(details, clientIp);
+                break;
+            case "WIFI":
+                if (wifiSsid == null || wifiSsid.trim().isEmpty()) {
+                    throw new IllegalArgumentException("WiFi 인증 방식에는 WiFi SSID가 필수입니다.");
+                }
+                validateWifiSsid(details, wifiSsid);
                 break;
             default:
                 throw new InvalidPolicyRuleException("정책에 알 수 없는 인증 방식이 설정되어 있습니다.");
@@ -452,6 +469,16 @@ public class AttendanceService {
         }
         if (!allowedIps.contains(clientIp)) {
             throw new AuthenticationFailedException("허용되지 않은 IP입니다.");
+        }
+    }
+
+    private void validateWifiSsid(Map<String, Object> rules, String userWifiSsid) {
+        List<String> allowedSsids = (List<String>) rules.get("allowedSsids");
+        if (allowedSsids == null || allowedSsids.isEmpty()) {
+            throw new InvalidPolicyRuleException("정책에 허용된 WiFi SSID가 등록되지 않았습니다.");
+        }
+        if (!allowedSsids.contains(userWifiSsid)) {
+            throw new AuthenticationFailedException("허용되지 않은 WiFi 네트워크입니다.");
         }
     }
 
@@ -773,7 +800,8 @@ public class AttendanceService {
      * 외출 시간 정책 검증
      */
     private void validateGoOutTimePolicy(UUID companyId, UUID memberId, UUID organizationId, int singleGoOutMinutes, int totalGoOutMinutes) {
-        Policy policy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId, organizationId);
+        Policy policy = policyAssignmentService.findEffectivePolicyForMemberByType(
+                memberId, organizationId, companyId, PolicyTypeCode.STANDARD_WORK);
         if (policy == null || policy.getRuleDetails() == null || policy.getRuleDetails().getGoOutRule() == null) {
             return; // 정책이 없으면 검증 안 함
         }
@@ -795,7 +823,8 @@ public class AttendanceService {
      * 휴게 시간 정책 검증
      */
     private void validateBreakTimePolicy(UUID companyId, UUID memberId, UUID organizationId, int totalBreakMinutes) {
-        Policy policy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId, organizationId);
+        Policy policy = policyAssignmentService.findEffectivePolicyForMemberByType(
+                memberId, organizationId, companyId, PolicyTypeCode.STANDARD_WORK);
         if (policy == null || policy.getRuleDetails() == null || policy.getRuleDetails().getBreakRule() == null) {
             return; // 정책이 없으면 검증 안 함
         }
@@ -852,5 +881,42 @@ public class AttendanceService {
         }
 
         dailyAttendance.checkAndSetEarlyLeave(workEndTime, earlyLeaveGraceMinutes);
+    }
+
+    /**
+     * 오늘의 내 출퇴근 현황 조회
+     */
+    @Transactional(readOnly = true)
+    public DailyAttendance getMyTodayAttendance(UUID memberId) {
+        LocalDate today = LocalDate.now();
+        return dailyAttendanceRepository.findByMemberIdAndAttendanceDate(memberId, today)
+                .orElse(null);
+    }
+
+    /**
+     * 월별 내 출퇴근 현황 조회
+     */
+    @Transactional(readOnly = true)
+    public List<DailyAttendance> getMyMonthlyAttendance(UUID memberId, UUID companyId, int year, int month) {
+        LocalDate startDate = LocalDate.of(year, month, 1);
+        LocalDate endDate = startDate.plusMonths(1).minusDays(1);
+
+        return dailyAttendanceRepository.findAllByDateRangeAndCompany(companyId, startDate, endDate)
+                .stream()
+                .filter(da -> da.getMemberId().equals(memberId))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 내 연차 잔여 일수 조회 (현재 연도 기준)
+     */
+    @Transactional(readOnly = true)
+    public MemberBalance getMyBalance(UUID memberId) {
+        int currentYear = LocalDate.now().getYear();
+        return memberBalanceRepository.findByMemberIdAndBalanceTypeCodeAndYear(
+                memberId,
+                PolicyTypeCode.ANNUAL_LEAVE,
+                currentYear
+        ).orElse(null);
     }
 }
