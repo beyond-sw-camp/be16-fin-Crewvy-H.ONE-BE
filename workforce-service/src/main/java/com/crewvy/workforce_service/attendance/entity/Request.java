@@ -78,4 +78,23 @@ public class Request extends BaseEntity {
     @Column(name = "device_type")
     @Convert(converter = DeviceTypeConverter.class)
     private DeviceType deviceType;
+
+    /**
+     * 결재 문서 ID 업데이트
+     * Approval 생성 후 연결하기 위해 사용
+     */
+    public void updateDocumentId(UUID documentId) {
+        this.documentId = documentId;
+    }
+
+    /**
+     * Request 상태 업데이트
+     * Approval 결재 완료 시 APPROVED로 변경
+     */
+    public void updateStatus(RequestStatus status) {
+        this.status = status;
+        if (status == RequestStatus.APPROVED || status == RequestStatus.REJECTED) {
+            this.completedAt = LocalDateTime.now();
+        }
+    }
 }
