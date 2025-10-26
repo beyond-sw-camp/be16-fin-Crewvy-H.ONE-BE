@@ -1,7 +1,9 @@
 package com.crewvy.workforce_service.attendance.controller;
 
 import com.crewvy.common.dto.ApiResponse;
+import com.crewvy.workforce_service.attendance.dto.request.DeviceRequestCreateDto;
 import com.crewvy.workforce_service.attendance.dto.request.LeaveRequestCreateDto;
+import com.crewvy.workforce_service.attendance.dto.response.DeviceRequestResponse;
 import com.crewvy.workforce_service.attendance.dto.response.LeaveRequestResponse;
 import com.crewvy.workforce_service.attendance.service.RequestService;
 import jakarta.validation.Valid;
@@ -35,7 +37,7 @@ public class RequestController {
             @RequestBody @Valid LeaveRequestCreateDto request) {
         LeaveRequestResponse response = requestService.createLeaveRequest(
                 memberId, memberPositionId, companyId, organizationId, request);
-        return new ResponseEntity<>(ApiResponse.success(response), HttpStatus.CREATED);
+        return new ResponseEntity<>(ApiResponse.success(response, "휴가 신청이 완료되었습니다."), HttpStatus.CREATED);
     }
 
     /**
@@ -47,7 +49,7 @@ public class RequestController {
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
 
         Page<LeaveRequestResponse> response = requestService.getMyRequests(memberId, pageable);
-        return new ResponseEntity<>(ApiResponse.success(response), HttpStatus.OK);
+        return new ResponseEntity<>(ApiResponse.success(response, "휴가 신청 목록 조회 성공"), HttpStatus.OK);
     }
 
     /**
@@ -59,7 +61,7 @@ public class RequestController {
             @PathVariable UUID requestId) {
 
         LeaveRequestResponse response = requestService.getRequestById(requestId, memberId);
-        return new ResponseEntity<>(ApiResponse.success(response), HttpStatus.OK);
+        return new ResponseEntity<>(ApiResponse.success(response, "휴가 신청 상세 조회 성공"), HttpStatus.OK);
     }
 
     /**
@@ -71,6 +73,71 @@ public class RequestController {
             @PathVariable UUID requestId) {
 
         requestService.cancelRequest(requestId, memberId);
-        return new ResponseEntity<>(ApiResponse.success(null), HttpStatus.OK);
+        return new ResponseEntity<>(ApiResponse.success(null, "휴가 신청이 취소되었습니다."), HttpStatus.OK);
+    }
+
+    // ==================== 디바이스 관리 ====================
+
+    /**
+     * 디바이스 등록 신청 (사용자)
+     */
+    @PostMapping("/devices/register")
+    public ResponseEntity<ApiResponse<DeviceRequestResponse>> registerDevice(
+            @RequestHeader("X-User-UUID") UUID memberId,
+            @RequestBody @Valid DeviceRequestCreateDto request) {
+
+        DeviceRequestResponse response = requestService.registerDevice(memberId, request);
+        return new ResponseEntity<>(ApiResponse.success(response, "디바이스 등록 신청이 완료되었습니다."), HttpStatus.CREATED);
+    }
+
+    /**
+     * 내 디바이스 등록 신청 목록 조회 (사용자)
+     */
+    @GetMapping("/devices/my")
+    public ResponseEntity<ApiResponse<Page<DeviceRequestResponse>>> getMyDeviceRequests(
+            @RequestHeader("X-User-UUID") UUID memberId,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+
+        Page<DeviceRequestResponse> response = requestService.getMyDeviceRequests(memberId, pageable);
+        return new ResponseEntity<>(ApiResponse.success(response, "디바이스 목록 조회 성공"), HttpStatus.OK);
+    }
+
+    /**
+     * 승인 대기 중인 디바이스 등록 신청 목록 (관리자)
+     */
+    @GetMapping("/devices/pending")
+    public ResponseEntity<ApiResponse<Page<DeviceRequestResponse>>> getPendingDeviceRequests(
+            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+
+        // TODO: 권한 체크 (관리자만 접근 가능)
+        Page<DeviceRequestResponse> response = requestService.getPendingDeviceRequests(pageable);
+        return new ResponseEntity<>(ApiResponse.success(response, "승인 대기 중인 디바이스 목록 조회 성공"), HttpStatus.OK);
+    }
+
+    /**
+     * 디바이스 승인 (관리자)
+     */
+    @PostMapping("/devices/{requestId}/approve")
+    public ResponseEntity<ApiResponse<Void>> approveDeviceRequest(
+            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+            @PathVariable UUID requestId) {
+
+        // TODO: 권한 체크 (관리자만 접근 가능)
+        requestService.approveDeviceRequest(requestId);
+        return new ResponseEntity<>(ApiResponse.success(null, "디바이스가 승인되었습니다."), HttpStatus.OK);
+    }
+
+    /**
+     * 디바이스 반려 (관리자)
+     */
+    @PostMapping("/devices/{requestId}/reject")
+    public ResponseEntity<ApiResponse<Void>> rejectDeviceRequest(
+            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+            @PathVariable UUID requestId) {
+
+        // TODO: 권한 체크 (관리자만 접근 가능)
+        requestService.rejectDeviceRequest(requestId);
+        return new ResponseEntity<>(ApiResponse.success(null, "디바이스가 반려되었습니다."), HttpStatus.OK);
     }
 }
