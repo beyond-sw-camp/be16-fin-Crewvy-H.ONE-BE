@@ -5,6 +5,7 @@ import com.crewvy.workspace_service.notification.constant.NotificationType;
 import com.crewvy.workspace_service.notification.entity.Notification;
 import com.crewvy.workspace_service.notification.repository.NotificationRepository;
 import com.crewvy.workspace_service.notification.service.NotificationService;
+import com.crewvy.workspace_service.notification.service.NotificationSettingService;
 import com.crewvy.workspace_service.notification.sse.SseAlarmService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -18,27 +19,39 @@ public class KafkaMessageListener {
     private final SseAlarmService sseAlarmService;
     private final NotificationRepository notificationRepository;
     private final NotificationService notificationService;
+    private final NotificationSettingService notificationSettingService;
 
     public KafkaMessageListener(SseAlarmService sseAlarmService,
                                 NotificationRepository notificationRepository,
-                                NotificationService notificationService
+                                NotificationService notificationService,
+                                NotificationSettingService notificationSettingService
     ) {
         this.sseAlarmService = sseAlarmService;
         this.notificationRepository = notificationRepository;
         this.notificationService = notificationService;
+        this.notificationSettingService = notificationSettingService;
     }
 
     @KafkaListener(topics = "notification", groupId = "workspace-notification-group")
-    public void listen(NotificationMessage message) {
-        // DB 저장
-        notificationRepository.save(Notification.builder()
-                .receiverId(message.getMemberId())
-                .notificationType(NotificationType.valueOf(message.getNotificationType()))
-                .content(message.getContent())
-                .build());
+    public void saveNotificationToDb(NotificationMessage message) {
+        if(notificationSettingService.settingCheck(message.getMemberId(), NotificationType.fromCode(message.getNotificationType()))) {
+            notificationRepository.save(Notification.builder()
+                    .receiverId(message.getMemberId())
+                    .notificationType(NotificationType.valueOf(message.getNotificationType()))
+                    .content(message.getContent())
+                    .targetId(message.getTargetId())
+                    .build());
+        }
+    }
 
-        // SSE 전송
-        sseAlarmService.sendToUser(message.getMemberId(), message.getContent());
+    @KafkaListener(topics = "notification",
+            // SpEL을 사용해 매번 고유한 groupId를 동적으로 생성
+            groupId = "#{'sse-broadcast-group-' + T(java.util.UUID).randomUUID().toString()}")
+    public void broadcastSseNotification(NotificationMessage message) {
+        // 이 서버에 연결된 유저에게만 SSE 전송
+        if(notificationSettingService.settingCheck(message.getMemberId(), NotificationType.fromCode(message.getNotificationType()))) {
+            sseAlarmService.sendToUser(message.getMemberId(), message);
+        }
     }
 
     @KafkaListener(

@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.performance.service;
 
 import com.crewvy.common.S3.S3Uploader;
 import com.crewvy.common.dto.ApiResponse;
+import com.crewvy.common.kafka.KafkaMessagePublisher;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
 import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
@@ -32,6 +33,7 @@ public class PerformanceService {
     private final EvaluationRepository evaluationRepository;
     private final S3Uploader s3Uploader;
     private final MemberClient memberClient;
+    private final KafkaMessagePublisher messagePublisher;
 
 //    팀 목표 리스트
     public List<TeamGoalResponseDto> getTeamGoal(UUID memberPositionId) {

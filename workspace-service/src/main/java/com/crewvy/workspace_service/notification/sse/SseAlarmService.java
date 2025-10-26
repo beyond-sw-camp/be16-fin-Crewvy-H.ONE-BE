@@ -1,5 +1,6 @@
 package com.crewvy.workspace_service.notification.sse;
 
+import com.crewvy.common.dto.NotificationMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -49,7 +50,7 @@ public class SseAlarmService {
     }
 
     // 특정 사용자에게 알림 전송
-    public void sendToUser(UUID memberId, String message) {
+    public void sendToUser(UUID memberId, NotificationMessage message) {
         Set<SseEmitter> emitters = clients.get(memberId);
         if (emitters == null || emitters.isEmpty()) {
             log.error("No emitters found for user {}", memberId);

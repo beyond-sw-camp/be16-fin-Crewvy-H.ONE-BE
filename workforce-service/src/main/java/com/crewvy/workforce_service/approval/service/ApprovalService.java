@@ -261,8 +261,9 @@ public class ApprovalService {
         if(alarmId != null) {
             NotificationMessage message = NotificationMessage.builder()
                     .memberId(alarmId)
-                    .notificationType("APPROVAL")
+                    .notificationType("NT004")
                     .content("전자결재 : " + approval.getTitle() + " 문서가  도착했습니다.")
+                    .targetId(approval.getId())
                     .build();
 
             try {
@@ -363,8 +364,9 @@ public class ApprovalService {
 
                         NotificationMessage message = NotificationMessage.builder()
                                 .memberId(position.get(0).getMemberId())
-                                .notificationType("APPROVAL")
+                                .notificationType("NT004")
                                 .content("전자결재 : " + approval.getTitle() + " 문서가  도착했습니다.")
+                                .targetId(approval.getId())
                                 .build();
 
                         try {
@@ -384,8 +386,9 @@ public class ApprovalService {
 
             NotificationMessage message = NotificationMessage.builder()
                     .memberId(position.get(0).getMemberId())
-                    .notificationType("APPROVAL")
+                    .notificationType("NT004")
                     .content("전자결재 : " + approval.getTitle() + " 문서가 결재가 완료되었습니다..")
+                    .targetId(approval.getId())
                     .build();
 
             try {
@@ -427,8 +430,9 @@ public class ApprovalService {
 
         NotificationMessage message = NotificationMessage.builder()
                 .memberId(position.get(0).getMemberId())
-                .notificationType("APPROVAL")
+                .notificationType("NT004")
                 .content("전자결재 : " + approval.getTitle() + " 문서가 결재가 완료되었습니다..")
+                .targetId(approval.getId())
                 .build();
 
         try {
