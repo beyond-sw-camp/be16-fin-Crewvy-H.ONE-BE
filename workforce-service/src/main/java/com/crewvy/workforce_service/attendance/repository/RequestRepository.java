@@ -41,4 +41,27 @@ public interface RequestRepository extends JpaRepository<Request, UUID> {
             @Param("endAt") LocalDate endAt,
             @Param("status") RequestStatus status
     );
+
+    /**
+     * 디바이스 등록 신청 목록 조회 (내 디바이스만, 디바이스 필드가 null이 아닌 것)
+     */
+    @Query("SELECT r FROM Request r WHERE r.memberId = :memberId AND r.deviceId IS NOT NULL ORDER BY r.createdAt DESC")
+    Page<Request> findDeviceRequestsByMemberId(@Param("memberId") UUID memberId, Pageable pageable);
+
+    /**
+     * 승인 대기 중인 디바이스 등록 신청 목록 (관리자용)
+     */
+    @Query("SELECT r FROM Request r WHERE r.deviceId IS NOT NULL AND r.status = :status ORDER BY r.createdAt DESC")
+    Page<Request> findDeviceRequestsByStatus(@Param("status") RequestStatus status, Pageable pageable);
+
+    /**
+     * 특정 디바이스 ID로 이미 등록된 신청이 있는지 확인
+     */
+    @Query("SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END FROM Request r " +
+           "WHERE r.memberId = :memberId AND r.deviceId = :deviceId AND r.deviceType = :deviceType")
+    boolean existsByMemberIdAndDeviceIdAndDeviceType(
+            @Param("memberId") UUID memberId,
+            @Param("deviceId") String deviceId,
+            @Param("deviceType") DeviceType deviceType
+    );
 }
