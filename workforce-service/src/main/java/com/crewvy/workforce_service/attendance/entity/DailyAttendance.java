@@ -52,6 +52,18 @@ public class DailyAttendance extends BaseEntity {
     @Column(name = "overtime_minutes")
     private Integer overtimeMinutes;
 
+    @Builder.Default
+    @Column(name = "daytime_overtime_minutes")
+    private Integer daytimeOvertimeMinutes = 0;
+
+    @Builder.Default
+    @Column(name = "night_work_minutes")
+    private Integer nightWorkMinutes = 0;
+
+    @Builder.Default
+    @Column(name = "holiday_work_minutes")
+    private Integer holidayWorkMinutes = 0;
+
     @Column(name = "total_break_minutes")
     private Integer totalBreakMinutes;
 
@@ -82,7 +94,7 @@ public class DailyAttendance extends BaseEntity {
     @Transient
     private LocalDateTime currentBreakStartTime;
 
-    public void updateClockOut(LocalDateTime clockOutTime, Integer standardWorkMinutes) {
+    public void updateClockOut(LocalDateTime clockOutTime, Integer standardWorkMinutes, boolean isHoliday) {
         this.lastClockOut = clockOutTime;
         if (this.firstClockIn != null) {
             Duration duration = Duration.between(this.firstClockIn, this.lastClockOut);
@@ -91,13 +103,86 @@ public class DailyAttendance extends BaseEntity {
             long netWorkMinutes = grossMinutes - (this.totalBreakMinutes != null ? this.totalBreakMinutes : 0) - (this.totalGoOutMinutes != null ? this.totalGoOutMinutes : 0);
             this.workedMinutes = (int) Math.max(0, netWorkMinutes);
 
-            // 초과근무 계산
+            // 기본 초과근무 계산
             if (standardWorkMinutes != null && this.workedMinutes > standardWorkMinutes) {
                 this.overtimeMinutes = this.workedMinutes - standardWorkMinutes;
             } else {
                 this.overtimeMinutes = 0;
             }
+
+            // 급여 정산용 세부 근무시간 계산
+            calculateOvertimeBreakdown(standardWorkMinutes, isHoliday);
         }
+    }
+
+    /**
+     * 급여 정산용 세부 근무시간 계산
+     * - 주간 연장근무, 야간 근무, 휴일 근무 시간 계산
+     */
+    private void calculateOvertimeBreakdown(Integer standardWorkMinutes, boolean isHoliday) {
+        // 1. 휴일 근무 처리
+        if (isHoliday) {
+            // 휴일에는 전체 근무시간이 휴일 근무
+            this.holidayWorkMinutes = this.workedMinutes;
+            this.daytimeOvertimeMinutes = 0;
+            this.nightWorkMinutes = 0;
+            return;
+        }
+
+        // 2. 야간 근무 시간 계산 (22:00 ~ 06:00)
+        this.nightWorkMinutes = calculateNightWorkMinutes();
+
+        // 3. 주간 연장근무 시간 계산
+        // 총 초과근무 중 야간 시간을 제외한 나머지
+        if (this.overtimeMinutes != null && this.overtimeMinutes > 0) {
+            this.daytimeOvertimeMinutes = Math.max(0, this.overtimeMinutes - this.nightWorkMinutes);
+        } else {
+            this.daytimeOvertimeMinutes = 0;
+        }
+
+        this.holidayWorkMinutes = 0;
+    }
+
+    /**
+     * 야간 근무 시간 계산 (22:00 ~ 06:00)
+     * 출근 시각부터 퇴근 시각까지의 시간대 중 야간 시간대에 해당하는 시간 계산
+     */
+    private int calculateNightWorkMinutes() {
+        if (this.firstClockIn == null || this.lastClockOut == null) {
+            return 0;
+        }
+
+        int totalNightMinutes = 0;
+        LocalDateTime current = this.firstClockIn;
+
+        // 출근 시각부터 퇴근 시각까지 1시간 단위로 순회하며 야간 시간 계산
+        while (current.isBefore(this.lastClockOut)) {
+            LocalDateTime nextHour = current.plusHours(1);
+            if (nextHour.isAfter(this.lastClockOut)) {
+                nextHour = this.lastClockOut;
+            }
+
+            // 현재 시간이 야간 시간대(22:00-06:00)인지 확인
+            int hour = current.getHour();
+            if (hour >= 22 || hour < 6) {
+                long minutesInNight = Duration.between(current, nextHour).toMinutes();
+                totalNightMinutes += minutesInNight;
+            }
+
+            current = nextHour;
+        }
+
+        // 휴게시간과 외출시간 비율만큼 야간 근무에서도 차감
+        if (this.workedMinutes != null && this.workedMinutes > 0) {
+            Duration grossDuration = Duration.between(this.firstClockIn, this.lastClockOut);
+            long grossMinutes = grossDuration.toMinutes();
+            if (grossMinutes > 0) {
+                double workRatio = (double) this.workedMinutes / grossMinutes;
+                totalNightMinutes = (int) (totalNightMinutes * workRatio);
+            }
+        }
+
+        return totalNightMinutes;
     }
 
     public void addGoOutMinutes(int minutes) {

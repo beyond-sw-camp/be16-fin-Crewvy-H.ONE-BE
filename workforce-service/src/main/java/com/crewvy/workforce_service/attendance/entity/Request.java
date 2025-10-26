@@ -31,29 +31,29 @@ public class Request extends BaseEntity {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "policy_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
+    @JoinColumn(name = "policy_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private Policy policy;
 
     @Column(name = "member_id", nullable = false)
     private UUID memberId;
 
-    @Column(name = "document_id", nullable = false)
+    @Column(name = "document_id")
     private UUID documentId;
 
-    @Column(name = "request_unit", nullable = false)
+    @Column(name = "request_unit")
     @Convert(converter = RequestUnitConverter.class)
     private RequestUnit requestUnit;
 
-    @Column(name = "start_at", nullable = false)
+    @Column(name = "start_at")
     private LocalDate startAt;
 
-    @Column(name = "end_at", nullable = false)
+    @Column(name = "end_at")
     private LocalDate endAt;
 
-    @Column(name = "deduction_days", nullable = false)
+    @Column(name = "deduction_days")
     private Double deductionDays;
 
-    @Column(name = "reason", nullable = false)
+    @Column(name = "reason")
     private String reason;
 
     @Column(name = "status", nullable = false)

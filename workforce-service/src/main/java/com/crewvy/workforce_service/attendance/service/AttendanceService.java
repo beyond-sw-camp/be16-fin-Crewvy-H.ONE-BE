@@ -52,6 +52,7 @@ public class AttendanceService {
     private final PolicyAssignmentService policyAssignmentService;
     private final MemberBalanceRepository memberBalanceRepository;
     private final WorkLocationRepository workLocationRepository;
+    private final CompanyHolidayRepository companyHolidayRepository;
 
     public ApiResponse<?> recordEvent(UUID memberId, UUID memberPositionId, UUID companyId, UUID organizationId, EventRequest request, String clientIp) {
         checkPermissionOrThrow(memberPositionId, "attendance", "CREATE", "INDIVIDUAL", "근태를 기록할 권한이 없습니다.");
@@ -151,7 +152,11 @@ public class AttendanceService {
 
         AttendanceLog newLog = createAttendanceLog(memberId, clockOutTime, EventType.CLOCK_OUT, request.getLatitude(), request.getLongitude());
         Integer standardWorkMinutes = getStandardWorkMinutes(standardWorkPolicy);
-        dailyAttendance.updateClockOut(clockOutTime, standardWorkMinutes);
+
+        // 휴일 여부 확인 (주말 또는 CompanyHoliday)
+        boolean isHoliday = isHoliday(companyId, today);
+
+        dailyAttendance.updateClockOut(clockOutTime, standardWorkMinutes, isHoliday);
         checkEarlyLeave(dailyAttendance, standardWorkPolicy);
 
         return new ClockOutResponse(
@@ -968,5 +973,22 @@ public class AttendanceService {
                 // CLOCK_IN 등 다른 이벤트는 각 메서드에서 개별 처리
                 break;
         }
+    }
+
+    /**
+     * 휴일 여부 확인 (주말 또는 CompanyHoliday)
+     * @param companyId 회사 ID
+     * @param date 확인할 날짜
+     * @return 휴일이면 true, 평일이면 false
+     */
+    private boolean isHoliday(UUID companyId, LocalDate date) {
+        // 1. 주말(토요일, 일요일) 확인
+        java.time.DayOfWeek dayOfWeek = date.getDayOfWeek();
+        if (dayOfWeek == java.time.DayOfWeek.SATURDAY || dayOfWeek == java.time.DayOfWeek.SUNDAY) {
+            return true;
+        }
+
+        // 2. CompanyHoliday 확인
+        return companyHolidayRepository.existsByCompanyIdAndHolidayDate(companyId, date);
     }
 }

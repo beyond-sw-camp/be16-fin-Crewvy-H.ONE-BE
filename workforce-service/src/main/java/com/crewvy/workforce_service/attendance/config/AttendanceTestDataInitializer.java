@@ -3,16 +3,12 @@ package com.crewvy.workforce_service.attendance.config;
 import com.crewvy.workforce_service.attendance.constant.DeviceType;
 import com.crewvy.workforce_service.attendance.constant.PolicyCategory;
 import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
+import com.crewvy.workforce_service.attendance.constant.RequestStatus;
 import com.crewvy.workforce_service.attendance.dto.rule.*;
-import com.crewvy.workforce_service.attendance.entity.Policy;
-import com.crewvy.workforce_service.attendance.entity.PolicyType;
-import com.crewvy.workforce_service.attendance.entity.WorkLocation;
-import com.crewvy.workforce_service.attendance.repository.PolicyRepository;
-import com.crewvy.workforce_service.attendance.repository.PolicyTypeRepository;
-import com.crewvy.workforce_service.attendance.repository.WorkLocationRepository;
+import com.crewvy.workforce_service.attendance.entity.*;
+import com.crewvy.workforce_service.attendance.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -23,16 +19,34 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-@Component
+//@Component
 @RequiredArgsConstructor
 public class AttendanceTestDataInitializer implements CommandLineRunner {
 
     private final PolicyTypeRepository policyTypeRepository;
     private final PolicyRepository policyRepository;
     private final WorkLocationRepository workLocationRepository;
+    private final MemberBalanceRepository memberBalanceRepository;
+    private final RequestRepository requestRepository;
 
     // member-service의 AutoCreateAdmin에서 생성되는 H.ONE 컴퍼니 ID
-    private static final UUID COMPANY_ID = UUID.fromString("14720b70-bfe3-4135-992a-e5f992338172");
+    private static final UUID COMPANY_ID = UUID.fromString("8892759c-b28b-4395-a1b4-7ebe86bb65cc");
+
+    // 테스트용 멤버 ID들 (DB에서 확인 후 실제 UUID로 교체 필요)
+    // 인사팀 직원 (emp1@h.one - 김민준) - 관리자로 사용
+    private static final UUID HR_ADMIN_ID = UUID.fromString("ee088d44-9bc7-417f-911e-cd1fa4b42b1e"); // TODO: DB 확인 후 교체
+
+    // 인사팀 직원 (emp2@h.one - 이서준)
+    private static final UUID HR_MEMBER1_ID = UUID.fromString("b523d3ee-8fc5-4c7d-a120-a419cc0d4ef0"); // TODO: DB 확인 후 교체
+
+    // 인사팀 직원 (emp3@h.one - 박도윤)
+    private static final UUID HR_MEMBER2_ID = UUID.fromString("abfa6d37-b49b-4358-9e02-49bc0a8b41cd"); // TODO: DB 확인 후 교체
+
+    // 개발팀 직원 (emp6@h.one - 강지호)
+    private static final UUID DEV_MEMBER1_ID = UUID.fromString("75953373-c31c-4985-8be2-7e2d969b870d"); // TODO: DB 확인 후 교체
+
+    // 개발팀 직원 (emp7@h.one - 윤은우)
+    private static final UUID DEV_MEMBER2_ID = UUID.fromString("9ea19f30-12f8-4bdf-8d45-3e61c0933c2b"); // TODO: DB 확인 후 교체
 
     @Override
     @Transactional
@@ -42,14 +56,20 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
             return;
         }
 
-        // 1. 정책 유형 (PolicyType) 생성
+        // 1. 근무지 (WorkLocation) 먼저 생성 (정책에서 참조하기 위해)
+        List<WorkLocation> workLocations = createWorkLocations();
+
+        // 2. 정책 유형 (PolicyType) 생성
         Map<PolicyTypeCode, PolicyType> policyTypes = createPolicyTypes();
 
-        // 2. 정책 (Policy) 생성
-        createPolicies(policyTypes);
+        // 3. 정책 (Policy) 생성 (WorkLocation 참조)
+        createPolicies(policyTypes, workLocations);
 
-        // 3. 근무지 (WorkLocation) 생성
-        createWorkLocations();
+        // 4. 테스트용 MemberBalance 생성 (휴가 신청 테스트용)
+        createMemberBalances(policyTypes);
+
+        // 5. 테스트용 디바이스 등록 신청 생성
+        createSampleDeviceRequests();
     }
 
     private Map<PolicyTypeCode, PolicyType> createPolicyTypes() {
@@ -74,11 +94,11 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         return savedTypes.stream().collect(Collectors.toMap(PolicyType::getTypeCode, type -> type));
     }
 
-    private void createPolicies(Map<PolicyTypeCode, PolicyType> policyTypes) {
+    private void createPolicies(Map<PolicyTypeCode, PolicyType> policyTypes, List<WorkLocation> workLocations) {
         List<Policy> policies = new ArrayList<>();
 
         // ========== 1. 기본 근무 (STANDARD_WORK) ==========
-        policies.add(createStandardWorkPolicy(policyTypes));
+        policies.add(createStandardWorkPolicy(policyTypes, workLocations));
 
         // ========== 2. 연차유급휴가 (ANNUAL_LEAVE) ==========
         policies.add(createAnnualLeavePolicy(policyTypes));
@@ -115,7 +135,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
 
     // ========== 정책 생성 헬퍼 메서드 ==========
 
-    private Policy createStandardWorkPolicy(Map<PolicyTypeCode, PolicyType> policyTypes) {
+    private Policy createStandardWorkPolicy(Map<PolicyTypeCode, PolicyType> policyTypes, List<WorkLocation> workLocations) {
         WorkTimeRuleDto workTimeRule = new WorkTimeRuleDto();
         workTimeRule.setType("FIXED");
         workTimeRule.setWorkStartTime("09:00");
@@ -133,18 +153,14 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         overtimeRule.setHolidayWorkRate(new BigDecimal("1.5"));
         overtimeRule.setHolidayOvertimeRate(new BigDecimal("2.0"));
 
-        AuthMethodDto webAuth = new AuthMethodDto();
-        webAuth.setDeviceType(DeviceType.LAPTOP);
-        webAuth.setAuthMethod("NETWORK_IP");
-        webAuth.setDetails(Map.of("allowedIps", List.of("127.0.0.1", "0:0:0:0:0:0:0:1")));
-
-        AuthMethodDto mobileAuth = new AuthMethodDto();
-        mobileAuth.setDeviceType(DeviceType.MOBILE);
-        mobileAuth.setAuthMethod("GPS");
-        mobileAuth.setDetails(Map.of("officeLatitude", 37.5041, "officeLongitude", 127.0442, "gpsRadiusMeters", 300.0));
-
+        // WorkLocation 참조 방식으로 변경
         AuthRuleDto authRule = new AuthRuleDto();
-        authRule.setMethods(List.of(webAuth, mobileAuth));
+        // 모든 근무지에서 출퇴근 허용 (서울 본사 3층, 4층, 부산 지점)
+        authRule.setAllowedWorkLocationIds(
+            workLocations.stream().map(WorkLocation::getId).collect(Collectors.toList())
+        );
+        // GPS + WiFi 인증 필수
+        authRule.setRequiredAuthTypes(List.of("GPS", "WIFI"));
 
         PolicyRuleDetails ruleDetails = new PolicyRuleDetails();
         ruleDetails.setWorkTimeRule(workTimeRule);
@@ -373,7 +389,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                 .build();
     }
 
-    private void createWorkLocations() {
+    private List<WorkLocation> createWorkLocations() {
         List<WorkLocation> workLocations = new ArrayList<>();
 
         // 1. 서울 본사 3층 개발팀 (GPS + WiFi + IP)
@@ -421,6 +437,169 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                 .description("부산 지점. GPS 기반 출퇴근 인증.")
                 .build());
 
-        workLocationRepository.saveAll(workLocations);
+        return workLocationRepository.saveAll(workLocations);
+    }
+
+    /**
+     * 테스트용 MemberBalance 생성
+     * 각 직원들에게 연차 잔여일수를 부여하여 휴가 신청 테스트 가능하도록 함
+     */
+    private void createMemberBalances(Map<PolicyTypeCode, PolicyType> policyTypes) {
+        PolicyType annualLeaveType = policyTypes.get(PolicyTypeCode.ANNUAL_LEAVE);
+        int currentYear = LocalDate.now().getYear();
+
+        List<MemberBalance> balances = new ArrayList<>();
+
+        // 인사팀 관리자 (emp1@h.one - 김민준) - 15일
+        balances.add(MemberBalance.builder()
+                .memberId(HR_ADMIN_ID)
+                .companyId(COMPANY_ID)
+                .year(currentYear)
+                .balanceTypeCode(annualLeaveType.getTypeCode())
+                .totalGranted(15.0)
+                .totalUsed(0.0)
+                .remaining(15.0)
+                .expirationDate(LocalDate.of(currentYear, 12, 31))
+                .isPaid(true)
+                .build());
+
+        // 인사팀 직원1 (emp2@h.one - 이서준) - 15일 중 3일 사용
+        balances.add(MemberBalance.builder()
+                .memberId(HR_MEMBER1_ID)
+                .companyId(COMPANY_ID)
+                .year(currentYear)
+                .balanceTypeCode(annualLeaveType.getTypeCode())
+                .totalGranted(15.0)
+                .totalUsed(3.0)
+                .remaining(12.0)
+                .expirationDate(LocalDate.of(currentYear, 12, 31))
+                .isPaid(true)
+                .build());
+
+        // 인사팀 직원2 (emp3@h.one - 박도윤) - 15일 중 5일 사용
+        balances.add(MemberBalance.builder()
+                .memberId(HR_MEMBER2_ID)
+                .companyId(COMPANY_ID)
+                .year(currentYear)
+                .balanceTypeCode(annualLeaveType.getTypeCode())
+                .totalGranted(15.0)
+                .totalUsed(5.0)
+                .remaining(10.0)
+                .expirationDate(LocalDate.of(currentYear, 12, 31))
+                .isPaid(true)
+                .build());
+
+        // 개발팀 직원1 (emp6@h.one - 강지호) - 15일 중 7일 사용
+        balances.add(MemberBalance.builder()
+                .memberId(DEV_MEMBER1_ID)
+                .companyId(COMPANY_ID)
+                .year(currentYear)
+                .balanceTypeCode(annualLeaveType.getTypeCode())
+                .totalGranted(15.0)
+                .totalUsed(7.0)
+                .remaining(8.0)
+                .expirationDate(LocalDate.of(currentYear, 12, 31))
+                .isPaid(true)
+                .build());
+
+        // 개발팀 직원2 (emp7@h.one - 윤은우) - 15일 중 2일 사용
+        balances.add(MemberBalance.builder()
+                .memberId(DEV_MEMBER2_ID)
+                .companyId(COMPANY_ID)
+                .year(currentYear)
+                .balanceTypeCode(annualLeaveType.getTypeCode())
+                .totalGranted(15.0)
+                .totalUsed(2.0)
+                .remaining(13.0)
+                .expirationDate(LocalDate.of(currentYear, 12, 31))
+                .isPaid(true)
+                .build());
+
+        memberBalanceRepository.saveAll(balances);
+    }
+
+    /**
+     * 테스트용 디바이스 등록 신청 생성
+     * 다양한 상태의 디바이스 등록 신청을 생성하여 승인 프로세스 테스트 가능하도록 함
+     */
+    private void createSampleDeviceRequests() {
+        List<Request> requests = new ArrayList<>();
+
+        // 1. 인사팀 직원1 (이서준) - APPROVED 상태 (노트북)
+        requests.add(Request.builder()
+                .memberId(HR_MEMBER1_ID)
+                .deviceId("DEVICE-LAPTOP-HR001")
+                .deviceName("이서준 MacBook Pro")
+                .deviceType(DeviceType.LAPTOP)
+                .reason("업무용 노트북 등록")
+                .status(RequestStatus.APPROVED)
+                .policy(null)
+                .requestUnit(null)
+                .startAt(null)
+                .endAt(null)
+                .deductionDays(null)
+                .build());
+
+        // 2. 인사팀 직원2 (박도윤) - PENDING 상태 (모바일)
+        requests.add(Request.builder()
+                .memberId(HR_MEMBER2_ID)
+                .deviceId("DEVICE-MOBILE-HR002")
+                .deviceName("박도윤 iPhone 15")
+                .deviceType(DeviceType.MOBILE)
+                .reason("모바일 출퇴근 체크용")
+                .status(RequestStatus.PENDING)
+                .policy(null)
+                .requestUnit(null)
+                .startAt(null)
+                .endAt(null)
+                .deductionDays(null)
+                .build());
+
+        // 3. 개발팀 직원1 (강지호) - APPROVED 상태 (노트북)
+        requests.add(Request.builder()
+                .memberId(DEV_MEMBER1_ID)
+                .deviceId("DEVICE-LAPTOP-DEV001")
+                .deviceName("강지호 LG Gram")
+                .deviceType(DeviceType.LAPTOP)
+                .reason("개발 업무용 노트북")
+                .status(RequestStatus.APPROVED)
+                .policy(null)
+                .requestUnit(null)
+                .startAt(null)
+                .endAt(null)
+                .deductionDays(null)
+                .build());
+
+        // 4. 개발팀 직원2 (윤은우) - PENDING 상태 (모바일)
+        requests.add(Request.builder()
+                .memberId(DEV_MEMBER2_ID)
+                .deviceId("DEVICE-MOBILE-DEV002")
+                .deviceName("윤은우 Galaxy S24")
+                .deviceType(DeviceType.MOBILE)
+                .reason("재택근무 시 출퇴근 기록용")
+                .status(RequestStatus.PENDING)
+                .policy(null)
+                .requestUnit(null)
+                .startAt(null)
+                .endAt(null)
+                .deductionDays(null)
+                .build());
+
+        // 5. 개발팀 직원1 (강지호) - PENDING 상태 (모바일 추가)
+        requests.add(Request.builder()
+                .memberId(DEV_MEMBER1_ID)
+                .deviceId("DEVICE-MOBILE-DEV001")
+                .deviceName("강지호 iPhone 14")
+                .deviceType(DeviceType.MOBILE)
+                .reason("개인 휴대폰 등록 요청")
+                .status(RequestStatus.PENDING)
+                .policy(null)
+                .requestUnit(null)
+                .startAt(null)
+                .endAt(null)
+                .deductionDays(null)
+                .build());
+
+        requestRepository.saveAll(requests);
     }
 }

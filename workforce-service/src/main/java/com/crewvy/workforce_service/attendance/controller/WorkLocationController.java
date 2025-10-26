@@ -34,7 +34,7 @@ public class WorkLocationController {
             @RequestBody @Valid WorkLocationCreateDto request) {
 
         WorkLocationResponse response = workLocationService.createWorkLocation(companyId, request);
-        return new ResponseEntity<>(ApiResponse.success(response), HttpStatus.CREATED);
+        return new ResponseEntity<>(ApiResponse.success(response, "근무지가 생성되었습니다."), HttpStatus.CREATED);
     }
 
     /**
@@ -46,7 +46,7 @@ public class WorkLocationController {
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
 
         Page<WorkLocationResponse> response = workLocationService.getWorkLocations(companyId, pageable);
-        return new ResponseEntity<>(ApiResponse.success(response), HttpStatus.OK);
+        return new ResponseEntity<>(ApiResponse.success(response, "근무지 목록 조회 성공"), HttpStatus.OK);
     }
 
     /**
@@ -57,7 +57,7 @@ public class WorkLocationController {
             @RequestHeader("X-User-CompanyId") UUID companyId) {
 
         List<WorkLocationResponse> response = workLocationService.getActiveWorkLocations(companyId);
-        return new ResponseEntity<>(ApiResponse.success(response), HttpStatus.OK);
+        return new ResponseEntity<>(ApiResponse.success(response, "활성 근무지 목록 조회 성공"), HttpStatus.OK);
     }
 
     /**
@@ -69,7 +69,7 @@ public class WorkLocationController {
             @PathVariable UUID workLocationId) {
 
         WorkLocationResponse response = workLocationService.getWorkLocationById(workLocationId, companyId);
-        return new ResponseEntity<>(ApiResponse.success(response), HttpStatus.OK);
+        return new ResponseEntity<>(ApiResponse.success(response, "근무지 상세 조회 성공"), HttpStatus.OK);
     }
 
     /**
@@ -82,7 +82,7 @@ public class WorkLocationController {
             @RequestBody @Valid WorkLocationUpdateDto request) {
 
         WorkLocationResponse response = workLocationService.updateWorkLocation(workLocationId, companyId, request);
-        return new ResponseEntity<>(ApiResponse.success(response), HttpStatus.OK);
+        return new ResponseEntity<>(ApiResponse.success(response, "근무지 정보가 수정되었습니다."), HttpStatus.OK);
     }
 
     /**
@@ -94,7 +94,7 @@ public class WorkLocationController {
             @PathVariable UUID workLocationId) {
 
         WorkLocationResponse response = workLocationService.toggleActiveStatus(workLocationId, companyId);
-        return new ResponseEntity<>(ApiResponse.success(response), HttpStatus.OK);
+        return new ResponseEntity<>(ApiResponse.success(response, "근무지 상태가 변경되었습니다."), HttpStatus.OK);
     }
 
     /**
@@ -106,6 +106,6 @@ public class WorkLocationController {
             @PathVariable UUID workLocationId) {
 
         workLocationService.deleteWorkLocation(workLocationId, companyId);
-        return new ResponseEntity<>(ApiResponse.success(null), HttpStatus.OK);
+        return new ResponseEntity<>(ApiResponse.success(null, "근무지가 삭제되었습니다."), HttpStatus.OK);
     }
 }
