@@ -1,4 +1,4 @@
-package com.crewvy.workforce_service.performance.dto;
+package com.crewvy.workforce_service.performance.dto.request;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,8 +13,8 @@ import java.util.UUID;
 @NoArgsConstructor
 @Data
 @Builder
-public class UpdateMyGoalDto {
-    private UUID goalId;
+public class CreateMyGoalDto {
+    private UUID teamGoalId;
     private String title;
     private String contents;
     private LocalDate startDate;

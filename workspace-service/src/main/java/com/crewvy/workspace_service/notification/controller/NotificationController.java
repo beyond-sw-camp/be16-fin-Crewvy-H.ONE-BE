@@ -1,6 +1,7 @@
 package com.crewvy.workspace_service.notification.controller;
 
 import com.crewvy.common.dto.ApiResponse;
+import com.crewvy.workspace_service.notification.dto.request.NotificationSettingReqDto;
 import com.crewvy.workspace_service.notification.dto.response.NotificationResDto;
 import com.crewvy.workspace_service.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
@@ -27,5 +28,22 @@ public class NotificationController {
     public ResponseEntity<?> readAlarm(@PathVariable UUID id) {
         notificationService.readAlarm(id);
         return new ResponseEntity<>(ApiResponse.success(id, "알림 읽음"), HttpStatus.OK);
+    }
+
+    @GetMapping("/find-my-setting")
+    public ResponseEntity<?> findMySetting(@RequestHeader("X-User-UUID") UUID memberId) {
+        return new ResponseEntity<>(
+                ApiResponse.success(notificationService.findMySetting(memberId), "내 알림 설정 조회"),
+                HttpStatus.OK
+        );
+    }
+
+    @PatchMapping("/update-setting")
+    public ResponseEntity<?> updateSetting(@RequestBody List<NotificationSettingReqDto> dtoList) {
+        notificationService.updateSetting(dtoList);
+        return new ResponseEntity<>(
+                ApiResponse.success(null, "알림 설정 변경"),
+                HttpStatus.OK
+        );
     }
 }

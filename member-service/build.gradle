@@ -59,6 +59,9 @@ dependencies {
 	// Redis
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
+	// Kafka
+	implementation 'org.springframework.kafka:spring-kafka'
+
 	// Elastic Search
 	implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
 	implementation 'org.springframework.data:spring-data-elasticsearch'

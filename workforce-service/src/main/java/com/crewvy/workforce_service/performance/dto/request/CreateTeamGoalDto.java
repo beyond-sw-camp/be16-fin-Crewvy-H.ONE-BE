@@ -1,4 +1,4 @@
-package com.crewvy.workforce_service.performance.dto;
+package com.crewvy.workforce_service.performance.dto.request;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -6,20 +6,16 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
-import java.util.UUID;
+import java.util.List;
 
 @AllArgsConstructor
 @NoArgsConstructor
 @Data
 @Builder
-public class TeamGoalResponseDto {
-    private UUID teamGoalId;
+public class CreateTeamGoalDto {
     private String title;
     private String contents;
     private LocalDate startDate;
     private LocalDate endDate;
-    private UUID memberPositionId;
-    private String memberName;
-    private String memberOrganization;
-    private String memberPosition;
+    private List<TeamGoalMemberReqDto> members;
 }
