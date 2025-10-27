@@ -1,7 +1,6 @@
 package com.crewvy.member_service.member.dto.response;
 
 import com.crewvy.member_service.member.entity.Title;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
