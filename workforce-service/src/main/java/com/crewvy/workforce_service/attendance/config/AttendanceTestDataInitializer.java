@@ -1,9 +1,6 @@
 package com.crewvy.workforce_service.attendance.config;
 
-import com.crewvy.workforce_service.attendance.constant.DeviceType;
-import com.crewvy.workforce_service.attendance.constant.PolicyCategory;
-import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
-import com.crewvy.workforce_service.attendance.constant.RequestStatus;
+import com.crewvy.workforce_service.attendance.constant.*;
 import com.crewvy.workforce_service.attendance.dto.rule.*;
 import com.crewvy.workforce_service.attendance.entity.*;
 import com.crewvy.workforce_service.attendance.repository.*;
@@ -28,6 +25,8 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     private final WorkLocationRepository workLocationRepository;
     private final MemberBalanceRepository memberBalanceRepository;
     private final RequestRepository requestRepository;
+    private final AttendanceLogRepository attendanceLogRepository;
+    private final DailyAttendanceRepository dailyAttendanceRepository;
 
     // member-service의 AutoCreateAdmin에서 생성되는 H.ONE 컴퍼니 ID
     private static final UUID COMPANY_ID = UUID.fromString("8892759c-b28b-4395-a1b4-7ebe86bb65cc");
@@ -70,7 +69,78 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
 
         // 5. 테스트용 디바이스 등록 신청 생성
         createSampleDeviceRequests();
+
+        // 6. 테스트용 근태 기록 (Log & Daily) 생성
+        createAttendanceData();
     }
+
+    private void createAttendanceData() {
+        List<AttendanceLog> logs = new ArrayList<>();
+        List<DailyAttendance> dailies = new ArrayList<>();
+        LocalDate today = LocalDate.now();
+        LocalDate yesterday = today.minusDays(1);
+
+        // --- 1. 이서준 (HR_MEMBER1_ID): 어제 정상 근무, 오늘 출근 ---
+        // 어제 기록
+        logs.add(AttendanceLog.builder().memberId(HR_MEMBER1_ID).eventType(EventType.CLOCK_IN).eventTime(yesterday.atTime(8, 58)).build());
+        logs.add(AttendanceLog.builder().memberId(HR_MEMBER1_ID).eventType(EventType.BREAK_START).eventTime(yesterday.atTime(12, 30)).build());
+        logs.add(AttendanceLog.builder().memberId(HR_MEMBER1_ID).eventType(EventType.BREAK_END).eventTime(yesterday.atTime(13, 32)).build());
+        logs.add(AttendanceLog.builder().memberId(HR_MEMBER1_ID).eventType(EventType.CLOCK_OUT).eventTime(yesterday.atTime(18, 5)).build());
+        dailies.add(DailyAttendance.builder()
+            .memberId(HR_MEMBER1_ID).companyId(COMPANY_ID).attendanceDate(yesterday).status(AttendanceStatus.NORMAL_WORK)
+            .firstClockIn(yesterday.atTime(8, 58)).lastClockOut(yesterday.atTime(18, 5))
+            .workedMinutes(485).totalBreakMinutes(62).overtimeMinutes(5)
+            .daytimeOvertimeMinutes(5).nightWorkMinutes(0).holidayWorkMinutes(0)
+            .isLate(false).isEarlyLeave(false).build());
+        // 오늘 기록
+        logs.add(AttendanceLog.builder().memberId(HR_MEMBER1_ID).eventType(EventType.CLOCK_IN).eventTime(today.atTime(9, 2)).build());
+        dailies.add(DailyAttendance.builder()
+            .memberId(HR_MEMBER1_ID).companyId(COMPANY_ID).attendanceDate(today).status(AttendanceStatus.NORMAL_WORK)
+            .firstClockIn(today.atTime(9, 2)).build());
+
+        // --- 2. 박도윤 (HR_MEMBER2_ID): 어제 지각, 오늘 출근 ---
+        // 어제 기록
+        logs.add(AttendanceLog.builder().memberId(HR_MEMBER2_ID).eventType(EventType.CLOCK_IN).eventTime(yesterday.atTime(9, 25)).build());
+        logs.add(AttendanceLog.builder().memberId(HR_MEMBER2_ID).eventType(EventType.CLOCK_OUT).eventTime(yesterday.atTime(18, 31)).build());
+        dailies.add(DailyAttendance.builder()
+            .memberId(HR_MEMBER2_ID).companyId(COMPANY_ID).attendanceDate(yesterday).status(AttendanceStatus.NORMAL_WORK)
+            .firstClockIn(yesterday.atTime(9, 25)).lastClockOut(yesterday.atTime(18, 31))
+            .workedMinutes(486).totalBreakMinutes(60) // 가정
+            .overtimeMinutes(6).daytimeOvertimeMinutes(6).nightWorkMinutes(0).holidayWorkMinutes(0)
+            .isLate(true).lateMinutes(25).isEarlyLeave(false).build());
+        // 오늘 기록
+        logs.add(AttendanceLog.builder().memberId(HR_MEMBER2_ID).eventType(EventType.CLOCK_IN).eventTime(today.atTime(8, 55)).build());
+        dailies.add(DailyAttendance.builder()
+            .memberId(HR_MEMBER2_ID).companyId(COMPANY_ID).attendanceDate(today).status(AttendanceStatus.NORMAL_WORK)
+            .firstClockIn(today.atTime(8, 55)).build());
+
+        // --- 3. 강지호 (DEV_MEMBER1_ID): 어제 야근, 오늘 외출 중 ---
+        // 어제 기록
+        logs.add(AttendanceLog.builder().memberId(DEV_MEMBER1_ID).eventType(EventType.CLOCK_IN).eventTime(yesterday.atTime(9, 5)).build());
+        logs.add(AttendanceLog.builder().memberId(DEV_MEMBER1_ID).eventType(EventType.CLOCK_OUT).eventTime(yesterday.atTime(22, 15)).build());
+        dailies.add(DailyAttendance.builder()
+            .memberId(DEV_MEMBER1_ID).companyId(COMPANY_ID).attendanceDate(yesterday).status(AttendanceStatus.NORMAL_WORK)
+            .firstClockIn(yesterday.atTime(9, 5)).lastClockOut(yesterday.atTime(22, 15))
+            .workedMinutes(730).totalBreakMinutes(60) // 가정
+            .overtimeMinutes(250).daytimeOvertimeMinutes(235).nightWorkMinutes(15).holidayWorkMinutes(0)
+            .isLate(true).lateMinutes(5).isEarlyLeave(false).build());
+        // 오늘 기록
+        logs.add(AttendanceLog.builder().memberId(DEV_MEMBER1_ID).eventType(EventType.CLOCK_IN).eventTime(today.atTime(9, 10)).build());
+        logs.add(AttendanceLog.builder().memberId(DEV_MEMBER1_ID).eventType(EventType.GO_OUT).eventTime(today.atTime(14, 0)).build());
+        dailies.add(DailyAttendance.builder()
+            .memberId(DEV_MEMBER1_ID).companyId(COMPANY_ID).attendanceDate(today).status(AttendanceStatus.NORMAL_WORK)
+            .firstClockIn(today.atTime(9, 10)).build());
+
+        // --- 4. 윤은우 (DEV_MEMBER2_ID): 어제 휴가, 오늘 결근 (데이터 없음) ---
+        // 어제 기록 (휴가)
+        dailies.add(DailyAttendance.builder()
+            .memberId(DEV_MEMBER2_ID).companyId(COMPANY_ID).attendanceDate(yesterday).status(AttendanceStatus.ANNUAL_LEAVE)
+            .build());
+
+        attendanceLogRepository.saveAll(logs);
+        dailyAttendanceRepository.saveAll(dailies);
+    }
+
 
     private Map<PolicyTypeCode, PolicyType> createPolicyTypes() {
         List<PolicyType> typesToCreate = List.of(
@@ -535,8 +605,8 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                 .status(RequestStatus.APPROVED)
                 .policy(null)
                 .requestUnit(null)
-                .startAt(null)
-                .endAt(null)
+                .startDateTime(null)
+                .endDateTime(null)
                 .deductionDays(null)
                 .build());
 
@@ -550,8 +620,8 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                 .status(RequestStatus.PENDING)
                 .policy(null)
                 .requestUnit(null)
-                .startAt(null)
-                .endAt(null)
+                .startDateTime(null)
+                .endDateTime(null)
                 .deductionDays(null)
                 .build());
 
@@ -565,8 +635,8 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                 .status(RequestStatus.APPROVED)
                 .policy(null)
                 .requestUnit(null)
-                .startAt(null)
-                .endAt(null)
+                .startDateTime(null)
+                .endDateTime(null)
                 .deductionDays(null)
                 .build());
 
@@ -580,8 +650,8 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                 .status(RequestStatus.PENDING)
                 .policy(null)
                 .requestUnit(null)
-                .startAt(null)
-                .endAt(null)
+                .startDateTime(null)
+                .endDateTime(null)
                 .deductionDays(null)
                 .build());
 
@@ -595,8 +665,8 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                 .status(RequestStatus.PENDING)
                 .policy(null)
                 .requestUnit(null)
-                .startAt(null)
-                .endAt(null)
+                .startDateTime(null)
+                .endDateTime(null)
                 .deductionDays(null)
                 .build());
 
