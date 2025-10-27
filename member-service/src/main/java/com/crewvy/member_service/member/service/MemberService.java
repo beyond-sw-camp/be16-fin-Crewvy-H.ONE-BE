@@ -896,6 +896,8 @@ public class MemberService {
 
             member.updateDefaultMemberPosition(newDefaultMemberPosition);
         }
+
+        saveSearchOutboxEvent(member);
     }
 
     // 권한 확인
@@ -1071,6 +1073,7 @@ public class MemberService {
         }).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 직원입니다."));
     }
 
+    // elastic search에 저장
     public void saveSearchOutboxEvent(Member member) {
         try {
             List<MemberPosition> positionList = member.getMemberPositionList().stream().toList();
@@ -1120,7 +1123,7 @@ public class MemberService {
                     .name(member.getName())
                     .organizationList(organizationEventList)
                     .titleName(titleNameList)
-                    .phoneNumber(member.getPhoneNumber())
+                    .phoneNumber(member.getIsPhoneNumberPublic() == Bool.TRUE ? member.getPhoneNumber() : null)
                     .memberStatus(member.getMemberStatus().getCodeName())
                     .position(member.getDefaultMemberPosition().getTitle().getName())
                     .email(member.getEmail())

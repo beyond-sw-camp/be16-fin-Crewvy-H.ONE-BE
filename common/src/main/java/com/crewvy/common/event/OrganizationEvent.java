@@ -18,5 +18,4 @@ public class OrganizationEvent implements Serializable {
     private UUID id;
     private String name;
     private UUID parentId;
-
 }

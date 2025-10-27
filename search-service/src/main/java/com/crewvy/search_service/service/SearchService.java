@@ -2,6 +2,7 @@ package com.crewvy.search_service.service;
 
 import com.crewvy.common.event.MemberDeletedEvent;
 import com.crewvy.common.event.MemberSavedEvent;
+import com.crewvy.common.event.OrganizationEvent;
 import com.crewvy.search_service.entity.MemberDocument;
 import com.crewvy.search_service.entity.OrganizationDocument;
 import com.crewvy.search_service.repository.ElasticRepository;
@@ -22,13 +23,17 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class SearchService {
-
     private final ElasticRepository elasticRepository;
     private final OrganizationSearchRepository organizationSearchRepository;
     private final ElasticsearchOperations elasticsearchOperations;
 
     @KafkaListener(topics = "member-saved-events", groupId = "search-service-group")
     public void listenMemberSavedEvent(MemberSavedEvent event) {
+        List<String> orgNames = event.getOrganizationList().stream()
+                .map(OrganizationEvent::getName)
+                .collect(Collectors.toList());
+        String suggestText = event.getName() + " " + String.join(" ", orgNames);
+
         MemberDocument memberDocument = MemberDocument.builder()
                 .memberId(event.getMemberId().toString())
                 .companyId(event.getCompanyId().toString())
@@ -37,7 +42,7 @@ public class SearchService {
                 .titleName(event.getTitleName())
                 .phoneNumber(event.getPhoneNumber())
                 .memberStatus(event.getMemberStatus())
-                .suggest(event.getName() + " " + String.join(" ", event.getOrganizationList().toString()))
+                .suggest(new org.springframework.data.elasticsearch.core.suggest.Completion(new String[]{suggestText}))
                 .build();
         elasticRepository.save(memberDocument);
 
@@ -75,6 +80,7 @@ public class SearchService {
         elasticRepository.deleteById(event.getMemberId().toString());
     }
 
+    // 직원 검색
     public List<MemberDocument> searchEmployees(String query, String companyId) {
         Query searchQuery;
         if (query.matches("^[0-9\\-]+$")) {
@@ -89,8 +95,7 @@ public class SearchService {
                             .should(s -> s.multiMatch(mm -> mm.query(query).fields("name")))
                             .should(s -> s.nested(n -> n
                                     .path("organizationList")
-                                    .query(nq -> nq.match(m -> m.field("organizationList.name").query(query)))
-                            ))
+                                    .query(nq -> nq.match(m -> m.field("organizationList.name").query(query)))))
                             .minimumShouldMatch("1")
                             .filter(f -> f.term(t -> t.field("companyId.keyword").value(companyId)))))
                     .build();
@@ -99,7 +104,21 @@ public class SearchService {
         return searchHits.stream().map(SearchHit::getContent).collect(Collectors.toList());
     }
 
+    // 조직 검색
     public List<OrganizationDocument> getOrganizationTree(String companyId) {
         return organizationSearchRepository.findByCompanyId(companyId);
+    }
+
+    // 조직별 직원 검색
+    public List<MemberDocument> searchEmployeesByOrganization(String organizationId, String companyId) {
+        Query searchQuery = new NativeQueryBuilder()
+                .withQuery(q -> q.bool(b -> b
+                        .must(s -> s.nested(n -> n
+                                .path("organizationList")
+                                .query(nq -> nq.term(t -> t.field("organizationList.id").value(organizationId)))))
+                        .filter(f -> f.term(t -> t.field("companyId.keyword").value(companyId)))))
+                .build();
+        SearchHits<MemberDocument> searchHits = elasticsearchOperations.search(searchQuery, MemberDocument.class);
+        return searchHits.stream().map(SearchHit::getContent).collect(Collectors.toList());
     }
 }

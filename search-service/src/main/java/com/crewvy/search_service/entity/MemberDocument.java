@@ -10,6 +10,8 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.*;
 
+import org.springframework.data.elasticsearch.core.suggest.Completion;
+
 import java.util.List;
 
 @Getter
@@ -44,5 +46,5 @@ public class MemberDocument {
     private String memberStatus;
 
     @CompletionField(maxInputLength = 100)
-    private String suggest;
+    private Completion suggest;
 }

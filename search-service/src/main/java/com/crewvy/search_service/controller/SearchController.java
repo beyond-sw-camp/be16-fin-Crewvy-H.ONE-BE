@@ -1,16 +1,13 @@
 package com.crewvy.search_service.controller;
 
-import com.crewvy.search_service.entity.MemberDocument;
-import com.crewvy.search_service.entity.OrganizationDocument;
+import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.search_service.service.SearchService;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
+@RequestMapping("/search")
 public class SearchController {
 
     private final SearchService searchService;
@@ -19,13 +16,21 @@ public class SearchController {
         this.searchService = searchService;
     }
 
-    @GetMapping("/employees/search")
-    public List<MemberDocument> searchEmployees(@RequestParam String query, @RequestHeader("X-User-CompanyId") String companyId) {
-        return searchService.searchEmployees(query, companyId);
+    @GetMapping("/employees")
+    public ResponseEntity<?> searchEmployees(@RequestParam String query, @RequestHeader("X-User-CompanyId") String companyId) {
+        return new ResponseEntity<>(ApiResponse.success(
+                searchService.searchEmployees(query, companyId), "직원 검색 성공"), HttpStatus.OK);
     }
 
     @GetMapping("/organization")
-    public List<OrganizationDocument> getOrganizationTree(@RequestHeader("X-User-CompanyId") String companyId) {
-        return searchService.getOrganizationTree(companyId);
+    public ResponseEntity<?> getOrganizationTree(@RequestHeader("X-User-CompanyId") String companyId) {
+        return new ResponseEntity<>(ApiResponse.success(
+                searchService.getOrganizationTree(companyId), "조직 검색 성공"), HttpStatus.OK);
+    }
+
+    @GetMapping("/employees/organization")
+    public ResponseEntity<?> searchEmployeesByOrganization(@RequestParam String organizationId, @RequestHeader("X-User-CompanyId") String companyId) {
+        return new ResponseEntity<>(ApiResponse.success(
+                searchService.searchEmployeesByOrganization(organizationId, companyId), "조직별 직원 검색 성공"), HttpStatus.OK);
     }
 }
