@@ -34,9 +34,9 @@ public class RequestController {
             @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
             @RequestHeader("X-User-CompanyId") UUID companyId,
             @RequestHeader("X-User-OrganizationId") UUID organizationId,
-            @RequestBody @Valid LeaveRequestCreateDto request) {
+            @RequestBody @Valid LeaveRequestCreateDto createDto) {
         LeaveRequestResponse response = requestService.createLeaveRequest(
-                memberId, memberPositionId, companyId, organizationId, request);
+                memberId, memberPositionId, companyId, organizationId, createDto);
         return new ResponseEntity<>(ApiResponse.success(response, "휴가 신청이 완료되었습니다."), HttpStatus.CREATED);
     }
 
@@ -84,9 +84,9 @@ public class RequestController {
     @PostMapping("/devices/register")
     public ResponseEntity<ApiResponse<DeviceRequestResponse>> registerDevice(
             @RequestHeader("X-User-UUID") UUID memberId,
-            @RequestBody @Valid DeviceRequestCreateDto request) {
+            @RequestBody @Valid DeviceRequestCreateDto createDto) {
 
-        DeviceRequestResponse response = requestService.registerDevice(memberId, request);
+        DeviceRequestResponse response = requestService.registerDevice(memberId, createDto);
         return new ResponseEntity<>(ApiResponse.success(response, "디바이스 등록 신청이 완료되었습니다."), HttpStatus.CREATED);
     }
 

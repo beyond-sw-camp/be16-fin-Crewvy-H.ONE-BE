@@ -27,9 +27,9 @@ public class PolicyAssignmentController {
     @PostMapping
     public ResponseEntity<ApiResponse<List<PolicyAssignmentResponse>>> createAssignments(
             @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-            @RequestBody @Valid PolicyAssignmentRequest request) {
+            @RequestBody @Valid PolicyAssignmentRequest assignmentRequest) {
         
-        List<PolicyAssignmentResponse> response = policyAssignmentService.createAssignments(memberPositionId, request);
+        List<PolicyAssignmentResponse> response = policyAssignmentService.createAssignments(memberPositionId, assignmentRequest);
         return new ResponseEntity<>(ApiResponse.success(response, "정책이 성공적으로 할당되었습니다."), HttpStatus.CREATED);
     }
 
@@ -75,27 +75,27 @@ public class PolicyAssignmentController {
     @PatchMapping("/revoke")
     public ResponseEntity<ApiResponse<Void>> revokeAssignments(
             @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-            @RequestBody @Valid com.crewvy.workforce_service.attendance.dto.request.PolicyAssignmentIdListRequest request) {
+            @RequestBody @Valid PolicyAssignmentIdListRequest idListRequest) {
         
-        policyAssignmentService.revokeAssignments(memberPositionId, request.getAssignmentIds());
+        policyAssignmentService.revokeAssignments(memberPositionId, idListRequest.getAssignmentIds());
         return new ResponseEntity<>(ApiResponse.success(null, "선택된 정책 할당들이 해지되었습니다."), HttpStatus.OK);
     }
 
     @PatchMapping("/reactivate")
     public ResponseEntity<ApiResponse<Void>> reactivateAssignments(
             @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-            @RequestBody @Valid PolicyAssignmentIdListRequest request) {
+            @RequestBody @Valid PolicyAssignmentIdListRequest idListRequest) {
         
-        policyAssignmentService.reactivateAssignments(memberPositionId, request.getAssignmentIds());
+        policyAssignmentService.reactivateAssignments(memberPositionId, idListRequest.getAssignmentIds());
         return new ResponseEntity<>(ApiResponse.success(null, "선택된 정책 할당들이 재활성화되었습니다."), HttpStatus.OK);
     }
 
     @DeleteMapping
     public ResponseEntity<ApiResponse<Void>> deleteAssignments(
             @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-            @RequestBody @Valid com.crewvy.workforce_service.attendance.dto.request.PolicyAssignmentIdListRequest request) {
+            @RequestParam("assignmentIds") List<UUID> assignmentIds) {
         
-        policyAssignmentService.deleteAssignments(memberPositionId, request.getAssignmentIds());
+        policyAssignmentService.deleteAssignments(memberPositionId, assignmentIds);
         return new ResponseEntity<>(ApiResponse.success(null, "선택된 정책 할당들이 삭제되었습니다."), HttpStatus.OK);
     }
 }

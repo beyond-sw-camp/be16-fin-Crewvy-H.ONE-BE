@@ -31,9 +31,9 @@ public class WorkLocationController {
     @PostMapping
     public ResponseEntity<ApiResponse<WorkLocationResponse>> createWorkLocation(
             @RequestHeader("X-User-CompanyId") UUID companyId,
-            @RequestBody @Valid WorkLocationCreateDto request) {
+            @RequestBody @Valid WorkLocationCreateDto createDto) {
 
-        WorkLocationResponse response = workLocationService.createWorkLocation(companyId, request);
+        WorkLocationResponse response = workLocationService.createWorkLocation(companyId, createDto);
         return new ResponseEntity<>(ApiResponse.success(response, "근무지가 생성되었습니다."), HttpStatus.CREATED);
     }
 
@@ -79,9 +79,9 @@ public class WorkLocationController {
     public ResponseEntity<ApiResponse<WorkLocationResponse>> updateWorkLocation(
             @RequestHeader("X-User-CompanyId") UUID companyId,
             @PathVariable UUID workLocationId,
-            @RequestBody @Valid WorkLocationUpdateDto request) {
+            @RequestBody @Valid WorkLocationUpdateDto updateDto) {
 
-        WorkLocationResponse response = workLocationService.updateWorkLocation(workLocationId, companyId, request);
+        WorkLocationResponse response = workLocationService.updateWorkLocation(workLocationId, companyId, updateDto);
         return new ResponseEntity<>(ApiResponse.success(response, "근무지 정보가 수정되었습니다."), HttpStatus.OK);
     }
 

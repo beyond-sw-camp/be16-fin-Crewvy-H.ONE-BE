@@ -30,8 +30,8 @@ public class PolicyController {
             @RequestHeader("X-User-MemberPositionId") UUID memberpositionId,
             @RequestHeader("X-User-CompanyId") UUID companyId,
             @RequestHeader("X-User-OrganizationId") UUID organizationId,
-            @RequestBody @Valid PolicyCreateRequest request) {
-        PolicyResponse response = policyService.createPolicy(memberpositionId, companyId, organizationId, request);
+            @RequestBody @Valid PolicyCreateRequest createRequest) {
+        PolicyResponse response = policyService.createPolicy(memberpositionId, companyId, organizationId, createRequest);
         return new ResponseEntity<>(ApiResponse.success(response, "정책 생성 완료"), HttpStatus.CREATED);
     }
 
@@ -58,8 +58,8 @@ public class PolicyController {
             @RequestHeader("X-User-MemberPositionId") UUID memberpositionId,
             @RequestHeader("X-User-CompanyId") UUID companyId,
             @PathVariable UUID policyId,
-            @RequestBody @Valid PolicyUpdateRequest request) {
-        PolicyResponse response = policyService.updatePolicy(memberpositionId, companyId, policyId, request);
+            @RequestBody @Valid PolicyUpdateRequest updateRequest) {
+        PolicyResponse response = policyService.updatePolicy(memberpositionId, companyId, policyId, updateRequest);
         return new ResponseEntity<>(ApiResponse.success(response, "정책 수정 완료"), HttpStatus.OK);
     }
 
@@ -76,8 +76,8 @@ public class PolicyController {
     public ResponseEntity<ApiResponse<Void>> activatePolicies(
             @RequestHeader("X-User-MemberPositionId") UUID memberpositionId,
             @RequestHeader("X-User-CompanyId") UUID companyId,
-            @RequestBody @Valid PolicyIdListRequest request) {
-        policyService.activatePolicies(memberpositionId, companyId, request.getPolicyIds());
+            @RequestBody @Valid PolicyIdListRequest idListRequest) {
+        policyService.activatePolicies(memberpositionId, companyId, idListRequest.getPolicyIds());
         return new ResponseEntity<>(ApiResponse.success(null, "정책 활성화 완료"), HttpStatus.OK);
     }
 
@@ -85,8 +85,8 @@ public class PolicyController {
     public ResponseEntity<ApiResponse<Void>> deactivatePolicies(
             @RequestHeader("X-User-MemberPositionId") UUID memberpositionId,
             @RequestHeader("X-User-CompanyId") UUID companyId,
-            @RequestBody @Valid PolicyIdListRequest request) {
-        policyService.deactivatePolicies(memberpositionId, companyId, request.getPolicyIds());
+            @RequestBody @Valid PolicyIdListRequest idListRequest) {
+        policyService.deactivatePolicies(memberpositionId, companyId, idListRequest.getPolicyIds());
         return new ResponseEntity<>(ApiResponse.success(null, "정책 비활성화 완료"), HttpStatus.OK);
     }
 

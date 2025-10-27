@@ -28,12 +28,12 @@ public class AttendanceController {
             @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
             @RequestHeader("X-User-CompanyId") UUID companyId,
             @RequestHeader("X-User-OrganizationId") UUID organizationId,
-            @RequestBody @Valid EventRequest request,
+            @RequestBody @Valid EventRequest eventRequest,
             HttpServletRequest httpServletRequest) {
 
         String clientIp = getClientIp(httpServletRequest);
 
-        Object response = attendanceService.recordEvent(memberId, memberPositionId, companyId, organizationId, request, clientIp);
+        Object response = attendanceService.recordEvent(memberId, memberPositionId, companyId, organizationId, eventRequest, clientIp);
         return new ResponseEntity<>(ApiResponse.success(response), HttpStatus.OK);
     }
 
