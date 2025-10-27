@@ -12,15 +12,20 @@ import com.crewvy.member_service.member.constant.PermissionRange;
 import com.crewvy.member_service.member.dto.request.*;
 import com.crewvy.member_service.member.dto.response.*;
 import com.crewvy.member_service.member.entity.*;
+import com.crewvy.member_service.member.event.MemberChangedEvent;
 import com.crewvy.member_service.member.repository.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -47,6 +52,7 @@ public class MemberService {
     private final OutboxRepository outboxRepository;
     private final SearchOutboxEventRepository searchOutboxEventRepository;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     public MemberService(CompanyRepository companyRepository, OrganizationRepository organizationRepository
             , MemberRepository memberRepository, MemberPositionRepository memberPositionRepository
@@ -54,7 +60,7 @@ public class MemberService {
             , GradeRepository gradeRepository, GradeHistoryRepository gradeHistoryRepository
             , TitleRepository titleRepository, PermissionRepository permissionRepository
             , PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider, OutboxRepository outboxRepository
-            , SearchOutboxEventRepository searchOutboxEventRepository, ObjectMapper objectMapper) {
+            , SearchOutboxEventRepository searchOutboxEventRepository, ObjectMapper objectMapper, ApplicationEventPublisher eventPublisher) {
         this.companyRepository = companyRepository;
         this.organizationRepository = organizationRepository;
         this.memberRepository = memberRepository;
@@ -70,6 +76,7 @@ public class MemberService {
         this.outboxRepository = outboxRepository;
         this.searchOutboxEventRepository = searchOutboxEventRepository;
         this.objectMapper = objectMapper;
+        this.eventPublisher = eventPublisher;
     }
 
     // 회원가입
@@ -90,6 +97,7 @@ public class MemberService {
                 .memberId(savedMember.getId())
                 .build();
         outboxRepository.save(notificationOutbox);
+        eventPublisher.publishEvent(new MemberChangedEvent(savedMember.getId()));
 
         return savedMember;
     }
@@ -139,7 +147,7 @@ public class MemberService {
                 .build();
         outboxRepository.save(outbox);
 
-        saveSearchOutboxEvent(savedMember.getId());
+        eventPublisher.publishEvent(new MemberChangedEvent(savedMember.getId()));
 
         return savedMember.getId();
     }
@@ -330,7 +338,7 @@ public class MemberService {
                 });
 
         Set<MemberPosition> currentPositionSet = new LinkedHashSet<>(member.getMemberPositionList());
-        Set<UUID> updatedMemberPositionIds = new LinkedHashSet<>();
+        Set<UUID> updatedMemberPositionIdSet = new LinkedHashSet<>();
 
         if (updateMemberReq.getPositionUpdateReqList() != null) {
             for (PositionUpdateReq req : updateMemberReq.getPositionUpdateReqList()) {
@@ -342,7 +350,7 @@ public class MemberService {
                             .findFirst()
                             .orElse(null);
                     if (memberPosition != null) {
-                        updatedMemberPositionIds.add(memberPosition.getId());
+                        updatedMemberPositionIdSet.add(memberPosition.getId());
                     }
                 }
 
@@ -382,13 +390,13 @@ public class MemberService {
 
         // 삭제 처리: 프론트엔드에서 넘어오지 않은 기존 memberPosition은 ynDel = TRUE
         currentPositionSet.stream()
-                .filter(mp -> !updatedMemberPositionIds.contains(mp.getId()))
+                .filter(mp -> !updatedMemberPositionIdSet.contains(mp.getId()))
                 .forEach(mp -> {
                     mp.delete(); // ynDel = TRUE
                     memberPositionRepository.save(mp);
                 });
 
-        saveSearchOutboxEvent(member.getId());
+        eventPublisher.publishEvent(new MemberChangedEvent(member.getId()));
 
         return member.getId();
     }
@@ -430,7 +438,7 @@ public class MemberService {
         member.restore();
         memberRepository.save(member);
 
-        saveSearchOutboxEvent(member.getId());
+        eventPublisher.publishEvent(new MemberChangedEvent(member.getId()));
     }
 
     // 직원 상세 조회
@@ -912,7 +920,7 @@ public class MemberService {
             member.updateDefaultMemberPosition(newDefaultMemberPosition);
         }
 
-        saveSearchOutboxEvent(member.getId());
+        eventPublisher.publishEvent(new MemberChangedEvent(member.getId()));
     }
 
     // 권한 확인
@@ -1086,6 +1094,13 @@ public class MemberService {
 
             return organizationResList;
         }).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 직원입니다."));
+    }
+
+    // 회원 데이터 변경이 완료된 후 Elasticsearch 동기화를 위한 이벤트 저장
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void handleMemberSaveEvent(MemberChangedEvent memberChangedEvent) {
+        saveSearchOutboxEvent(memberChangedEvent.getMemberId());
     }
 
     // elastic search에 저장

@@ -11,10 +11,12 @@ import com.crewvy.member_service.member.entity.Company;
 import com.crewvy.member_service.member.entity.Member;
 import com.crewvy.member_service.member.entity.MemberPosition;
 import com.crewvy.member_service.member.entity.Organization;
+import com.crewvy.member_service.member.event.OrganizationChangedEvent;
 import com.crewvy.member_service.member.repository.CompanyRepository;
 import com.crewvy.member_service.member.repository.MemberPositionRepository;
 import com.crewvy.member_service.member.repository.MemberRepository;
 import com.crewvy.member_service.member.repository.OrganizationRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,15 +38,18 @@ public class OrganizationService {
     private final MemberRepository memberRepository;
     private final MemberService memberService;
     private final MemberPositionRepository memberPositionRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public OrganizationService(OrganizationRepository organizationRepository,
                                CompanyRepository companyRepository, MemberRepository memberRepository,
-                               MemberService memberService, MemberPositionRepository memberPositionRepository) {
+                               MemberService memberService, MemberPositionRepository memberPositionRepository,
+                               ApplicationEventPublisher eventPublisher) {
         this.organizationRepository = organizationRepository;
         this.companyRepository = companyRepository;
         this.memberRepository = memberRepository;
         this.memberService = memberService;
         this.memberPositionRepository = memberPositionRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     // 회사 생성
@@ -75,7 +80,10 @@ public class OrganizationService {
         Organization newOrganization = createOrganizationReq.toEntity(parent, member.getCompany());
         newOrganization.updateDisplayOrder(displayOrder);
 
-        return organizationRepository.save(newOrganization).getId();
+        Organization savedOrganization = organizationRepository.save(newOrganization);
+        eventPublisher.publishEvent(new OrganizationChangedEvent(savedOrganization.getId()));
+
+        return savedOrganization.getId();
     }
 
     // 회원가입 시 사용되는 기본 조직 생성
@@ -130,7 +138,9 @@ public class OrganizationService {
                 -> new IllegalArgumentException("존재하지 않는 조직입니다."));
 
         organization.updateName(updateOrganizationReq.getName());
-        return organizationRepository.save(organization).getId();
+        UUID savedOrganizationId = organizationRepository.save(organization).getId();
+        eventPublisher.publishEvent(new OrganizationChangedEvent(savedOrganizationId));
+        return savedOrganizationId;
     }
 
     // 조직 순서 변경
@@ -167,5 +177,6 @@ public class OrganizationService {
         }
 
         organizationRepository.delete(organization);
+        eventPublisher.publishEvent(new OrganizationChangedEvent(organizationId));
     }
 }

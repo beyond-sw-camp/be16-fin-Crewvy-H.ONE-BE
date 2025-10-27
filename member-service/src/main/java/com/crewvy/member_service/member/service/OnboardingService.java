@@ -3,9 +3,9 @@ package com.crewvy.member_service.member.service;
 import com.crewvy.common.entity.Bool;
 import com.crewvy.member_service.member.dto.request.CreateAdminReq;
 import com.crewvy.member_service.member.entity.*;
+import com.crewvy.member_service.member.event.MemberChangedEvent;
 import com.crewvy.member_service.member.repository.GradeHistoryRepository;
-import com.crewvy.member_service.member.repository.SearchOutboxEventRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,12 +18,14 @@ public class OnboardingService {
     private final MemberService memberService;
     private final OrganizationService organizationService;
     private final GradeHistoryRepository gradeHistoryRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public OnboardingService(MemberService memberService, OrganizationService organizationService
-            , GradeHistoryRepository gradeHistoryRepository) {
+            , GradeHistoryRepository gradeHistoryRepository, ApplicationEventPublisher eventPublisher) {
         this.memberService = memberService;
         this.organizationService = organizationService;
         this.gradeHistoryRepository = gradeHistoryRepository;
+        this.eventPublisher = eventPublisher;
     }
 
 
@@ -49,7 +51,7 @@ public class OnboardingService {
         memberService.createAndAssignDefaultPosition(null, adminMember, organization, adminTitle, adminRole);
 
         // 통합검색 kafka
-        memberService.saveSearchOutboxEvent(adminMember.getId());
+        eventPublisher.publishEvent(new MemberChangedEvent(adminMember.getId()));
 
         return adminMember.getId();
     }
