@@ -1,6 +1,6 @@
-package com.crewvy.workforce_service.performance.dto;
+package com.crewvy.workforce_service.performance.dto.request;
 
-import com.crewvy.workforce_service.performance.constant.Grade;
+import com.crewvy.workforce_service.performance.constant.GoalStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,8 +12,8 @@ import java.util.UUID;
 @NoArgsConstructor
 @Data
 @Builder
-public class EvaluationResponseDto {
-    private UUID evaluationId;
-    private Grade grade;
+public class UpdateStatusDto {
+    private UUID goalId;
+    private GoalStatus status;
     private String comment;
 }

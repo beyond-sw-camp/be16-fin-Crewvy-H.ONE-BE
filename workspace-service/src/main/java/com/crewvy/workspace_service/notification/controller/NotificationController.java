@@ -5,7 +5,6 @@ import com.crewvy.workspace_service.notification.dto.request.NotificationSetting
 import com.crewvy.workspace_service.notification.dto.response.NotificationResDto;
 import com.crewvy.workspace_service.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.autoconfigure.graphql.GraphQlProperties;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

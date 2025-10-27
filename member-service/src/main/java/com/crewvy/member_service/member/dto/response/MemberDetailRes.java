@@ -2,8 +2,6 @@ package com.crewvy.member_service.member.dto.response;
 
 import com.crewvy.common.entity.Bool;
 import com.crewvy.member_service.member.constant.AccountStatus;
-import com.crewvy.member_service.member.constant.EmploymentType;
-import com.crewvy.member_service.member.constant.MemberStatus;
 import com.crewvy.member_service.member.entity.Member;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,8 +11,8 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.time.Period;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Getter
 @NoArgsConstructor
