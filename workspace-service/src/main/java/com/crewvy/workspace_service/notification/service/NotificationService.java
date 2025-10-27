@@ -34,8 +34,9 @@ public class NotificationService {
         return notificationList.stream()
                 .map(notification -> NotificationResDto.builder()
                         .notificationId(notification.getId())
-                        .type(notification.getNotificationType())
+                        .type(notification.getNotificationType().getCodeValue())
                         .contents(notification.getContent())
+                        .targetId(notification.getTargetId())
                         .createAt(notification.getCreatedAt())
                         .build())
                 .toList();

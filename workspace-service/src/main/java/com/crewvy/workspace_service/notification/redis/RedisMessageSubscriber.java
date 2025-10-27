@@ -46,7 +46,7 @@ public class RedisMessageSubscriber implements MessageListener {
             notificationRepository.save(notification);
 
             // 특정 사용자에게 SSE 전송
-            sseAlarmService.sendToUser(msg.getMemberId(), msg.getContent());
+//            sseAlarmService.sendToUser(msg.getMemberId(), msg);
 
         } catch (Exception e) {
             e.printStackTrace();

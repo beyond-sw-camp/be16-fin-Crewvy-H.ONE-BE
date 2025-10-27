@@ -15,7 +15,8 @@ import java.util.UUID;
 @Builder
 public class NotificationResDto {
     private UUID notificationId;
-    private NotificationType type;
+    private String type;
     private String contents;
+    private UUID targetId;
     private LocalDateTime createAt;
 }
