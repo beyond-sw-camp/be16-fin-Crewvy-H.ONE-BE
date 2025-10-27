@@ -9,6 +9,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
@@ -21,13 +22,15 @@ public class LeaveRequestCreateDto {
     private UUID policyId;           // 적용할 정책 ID
 
     @NotNull(message = "신청 단위는 필수값입니다.")
-    private RequestUnit requestUnit; // 신청 단위 (DAY, HALF_DAY_AM, HALF_DAY_PM)
+    private RequestUnit requestUnit; // 신청 단위 (DAY, HALF_DAY_AM, HALF_DAY_PM, TIME_OFF)
 
-    @NotNull(message = "시작일은 필수값입니다.")
+    // 일차/반차 신청 시 사용
     private LocalDate startAt;       // 시작일
-
-    @NotNull(message = "종료일은 필수값입니다.")
     private LocalDate endAt;         // 종료일
+
+    // 시차 신청 시 사용
+    private LocalDateTime startDateTime; // 시작 시각
+    private LocalDateTime endDateTime;   // 종료 시각
 
     @NotBlank(message = "사유는 필수값입니다.")
     private String reason;           // 사유

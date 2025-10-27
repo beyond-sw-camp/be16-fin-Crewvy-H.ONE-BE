@@ -16,7 +16,6 @@ import com.crewvy.workforce_service.attendance.entity.Request;
 import com.crewvy.workforce_service.attendance.repository.MemberBalanceRepository;
 import com.crewvy.workforce_service.attendance.repository.PolicyRepository;
 import com.crewvy.workforce_service.attendance.repository.RequestRepository;
-// import com.crewvy.workforce_service.approval.service.ApprovalService; // TODO: Phase 2에서 주입
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -25,8 +24,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -51,17 +50,49 @@ public class RequestService {
             UUID memberPositionId,
             UUID companyId,
             UUID organizationId,
-            LeaveRequestCreateDto dto) {
+            LeaveRequestCreateDto createDto) {
 
         // 1. 정책 조회 및 검증
-        Policy policy = policyRepository.findById(dto.getPolicyId())
+        Policy policy = policyRepository.findById(createDto.getPolicyId())
                 .orElseThrow(() -> new ResourceNotFoundException("정책을 찾을 수 없습니다."));
 
-        // 2. 정책 규칙 검증
-        validateLeaveRequest(policy, dto, memberId, companyId);
+        // 2. 정책 규칙 및 요청 유효성 검증
+        validateLeaveRequest(policy, createDto, memberId, companyId);
 
-        // 3. 차감 일수 계산
-        Double deductionDays = calculateDeductionDays(dto.getStartAt(), dto.getEndAt(), dto.getRequestUnit());
+        // 3. 요청 단위를 기준으로 LocalDateTime 및 차감 일수 계산
+        LocalDateTime startDateTime;
+        LocalDateTime endDateTime;
+        Double deductionDays;
+
+        switch (createDto.getRequestUnit()) {
+            case DAY:
+                startDateTime = createDto.getStartAt().atStartOfDay();
+                endDateTime = createDto.getEndAt().atTime(23, 59, 59);
+                deductionDays = (double) (ChronoUnit.DAYS.between(createDto.getStartAt(), createDto.getEndAt()) + 1);
+                break;
+            case HALF_DAY_AM:
+                // 오전 반차는 신청일의 00:00 부터 12:00 까지로 설정
+                startDateTime = createDto.getStartAt().atStartOfDay();
+                endDateTime = createDto.getStartAt().atTime(12, 0, 0);
+                deductionDays = 0.5;
+                break;
+            case HALF_DAY_PM:
+                // 오후 반차는 신청일의 13:00 부터 23:59 까지로 설정 (점심시간 1시간 제외)
+                startDateTime = createDto.getStartAt().atTime(13, 0, 0);
+                endDateTime = createDto.getStartAt().atTime(23, 59, 59);
+                deductionDays = 0.5;
+                break;
+            case TIME_OFF:
+                startDateTime = createDto.getStartDateTime();
+                endDateTime = createDto.getEndDateTime();
+                long minutesBetween = ChronoUnit.MINUTES.between(startDateTime, endDateTime);
+                // 하루 근무를 8시간(480분)으로 가정하여 차감 일수 계산
+                deductionDays = Math.round((minutesBetween / 480.0) * 100) / 100.0;
+                break;
+            default:
+                throw new BusinessException("지원하지 않는 신청 단위입니다.");
+        }
+
 
         // 4. 잔여 일수 확인 (balanceDeductible인 경우에만)
         if (policy.getPolicyType().isBalanceDeductible()) {
@@ -73,14 +104,14 @@ public class RequestService {
                 .policy(policy)
                 .memberId(memberId)
                 .documentId(null) // TODO: Phase 2 - Approval 생성 후 업데이트
-                .requestUnit(dto.getRequestUnit())
-                .startAt(dto.getStartAt())
-                .endAt(dto.getEndAt())
+                .requestUnit(createDto.getRequestUnit())
+                .startDateTime(startDateTime)
+                .endDateTime(endDateTime)
                 .deductionDays(deductionDays)
-                .reason(dto.getReason())
+                .reason(createDto.getReason())
                 .status(RequestStatus.PENDING)
-                .requesterComment(dto.getRequesterComment())
-                .workLocation(dto.getWorkLocation()) // 출장지 (출장 신청 시 사용)
+                .requesterComment(createDto.getRequesterComment())
+                .workLocation(createDto.getWorkLocation()) // 출장지 (출장 신청 시 사용)
                 .build();
 
         Request savedRequest = requestRepository.save(request);
@@ -147,20 +178,37 @@ public class RequestService {
     /**
      * 휴가 신청 검증
      */
-    private void validateLeaveRequest(Policy policy, LeaveRequestCreateDto dto, UUID memberId, UUID companyId) {
+    private void validateLeaveRequest(Policy policy, LeaveRequestCreateDto createDto, UUID memberId, UUID companyId) {
         LeaveRuleDto leaveRule = policy.getRuleDetails().getLeaveRule();
         if (leaveRule == null) {
             throw new BusinessException("휴가 규칙이 설정되지 않은 정책입니다.");
         }
 
-        // 1. 시작일 <= 종료일 확인
-        if (dto.getStartAt().isAfter(dto.getEndAt())) {
-            throw new BusinessException("시작일은 종료일보다 이후일 수 없습니다.");
+        // 1. 요청 단위별 날짜/시간 유효성 검증
+        if (createDto.getRequestUnit() == RequestUnit.TIME_OFF) {
+            if (createDto.getStartDateTime() == null || createDto.getEndDateTime() == null) {
+                throw new BusinessException("시차 신청 시에는 시작 및 종료 시각을 모두 입력해야 합니다.");
+            }
+            if (!createDto.getStartDateTime().toLocalDate().equals(createDto.getEndDateTime().toLocalDate())) {
+                throw new BusinessException("시차 신청은 같은 날짜 내에서만 가능합니다.");
+            }
+            if (createDto.getStartDateTime().isAfter(createDto.getEndDateTime())) {
+                throw new BusinessException("시작 시각은 종료 시각보다 이후일 수 없습니다.");
+            }
+        } else {
+            if (createDto.getStartAt() == null || createDto.getEndAt() == null) {
+                throw new BusinessException("일차/반차 신청 시에는 시작일과 종료일을 모두 입력해야 합니다.");
+            }
+            if (createDto.getStartAt().isAfter(createDto.getEndAt())) {
+                throw new BusinessException("시작일은 종료일보다 이후일 수 없습니다.");
+            }
         }
+
+        LocalDate requestStartDate = (createDto.getRequestUnit() == RequestUnit.TIME_OFF) ? createDto.getStartDateTime().toLocalDate() : createDto.getStartAt();
 
         // 2. 신청 마감일 확인 (requestDeadlineDays)
         if (leaveRule.getRequestDeadlineDays() != null) {
-            long daysUntilStart = ChronoUnit.DAYS.between(LocalDate.now(), dto.getStartAt());
+            long daysUntilStart = ChronoUnit.DAYS.between(LocalDate.now(), requestStartDate);
             if (daysUntilStart < leaveRule.getRequestDeadlineDays()) {
                 throw new BusinessException(
                         String.format("휴가 시작일 %d일 전까지 신청해야 합니다.", leaveRule.getRequestDeadlineDays())
@@ -170,11 +218,21 @@ public class RequestService {
 
         // 3. 최소 신청 단위 확인 (minimumRequestUnit)
         if (leaveRule.getMinimumRequestUnit() != null) {
-            validateRequestUnit(dto.getRequestUnit(), leaveRule.getMinimumRequestUnit());
+            validateRequestUnit(createDto.getRequestUnit(), leaveRule.getMinimumRequestUnit());
         }
 
         // 4. 중복 신청 확인
-        validateDuplicateRequest(memberId, dto.getStartAt(), dto.getEndAt());
+        LocalDateTime startDateTimeForValidation;
+        LocalDateTime endDateTimeForValidation;
+
+        if (createDto.getRequestUnit() == RequestUnit.TIME_OFF) {
+            startDateTimeForValidation = createDto.getStartDateTime();
+            endDateTimeForValidation = createDto.getEndDateTime();
+        } else {
+            startDateTimeForValidation = createDto.getStartAt().atStartOfDay();
+            endDateTimeForValidation = createDto.getEndAt().atTime(23, 59, 59);
+        }
+        validateDuplicateRequest(memberId, startDateTimeForValidation, endDateTimeForValidation);
     }
 
     /**
@@ -200,9 +258,9 @@ public class RequestService {
     /**
      * 중복 신청 확인
      */
-    private void validateDuplicateRequest(UUID memberId, LocalDate startAt, LocalDate endAt) {
+    private void validateDuplicateRequest(UUID memberId, LocalDateTime startDateTime, LocalDateTime endDateTime) {
         boolean hasDuplicate = requestRepository.existsByMemberIdAndDateRangeAndStatus(
-                memberId, startAt, endAt, RequestStatus.PENDING
+                memberId, startDateTime, endDateTime, RequestStatus.PENDING
         );
 
         if (hasDuplicate) {
@@ -228,22 +286,7 @@ public class RequestService {
         }
     }
 
-    /**
-     * 차감 일수 계산
-     */
-    private Double calculateDeductionDays(LocalDate startAt, LocalDate endAt, RequestUnit requestUnit) {
-        long daysBetween = ChronoUnit.DAYS.between(startAt, endAt) + 1; // 시작일 포함
 
-        switch (requestUnit) {
-            case DAY:
-                return (double) daysBetween;
-            case HALF_DAY_AM:
-            case HALF_DAY_PM:
-                return 0.5;
-            default:
-                throw new BusinessException("지원하지 않는 신청 단위입니다.");
-        }
-    }
 
     // TODO: Phase 2 - Approval 결재 완료 콜백
     // public void handleApprovalResult(UUID documentId, ApprovalState state) {
@@ -264,10 +307,10 @@ public class RequestService {
     /**
      * 디바이스 등록 신청 (사용자)
      */
-    public DeviceRequestResponse registerDevice(UUID memberId, DeviceRequestCreateDto dto) {
+    public DeviceRequestResponse registerDevice(UUID memberId, DeviceRequestCreateDto createDto) {
         // 중복 등록 확인
         boolean alreadyExists = requestRepository.existsByMemberIdAndDeviceIdAndDeviceType(
-                memberId, dto.getDeviceId(), dto.getDeviceType());
+                memberId, createDto.getDeviceId(), createDto.getDeviceType());
 
         if (alreadyExists) {
             throw new BusinessException("이미 등록된 디바이스입니다.");
@@ -276,21 +319,21 @@ public class RequestService {
         // Request 엔티티 생성
         Request request = Request.builder()
                 .memberId(memberId)
-                .deviceId(dto.getDeviceId())
-                .deviceName(dto.getDeviceName())
-                .deviceType(dto.getDeviceType())
-                .reason(dto.getReason())
+                .deviceId(createDto.getDeviceId())
+                .deviceName(createDto.getDeviceName())
+                .deviceType(createDto.getDeviceType())
+                .reason(createDto.getReason())
                 .status(RequestStatus.PENDING)
                 .policy(null)  // 디바이스 등록은 정책이 없음
                 .requestUnit(null)
-                .startAt(null)
-                .endAt(null)
+                .startDateTime(null)
+                .endDateTime(null)
                 .deductionDays(null)
                 .build();
 
         Request savedRequest = requestRepository.save(request);
         log.info("디바이스 등록 신청 완료: memberId={}, deviceId={}, deviceType={}",
-                memberId, dto.getDeviceId(), dto.getDeviceType());
+                memberId, createDto.getDeviceId(), createDto.getDeviceType());
 
         return DeviceRequestResponse.from(savedRequest);
     }

@@ -9,7 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 public interface RequestRepository extends JpaRepository<Request, UUID> {
@@ -32,13 +32,13 @@ public interface RequestRepository extends JpaRepository<Request, UUID> {
     @Query("SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END FROM Request r " +
            "WHERE r.memberId = :memberId " +
            "AND r.status = :status " +
-           "AND ((r.startAt BETWEEN :startAt AND :endAt) " +
-           "OR (r.endAt BETWEEN :startAt AND :endAt) " +
-           "OR (r.startAt <= :startAt AND r.endAt >= :endAt))")
+           "AND ((r.startDateTime BETWEEN :startDateTime AND :endDateTime) " +
+           "OR (r.endDateTime BETWEEN :startDateTime AND :endDateTime) " +
+           "OR (r.startDateTime <= :startDateTime AND r.endDateTime >= :endDateTime))")
     boolean existsByMemberIdAndDateRangeAndStatus(
             @Param("memberId") UUID memberId,
-            @Param("startAt") LocalDate startAt,
-            @Param("endAt") LocalDate endAt,
+            @Param("startDateTime") LocalDateTime startDateTime,
+            @Param("endDateTime") LocalDateTime endDateTime,
             @Param("status") RequestStatus status
     );
 

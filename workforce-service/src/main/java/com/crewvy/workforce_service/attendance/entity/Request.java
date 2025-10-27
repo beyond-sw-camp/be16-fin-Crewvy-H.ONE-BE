@@ -44,11 +44,11 @@ public class Request extends BaseEntity {
     @Convert(converter = RequestUnitConverter.class)
     private RequestUnit requestUnit;
 
-    @Column(name = "start_at")
-    private LocalDate startAt;
+    @Column(name = "start_date_time")
+    private LocalDateTime startDateTime;
 
-    @Column(name = "end_at")
-    private LocalDate endAt;
+    @Column(name = "end_date_time")
+    private LocalDateTime endDateTime;
 
     @Column(name = "deduction_days")
     private Double deductionDays;

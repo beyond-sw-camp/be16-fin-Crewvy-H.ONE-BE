@@ -8,7 +8,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -32,9 +31,9 @@ public class LeaveRequestResponse {
 
     private RequestUnit requestUnit;
 
-    private LocalDate startAt;
+    private LocalDateTime startDateTime;
 
-    private LocalDate endAt;
+    private LocalDateTime endDateTime;
 
     private Double deductionDays;       // 차감 일수
 
@@ -61,8 +60,8 @@ public class LeaveRequestResponse {
                 .memberId(request.getMemberId())
                 .documentId(request.getDocumentId())
                 .requestUnit(request.getRequestUnit())
-                .startAt(request.getStartAt())
-                .endAt(request.getEndAt())
+                .startDateTime(request.getStartDateTime())
+                .endDateTime(request.getEndDateTime())
                 .deductionDays(request.getDeductionDays())
                 .reason(request.getReason())
                 .status(request.getStatus())
