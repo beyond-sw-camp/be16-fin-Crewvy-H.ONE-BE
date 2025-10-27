@@ -1,7 +1,6 @@
 package com.crewvy.workspace_service.notification.dto.response;
 
 import com.crewvy.common.entity.Bool;
-import com.crewvy.workspace_service.notification.constant.NotificationType;
 import com.crewvy.workspace_service.notification.entity.NotificationSetting;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

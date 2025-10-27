@@ -1,4 +1,4 @@
-package com.crewvy.workforce_service.performance.dto;
+package com.crewvy.workforce_service.performance.dto.response;
 
 
 import com.crewvy.workforce_service.performance.constant.GoalStatus;
@@ -26,9 +26,11 @@ public class GoalResponseDto {
     private String memberOrganization;
     private LocalDate startDate;
     private LocalDate endDate;
-    private GoalStatus status;
+    private String status;
+    private String comment;
     private String teamGoalTitle;
     private String teamGoalContents;
+    private UUID teamGoalMemberPositionId;
     private Map<String, Object> gradingSystem;
     private List<EvidenceResponseDto> evidenceList;
 }

@@ -4,7 +4,7 @@ import com.crewvy.common.converter.JsonToMapConverter;
 import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.workforce_service.performance.constant.GoalStatus;
 import com.crewvy.workforce_service.performance.converter.GoalStatusConverter;
-import com.crewvy.workforce_service.performance.dto.UpdateMyGoalDto;
+import com.crewvy.workforce_service.performance.dto.request.UpdateMyGoalDto;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -57,6 +57,10 @@ public class Goal extends BaseEntity {
     public void updateStatus(GoalStatus status, String comment) {
         this.status = status;
         this.comment = comment;
+    }
+
+    public void updateStatus(GoalStatus status) {
+        this.status = status;
     }
 
     public void updateGoal(UpdateMyGoalDto dto) {
