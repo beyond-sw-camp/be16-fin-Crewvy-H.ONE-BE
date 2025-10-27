@@ -52,11 +52,21 @@ public class LeaveRequestResponse {
     private LocalDateTime updatedAt;
 
     public static LeaveRequestResponse from(Request request) {
+        UUID policyId = null;
+        String policyName = null;
+        String policyTypeName = null;
+
+        if (request.getPolicy() != null) {
+            policyId = request.getPolicy().getId();
+            policyName = request.getPolicy().getName();
+            policyTypeName = request.getPolicy().getPolicyType().getTypeName();
+        }
+
         return LeaveRequestResponse.builder()
                 .requestId(request.getId())
-                .policyId(request.getPolicy().getId())
-                .policyName(request.getPolicy().getName())
-                .policyTypeName(request.getPolicy().getPolicyType().getTypeName())
+                .policyId(policyId)
+                .policyName(policyName)
+                .policyTypeName(policyTypeName)
                 .memberId(request.getMemberId())
                 .documentId(request.getDocumentId())
                 .requestUnit(request.getRequestUnit())

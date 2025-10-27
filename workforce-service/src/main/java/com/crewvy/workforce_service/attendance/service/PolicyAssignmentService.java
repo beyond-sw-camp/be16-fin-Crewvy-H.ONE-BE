@@ -4,6 +4,7 @@ import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.exception.BusinessException;
 import com.crewvy.common.exception.ResourceNotFoundException;
 import com.crewvy.workforce_service.attendance.constant.PolicyScopeType;
+import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
 import com.crewvy.workforce_service.attendance.dto.request.PolicyAssignmentRequest;
 import com.crewvy.workforce_service.attendance.dto.response.PolicyAssignmentResponse;
 import com.crewvy.workforce_service.attendance.entity.Policy;
@@ -44,7 +45,7 @@ public class PolicyAssignmentService {
      * @param typeCode 조회할 정책 타입 코드
      * @return 적용될 최종 정책 (없으면 null 반환)
      */
-    public Policy findEffectivePolicyForMemberByType(UUID memberId, UUID memberPositionId, UUID companyId, com.crewvy.workforce_service.attendance.constant.PolicyTypeCode typeCode) {
+    public Policy findEffectivePolicyForMemberByType(UUID memberId, UUID memberPositionId, UUID companyId, PolicyTypeCode typeCode) {
         // 1. 조직 계층 조회 (내 부서 → 상위부서 → 회사)
         List<OrganizationRes> orgPath = new ArrayList<>();
         try {

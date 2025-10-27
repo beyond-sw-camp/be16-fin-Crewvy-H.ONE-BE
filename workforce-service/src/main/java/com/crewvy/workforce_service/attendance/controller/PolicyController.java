@@ -4,6 +4,7 @@ import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.attendance.dto.request.PolicyCreateRequest;
 import com.crewvy.workforce_service.attendance.dto.request.PolicyIdListRequest;
 import com.crewvy.workforce_service.attendance.dto.request.PolicyUpdateRequest;
+import com.crewvy.workforce_service.attendance.dto.response.ApplicablePolicyResponse;
 import com.crewvy.workforce_service.attendance.dto.response.PolicyResponse;
 import com.crewvy.workforce_service.attendance.dto.response.PolicyTypeResponse;
 import com.crewvy.workforce_service.attendance.service.PolicyService;
@@ -33,6 +34,16 @@ public class PolicyController {
             @RequestBody @Valid PolicyCreateRequest createRequest) {
         PolicyResponse response = policyService.createPolicy(memberpositionId, companyId, organizationId, createRequest);
         return new ResponseEntity<>(ApiResponse.success(response, "정책 생성 완료"), HttpStatus.CREATED);
+    }
+
+    @GetMapping("/applicable-to-me")
+    public ResponseEntity<ApiResponse<List<ApplicablePolicyResponse>>> getApplicablePoliciesForMe(
+            @RequestHeader("X-User-UUID") UUID memberId,
+            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+            @RequestHeader("X-User-CompanyId") UUID companyId,
+            @RequestHeader("X-User-OrganizationId") UUID organizationId) {
+        List<ApplicablePolicyResponse> response = policyService.findApplicablePoliciesForMember(memberId, memberPositionId, companyId, organizationId);
+        return new ResponseEntity<>(ApiResponse.success(response, "신청 가능한 정책 목록 조회 완료"), HttpStatus.OK);
     }
 
     @GetMapping("/{policyId}")
@@ -106,4 +117,5 @@ public class PolicyController {
         PolicyResponse response = policyService.findMyEffectivePolicy(memberId, companyId, organizationId);
         return new ResponseEntity<>(ApiResponse.success(response, "나의 유효 정책 조회 완료"), HttpStatus.OK);
     }
+
 }

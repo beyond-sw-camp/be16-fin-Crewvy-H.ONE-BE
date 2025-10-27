@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.attendance.controller;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.attendance.dto.request.EventRequest;
+import com.crewvy.workforce_service.attendance.dto.response.TodayAttendanceStatusResponse;
 import com.crewvy.workforce_service.attendance.entity.DailyAttendance;
 import com.crewvy.workforce_service.attendance.entity.MemberBalance;
 import com.crewvy.workforce_service.attendance.service.AttendanceService;
@@ -41,10 +42,10 @@ public class AttendanceController {
      * 오늘의 내 출퇴근 현황 조회
      */
     @GetMapping("/my/today")
-    public ResponseEntity<ApiResponse<DailyAttendance>> getMyTodayAttendance(
+    public ResponseEntity<ApiResponse<TodayAttendanceStatusResponse>> getMyTodayAttendance(
             @RequestHeader("X-User-UUID") UUID memberId) {
 
-        DailyAttendance response = attendanceService.getMyTodayAttendance(memberId);
+        TodayAttendanceStatusResponse response = attendanceService.getMyTodayAttendance(memberId);
         return new ResponseEntity<>(ApiResponse.success(response), HttpStatus.OK);
     }
 

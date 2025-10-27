@@ -124,11 +124,20 @@ public class RequestService {
     }
 
     /**
-     * 내 휴가 신청 목록 조회
+     * 내 모든 신청 목록 조회
      */
     @Transactional(readOnly = true)
     public Page<LeaveRequestResponse> getMyRequests(UUID memberId, Pageable pageable) {
         Page<Request> requests = requestRepository.findByMemberId(memberId, pageable);
+        return requests.map(LeaveRequestResponse::from);
+    }
+
+    /**
+     * 내 휴가 신청 목록 조회
+     */
+    @Transactional(readOnly = true)
+    public Page<LeaveRequestResponse> getMyLeaveRequests(UUID memberId, Pageable pageable) {
+        Page<Request> requests = requestRepository.findLeaveRequestsByMemberId(memberId, pageable);
         return requests.map(LeaveRequestResponse::from);
     }
 
@@ -184,7 +193,11 @@ public class RequestService {
             throw new BusinessException("휴가 규칙이 설정되지 않은 정책입니다.");
         }
 
-        // 1. 요청 단위별 날짜/시간 유효성 검증
+        LocalDate requestStartDate;
+        LocalDate requestEndDate;
+        double requestedDays;
+
+        // 1. 요청 단위별 날짜/시간 유효성 검증 및 기간 계산
         if (createDto.getRequestUnit() == RequestUnit.TIME_OFF) {
             if (createDto.getStartDateTime() == null || createDto.getEndDateTime() == null) {
                 throw new BusinessException("시차 신청 시에는 시작 및 종료 시각을 모두 입력해야 합니다.");
@@ -195,6 +208,10 @@ public class RequestService {
             if (createDto.getStartDateTime().isAfter(createDto.getEndDateTime())) {
                 throw new BusinessException("시작 시각은 종료 시각보다 이후일 수 없습니다.");
             }
+            requestStartDate = createDto.getStartDateTime().toLocalDate();
+            requestEndDate = createDto.getEndDateTime().toLocalDate();
+            long minutesBetween = ChronoUnit.MINUTES.between(createDto.getStartDateTime(), createDto.getEndDateTime());
+            requestedDays = Math.round((minutesBetween / 480.0) * 100) / 100.0; // 8시간 기준 일수 변환
         } else {
             if (createDto.getStartAt() == null || createDto.getEndAt() == null) {
                 throw new BusinessException("일차/반차 신청 시에는 시작일과 종료일을 모두 입력해야 합니다.");
@@ -202,11 +219,22 @@ public class RequestService {
             if (createDto.getStartAt().isAfter(createDto.getEndAt())) {
                 throw new BusinessException("시작일은 종료일보다 이후일 수 없습니다.");
             }
+            requestStartDate = createDto.getStartAt();
+            requestEndDate = createDto.getEndAt();
+            requestedDays = (createDto.getRequestUnit() == RequestUnit.DAY) ? (ChronoUnit.DAYS.between(requestStartDate, requestEndDate) + 1) : 0.5;
         }
 
-        LocalDate requestStartDate = (createDto.getRequestUnit() == RequestUnit.TIME_OFF) ? createDto.getStartDateTime().toLocalDate() : createDto.getStartAt();
+        // 2. [신규] 허용된 신청 단위 검증 (allowedRequestUnits)
+        if (leaveRule.getAllowedRequestUnits() != null && !leaveRule.getAllowedRequestUnits().isEmpty()) {
+            boolean isAllowed = leaveRule.getAllowedRequestUnits().stream()
+                    .anyMatch(unit -> unit.equals(createDto.getRequestUnit().name()));
+            if (!isAllowed) {
+                throw new BusinessException(String.format("이 정책은 '%s' 단위로 신청할 수 없습니다. (허용 단위: %s)",
+                        createDto.getRequestUnit().getCodeName(), String.join(", ", leaveRule.getAllowedRequestUnits())));
+            }
+        }
 
-        // 2. 신청 마감일 확인 (requestDeadlineDays)
+        // 3. 신청 마감일 확인 (requestDeadlineDays)
         if (leaveRule.getRequestDeadlineDays() != null) {
             long daysUntilStart = ChronoUnit.DAYS.between(LocalDate.now(), requestStartDate);
             if (daysUntilStart < leaveRule.getRequestDeadlineDays()) {
@@ -216,44 +244,36 @@ public class RequestService {
             }
         }
 
-        // 3. 최소 신청 단위 확인 (minimumRequestUnit)
-        if (leaveRule.getMinimumRequestUnit() != null) {
-            validateRequestUnit(createDto.getRequestUnit(), leaveRule.getMinimumRequestUnit());
+        // 4. [신규] 1회 최대 신청 가능일수 확인 (maxDaysPerRequest)
+        if (leaveRule.getMaxDaysPerRequest() != null && requestedDays > leaveRule.getMaxDaysPerRequest()) {
+            throw new BusinessException(String.format("이 휴가는 한 번에 최대 %d일까지 신청할 수 있습니다.", leaveRule.getMaxDaysPerRequest()));
         }
 
-        // 4. 중복 신청 확인
-        LocalDateTime startDateTimeForValidation;
-        LocalDateTime endDateTimeForValidation;
-
-        if (createDto.getRequestUnit() == RequestUnit.TIME_OFF) {
-            startDateTimeForValidation = createDto.getStartDateTime();
-            endDateTimeForValidation = createDto.getEndDateTime();
-        } else {
-            startDateTimeForValidation = createDto.getStartAt().atStartOfDay();
-            endDateTimeForValidation = createDto.getEndAt().atTime(23, 59, 59);
+        // 5. [신규] 최소 연속 신청일수 확인 (minConsecutiveDays)
+        if (leaveRule.getMinConsecutiveDays() != null && requestedDays < leaveRule.getMinConsecutiveDays()) {
+            throw new BusinessException(String.format("이 휴가는 최소 %d일 이상 연속으로 신청해야 합니다.", leaveRule.getMinConsecutiveDays()));
         }
+
+        // 6. 기간별 최대 사용일수 확인 (limitPeriod, maxDaysPerPeriod)
+        if (leaveRule.getLimitPeriod() != null && leaveRule.getMaxDaysPerPeriod() != null) {
+            double totalUsedDays = calculateTotalUsedDaysInPeriod(memberId, policy.getId(), leaveRule.getLimitPeriod());
+            if (totalUsedDays + requestedDays > leaveRule.getMaxDaysPerPeriod()) {
+                throw new BusinessException(
+                    String.format("이 휴가는 %s %d일까지 사용할 수 있습니다. (현재까지 %.1f일 사용)",
+                        leaveRule.getLimitPeriod().equals("YEARLY") ? "연간" : "월간",
+                        leaveRule.getMaxDaysPerPeriod(),
+                        totalUsedDays)
+                );
+            }
+        }
+
+        // 7. 중복 신청 확인
+        LocalDateTime startDateTimeForValidation = requestStartDate.atStartOfDay();
+        LocalDateTime endDateTimeForValidation = requestEndDate.atTime(23, 59, 59);
         validateDuplicateRequest(memberId, startDateTimeForValidation, endDateTimeForValidation);
     }
 
-    /**
-     * 신청 단위 검증
-     */
-    private void validateRequestUnit(RequestUnit requestUnit, String minimumUnit) {
-        // minimumUnit: "DAY", "HALF_DAY", "HOUR"
-        switch (minimumUnit) {
-            case "DAY":
-                if (requestUnit != RequestUnit.DAY) {
-                    throw new BusinessException("이 정책은 일 단위로만 신청 가능합니다.");
-                }
-                break;
-            case "HALF_DAY":
-                // DAY, HALF_DAY_AM, HALF_DAY_PM 모두 허용
-                break;
-            case "HOUR":
-                // 모든 단위 허용 (시간 단위 추가 시 구현)
-                break;
-        }
-    }
+
 
     /**
      * 중복 신청 확인
@@ -284,6 +304,34 @@ public class RequestService {
                             balance.getRemaining(), deductionDays)
             );
         }
+    }
+
+    /**
+     * 특정 기간(연/월) 동안 특정 정책의 휴가를 얼마나 사용했는지 계산합니다.
+     */
+    private double calculateTotalUsedDaysInPeriod(UUID memberId, UUID policyId, String limitPeriod) {
+        LocalDate now = LocalDate.now();
+        LocalDateTime periodStart;
+        LocalDateTime periodEnd;
+
+        if ("YEARLY".equals(limitPeriod)) {
+            periodStart = now.withDayOfYear(1).atStartOfDay();
+            periodEnd = now.withDayOfYear(now.lengthOfYear()).atTime(23, 59, 59);
+        } else if ("MONTHLY".equals(limitPeriod)) {
+            periodStart = now.withDayOfMonth(1).atStartOfDay();
+            periodEnd = now.withDayOfMonth(now.lengthOfMonth()).atTime(23, 59, 59);
+        } else {
+            return 0.0; // 알 수 없는 기간 타입은 검증 통과
+        }
+
+        // 해당 기간에 승인된(APPROVED) 동일 정책의 휴가 사용일수를 합산
+        return requestRepository.sumDeductionDaysByMemberIdAndPolicyIdAndStatusInDateRange(
+                memberId,
+                policyId,
+                RequestStatus.APPROVED,
+                periodStart,
+                periodEnd
+        ).orElse(0.0);
     }
 
 

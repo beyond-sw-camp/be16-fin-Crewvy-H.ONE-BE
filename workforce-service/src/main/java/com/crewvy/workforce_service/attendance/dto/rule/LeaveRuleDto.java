@@ -2,6 +2,8 @@ package com.crewvy.workforce_service.attendance.dto.rule;
 
 import lombok.Data;
 
+import java.util.List;
+
 
 /**
  * 휴가 정책에 대한 규칙을 정의하는 DTO.
@@ -29,8 +31,22 @@ public class LeaveRuleDto {
 
     /**
      * 휴가 신청 최소 단위 (예: "DAY", "HALF_DAY", "HOUR").
+     * @deprecated allowedRequestUnits 필드로 대체 예정
      */
     private String minimumRequestUnit;
+
+    /**
+     * 허용되는 휴가 신청 단위 목록.
+     * 예: ["DAY", "HALF_DAY_AM", "HALF_DAY_PM"]
+     * 이 필드가 설정되면, minimumRequestUnit은 무시됩니다.
+     */
+    private List<String> allowedRequestUnits;
+
+    /**
+     * 1회 최대 신청 가능 일수.
+     * 예: 출산휴가 90일, 연차 15일 등
+     */
+    private Integer maxDaysPerRequest;
 
     // ========== 연차 전용 필드 (nullable) ==========
 

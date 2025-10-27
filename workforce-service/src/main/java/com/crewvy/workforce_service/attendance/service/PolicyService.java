@@ -6,6 +6,7 @@ import com.crewvy.common.exception.ResourceNotFoundException;
 import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
 import com.crewvy.workforce_service.attendance.dto.request.PolicyCreateRequest;
 import com.crewvy.workforce_service.attendance.dto.request.PolicyUpdateRequest;
+import com.crewvy.workforce_service.attendance.dto.response.ApplicablePolicyResponse;
 import com.crewvy.workforce_service.attendance.dto.response.PolicyResponse;
 import com.crewvy.workforce_service.attendance.dto.response.PolicyTypeResponse;
 import com.crewvy.workforce_service.attendance.dto.rule.PolicyRuleDetails;
@@ -24,9 +25,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -156,6 +155,28 @@ public class PolicyService {
     public PolicyResponse findMyEffectivePolicy(UUID memberId, UUID companyId, UUID organizationId) {
         Policy effectivePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId, organizationId);
         return new PolicyResponse(effectivePolicy);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ApplicablePolicyResponse> findApplicablePoliciesForMember(UUID memberId, UUID memberPositionId, UUID companyId, UUID organizationId) {
+        // 사용자가 '신청'할 수 있는 정책 유형들을 정의합니다. (기본근무 등은 신청 대상이 아님)
+        List<PolicyTypeCode> requestablePolicyTypes = Arrays.asList(
+                PolicyTypeCode.ANNUAL_LEAVE,
+                PolicyTypeCode.BUSINESS_TRIP,
+                PolicyTypeCode.MATERNITY_LEAVE,
+                PolicyTypeCode.PATERNITY_LEAVE,
+                PolicyTypeCode.CHILDCARE_LEAVE,
+                PolicyTypeCode.FAMILY_CARE_LEAVE,
+                PolicyTypeCode.MENSTRUAL_LEAVE
+                // 필요에 따라 연장/야간/휴일 근무 신청 정책도 추가 가능
+        );
+
+        // 각 정책 유형에 대해 현재 사용자에게 유효한 정책이 있는지 확인하고, 있으면 리스트에 추가합니다.
+        return requestablePolicyTypes.stream()
+                .map(typeCode -> policyAssignmentService.findEffectivePolicyForMemberByType(memberId, memberPositionId, companyId, typeCode))
+                .filter(Objects::nonNull) // 유효한 정책이 없는 경우(null)는 제외합니다.
+                .map(ApplicablePolicyResponse::from)
+                .collect(Collectors.toList());
     }
 
     private PolicyRuleDetails convertAndValidateRuleDetails(Map<String, Object> rawDetails, PolicyTypeCode typeCode) {

@@ -19,8 +19,11 @@ public enum RequestUnit {
 
     @JsonCreator
     public static RequestUnit fromCode(String code) {
+        if (code == null) {
+            return null;
+        }
         return Arrays.stream(values())
-                .filter(v -> v.codeValue.equals(code))
+                .filter(v -> v.codeValue.equals(code) || v.name().equalsIgnoreCase(code))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Unknown RequestUnit: " + code));
     }

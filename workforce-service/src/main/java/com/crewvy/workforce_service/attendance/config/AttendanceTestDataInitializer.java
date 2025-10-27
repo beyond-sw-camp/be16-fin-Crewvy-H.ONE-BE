@@ -6,6 +6,7 @@ import com.crewvy.workforce_service.attendance.entity.*;
 import com.crewvy.workforce_service.attendance.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -16,7 +17,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-//@Component
+@Component
 @RequiredArgsConstructor
 public class AttendanceTestDataInitializer implements CommandLineRunner {
 

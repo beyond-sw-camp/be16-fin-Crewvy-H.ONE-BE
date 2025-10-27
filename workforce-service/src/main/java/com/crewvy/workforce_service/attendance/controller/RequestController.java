@@ -41,7 +41,7 @@ public class RequestController {
     }
 
     /**
-     * 내 휴가 신청 목록 조회 (페이징)
+     * 내 모든 신청 목록 조회 (페이징)
      */
     @GetMapping("/my")
     public ResponseEntity<ApiResponse<Page<LeaveRequestResponse>>> getMyRequests(
@@ -49,6 +49,17 @@ public class RequestController {
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
 
         Page<LeaveRequestResponse> response = requestService.getMyRequests(memberId, pageable);
+        return new ResponseEntity<>(ApiResponse.success(response, "전체 신청 목록 조회 성공"), HttpStatus.OK);
+    }
+
+    /**
+     * 내 휴가 신청 목록 조회 (페이징)
+     */
+    @GetMapping("/my-leaves")
+    public ResponseEntity<ApiResponse<Page<LeaveRequestResponse>>> getMyLeaveRequests(
+            @RequestHeader("X-User-UUID") UUID memberId,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        Page<LeaveRequestResponse> response = requestService.getMyLeaveRequests(memberId, pageable);
         return new ResponseEntity<>(ApiResponse.success(response, "휴가 신청 목록 조회 성공"), HttpStatus.OK);
     }
 

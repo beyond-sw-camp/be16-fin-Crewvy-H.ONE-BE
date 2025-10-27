@@ -55,7 +55,7 @@ public class AttendanceService {
     private final CompanyHolidayRepository companyHolidayRepository;
 
     public ApiResponse<?> recordEvent(UUID memberId, UUID memberPositionId, UUID companyId, UUID organizationId, EventRequest request, String clientIp) {
-        checkPermissionOrThrow(memberPositionId, "attendance", "CREATE", "INDIVIDUAL", "근태를 기록할 권한이 없습니다.");
+//        checkPermissionOrThrow(memberPositionId, "attendance", "CREATE", "INDIVIDUAL", "근태를 기록할 권한이 없습니다.");
 
         // 인증/검증이 필요한 이벤트 그룹
         List<EventType> validationRequiredEvents = List.of(EventType.CLOCK_IN, EventType.CLOCK_OUT);
@@ -896,10 +896,17 @@ public class AttendanceService {
      * 오늘의 내 출퇴근 현황 조회
      */
     @Transactional(readOnly = true)
-    public DailyAttendance getMyTodayAttendance(UUID memberId) {
+    public TodayAttendanceStatusResponse getMyTodayAttendance(UUID memberId) {
         LocalDate today = LocalDate.now();
-        return dailyAttendanceRepository.findByMemberIdAndAttendanceDate(memberId, today)
+        DailyAttendance dailyAttendance = dailyAttendanceRepository.findByMemberIdAndAttendanceDate(memberId, today)
                 .orElse(null);
+
+        if (dailyAttendance == null) {
+            return null;
+        }
+
+        EventType lastEventType = getLastEventTypeToday(memberId);
+        return TodayAttendanceStatusResponse.from(dailyAttendance, lastEventType);
     }
 
     /**
