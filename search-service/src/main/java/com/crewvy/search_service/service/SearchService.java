@@ -13,6 +13,7 @@ import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.query.Query;
+import org.springframework.data.elasticsearch.core.suggest.Completion;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
@@ -27,12 +28,13 @@ public class SearchService {
     private final OrganizationSearchRepository organizationSearchRepository;
     private final ElasticsearchOperations elasticsearchOperations;
 
+    // 직원 추가
     @KafkaListener(topics = "member-saved-events", groupId = "search-service-group")
     public void listenMemberSavedEvent(MemberSavedEvent event) {
-        List<String> orgNames = event.getOrganizationList().stream()
+        List<String> orgNameList = event.getOrganizationList().stream()
                 .map(OrganizationEvent::getName)
                 .collect(Collectors.toList());
-        String suggestText = event.getName() + " " + String.join(" ", orgNames);
+        String suggestText = event.getName() + " " + String.join(" ", orgNameList);
 
         MemberDocument memberDocument = MemberDocument.builder()
                 .memberId(event.getMemberId().toString())
@@ -42,7 +44,7 @@ public class SearchService {
                 .titleName(event.getTitleName())
                 .phoneNumber(event.getPhoneNumber())
                 .memberStatus(event.getMemberStatus())
-                .suggest(new org.springframework.data.elasticsearch.core.suggest.Completion(new String[]{suggestText}))
+                .suggest(new Completion(new String[]{suggestText}))
                 .build();
         elasticRepository.save(memberDocument);
 
@@ -75,6 +77,7 @@ public class SearchService {
         });
     }
 
+    // 직원 삭제
     @KafkaListener(topics = "member-deleted-events", groupId = "search-service-group")
     public void listenMemberDeletedEvent(MemberDeletedEvent event) {
         elasticRepository.deleteById(event.getMemberId().toString());

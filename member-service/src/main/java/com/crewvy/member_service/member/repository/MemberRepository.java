@@ -21,14 +21,10 @@ public interface MemberRepository extends JpaRepository<Member, UUID> {
            "WHERE m.company = :company")
     List<Member> findByCompanyWithDetail(@Param("company") Company company);
 
-    @Query("SELECT m FROM Member m " +
-           "LEFT JOIN FETCH m.memberPositionList mp " +
-           "LEFT JOIN FETCH mp.organization " +
-           "LEFT JOIN FETCH mp.title " +
-           "LEFT JOIN FETCH mp.role " +
-           "LEFT JOIN FETCH m.gradeHistorySet " +
-           "WHERE m.id = :id")
-    Optional<Member> findByIdWithDetail(@Param("id") UUID id);
+    @Query("select m from Member m left join fetch m.memberPositionList mpl where m.id = :memberId")
+    Optional<Member> findByIdWithDetail(@Param("memberId") UUID memberId);
+
+    List<Member> findByDefaultMemberPosition_Id(UUID memberPositionId);
 
     @Query("SELECT COUNT(DISTINCT mp.member) FROM MemberPosition mp WHERE mp.organization.id = :organizationId")
     long countByOrganizationId(@Param("organizationId") UUID organizationId);

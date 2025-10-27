@@ -18,17 +18,14 @@ public class OnboardingService {
     private final MemberService memberService;
     private final OrganizationService organizationService;
     private final GradeHistoryRepository gradeHistoryRepository;
-    private final SearchOutboxEventRepository searchOutboxEventRepository;
-    private final ObjectMapper objectMapper;
 
     public OnboardingService(MemberService memberService, OrganizationService organizationService
-            , GradeHistoryRepository gradeHistoryRepository, SearchOutboxEventRepository searchOutboxEventRepository, ObjectMapper objectMapper) {
+            , GradeHistoryRepository gradeHistoryRepository) {
         this.memberService = memberService;
         this.organizationService = organizationService;
         this.gradeHistoryRepository = gradeHistoryRepository;
-        this.searchOutboxEventRepository = searchOutboxEventRepository;
-        this.objectMapper = objectMapper;
     }
+
 
     // 관리자 계정 생성과 회사, 조직, 역할 등 초기 설정
     public UUID createAdminAndInitialSetup(CreateAdminReq createAdminReq) {
@@ -52,7 +49,7 @@ public class OnboardingService {
         memberService.createAndAssignDefaultPosition(null, adminMember, organization, adminTitle, adminRole);
 
         // 통합검색 kafka
-        memberService.saveSearchOutboxEvent(adminMember);
+        memberService.saveSearchOutboxEvent(adminMember.getId());
 
         return adminMember.getId();
     }

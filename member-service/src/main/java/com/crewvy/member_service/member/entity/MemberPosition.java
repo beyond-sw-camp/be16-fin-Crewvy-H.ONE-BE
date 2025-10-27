@@ -11,11 +11,14 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.util.UUID;
 
+import lombok.EqualsAndHashCode;
+
 @Entity
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@EqualsAndHashCode(of = "id", callSuper = false)
 public class MemberPosition extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

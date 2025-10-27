@@ -139,7 +139,7 @@ public class MemberService {
                 .build();
         outboxRepository.save(outbox);
 
-        saveSearchOutboxEvent(savedMember);
+        saveSearchOutboxEvent(savedMember.getId());
 
         return savedMember.getId();
     }
@@ -388,9 +388,8 @@ public class MemberService {
                     memberPositionRepository.save(mp);
                 });
 
-        memberRepository.flush();
-        saveSearchOutboxEvent(member);
-        
+        saveSearchOutboxEvent(member.getId());
+
         return member.getId();
     }
 
@@ -431,7 +430,7 @@ public class MemberService {
         member.restore();
         memberRepository.save(member);
 
-        saveSearchOutboxEvent(member);
+        saveSearchOutboxEvent(member.getId());
     }
 
     // 직원 상세 조회
@@ -540,6 +539,22 @@ public class MemberService {
 
         titleRepository.findById(titleId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 직책입니다.")).delete();
     }
+
+    // 직책 영구 삭제
+    public void hardDeleteMemberPosition(UUID adminMemberPositionId, UUID memberPositionId) {
+        if (checkPermission(adminMemberPositionId, "member", Action.DELETE, PermissionRange.COMPANY) == FALSE) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+
+        // 기본 직책으로 사용 중인지 확인
+        List<Member> membersWithThisAsDefault = memberRepository.findByDefaultMemberPosition_Id(memberPositionId);
+        if (!membersWithThisAsDefault.isEmpty()) {
+            throw new IllegalStateException("기본 직책으로 설정된 직무는 영구 삭제할 수 없습니다. 먼저 다른 직무를 기본으로 설정해주세요.");
+        }
+
+        memberPositionRepository.deleteById(memberPositionId);
+    }
+
 
     // 직책 복원
     public void restoreTitle(UUID memberPositionId, UUID titleId) {
@@ -897,7 +912,7 @@ public class MemberService {
             member.updateDefaultMemberPosition(newDefaultMemberPosition);
         }
 
-        saveSearchOutboxEvent(member);
+        saveSearchOutboxEvent(member.getId());
     }
 
     // 권한 확인
@@ -1074,7 +1089,10 @@ public class MemberService {
     }
 
     // elastic search에 저장
-    public void saveSearchOutboxEvent(Member member) {
+    public void saveSearchOutboxEvent(UUID memberId) {
+        Member member = memberRepository.findByIdWithDetail(memberId)
+                .orElseThrow(() -> new EntityNotFoundException("이벤트를 생성할 멤버를 찾을 수 없습니다: " + memberId));
+
         try {
             List<MemberPosition> positionList = member.getMemberPositionList().stream().toList();
             if (positionList == null || positionList.isEmpty()) {
@@ -1117,8 +1135,7 @@ public class MemberService {
                             .build())
                     .collect(Collectors.toList());
 
-            MemberSavedEvent event = MemberSavedEvent.builder()
-                    .memberId(member.getId())
+            MemberSavedEvent event = MemberSavedEvent.builder().memberId(member.getId())
                     .companyId(member.getCompany().getId())
                     .name(member.getName())
                     .organizationList(organizationEventList)

@@ -1,11 +1,13 @@
 package com.crewvy.member_service.member.dto.response;
 
+import com.crewvy.common.entity.Bool;
 import com.crewvy.member_service.member.entity.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;

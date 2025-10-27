@@ -1,5 +1,6 @@
 package com.crewvy.member_service.member.repository;
 
+import com.crewvy.common.entity.Bool;
 import com.crewvy.member_service.member.entity.Company;
 import com.crewvy.member_service.member.entity.MemberPosition;
 import com.crewvy.member_service.member.entity.Organization;
@@ -9,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface MemberPositionRepository extends JpaRepository<MemberPosition, UUID> {
@@ -17,6 +19,4 @@ public interface MemberPositionRepository extends JpaRepository<MemberPosition, 
 
     @Query("SELECT mp FROM MemberPosition mp JOIN mp.organization o WHERE o.company = :company")
     List<MemberPosition> findByCompany(@Param("company") Company company);
-
-    List<MemberPosition> findAllByMemberIdAndYnDel(UUID memberId, com.crewvy.common.entity.Bool ynDel);
 }
