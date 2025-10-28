@@ -1,7 +1,7 @@
 package com.crewvy.member_service.member.kafka;
 
 import com.crewvy.common.entity.Bool;
-import com.crewvy.member_service.member.entity.OutboxEvent;
+import com.crewvy.member_service.member.entity.NotificationOutboxEvent;
 import com.crewvy.member_service.member.repository.OutboxRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -36,9 +36,9 @@ public class OutboxRelayScheduler {
     public void relayOutboxEvents() {
 
         // 3. 처리 안 된(processed=false) 이벤트들을 조회합니다. (예: 최대 100개)
-        List<OutboxEvent> events = outboxRepository.findAllByProcessed(Bool.FALSE, Pageable.ofSize(100));
+        List<NotificationOutboxEvent> events = outboxRepository.findAllByProcessed(Bool.FALSE, Pageable.ofSize(100));
 
-        for (OutboxEvent event : events) {
+        for (NotificationOutboxEvent event : events) {
             try {
                 // 4. Kafka로 메시지를 전송합니다.
                 //    (토픽, MemberId)

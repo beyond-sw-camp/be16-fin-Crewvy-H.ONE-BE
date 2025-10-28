@@ -24,6 +24,7 @@ public class MemberPositionRes {
     private LocalDate endDate;
     private String lengthOfService;
     private Bool isActive;
+    private Bool ynDel;
 
     public static MemberPositionRes fromEntity(MemberPosition memberPosition) {
         String lengthOfService = null;
@@ -41,6 +42,7 @@ public class MemberPositionRes {
                 .endDate(memberPosition.getEndDate())
                 .lengthOfService(lengthOfService)
                 .isActive(memberPosition.getIsActive())
+                .ynDel(memberPosition.getYnDel())
                 .build();
     }
 }

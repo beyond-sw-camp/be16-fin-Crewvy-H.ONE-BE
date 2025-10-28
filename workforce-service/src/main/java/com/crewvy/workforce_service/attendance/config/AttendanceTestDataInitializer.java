@@ -1,10 +1,6 @@
 package com.crewvy.workforce_service.attendance.config;
 
-import com.crewvy.workforce_service.attendance.constant.DeviceType;
-import com.crewvy.workforce_service.attendance.constant.PolicyCategory;
-import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
-import com.crewvy.workforce_service.attendance.constant.RequestStatus;
-import com.crewvy.workforce_service.attendance.constant.RequestUnit;
+import com.crewvy.workforce_service.attendance.constant.*;
 import com.crewvy.workforce_service.attendance.dto.rule.*;
 import com.crewvy.workforce_service.attendance.entity.Policy;
 import com.crewvy.workforce_service.attendance.entity.PolicyAssignment;
