@@ -24,10 +24,10 @@ public class PayrollItemService {
     private final PayrollItemRepository payrollItemRepository;
 
     @Transactional(readOnly = true)
-    public List<PayrollItemRes> getPayrollItems(UUID companyId) {
-        List<PayrollItem> items = payrollItemRepository.findByCompanyIdOrderByCreatedAtAsc(companyId);
-        return items.stream()
-                .map(PayrollItemRes::from)
+    public List<PayrollItemRes> getPayrollItemList(UUID companyId) {
+        List<PayrollItem> payrollItemList = payrollItemRepository.findByCompanyIdOrCompanyIdIsNull(companyId);
+        return payrollItemList.stream()
+                .map(PayrollItemRes::fromEntity)
                 .collect(Collectors.toList());
     }
 
@@ -35,7 +35,7 @@ public class PayrollItemService {
     public List<PayrollItemRes> getPayrollItemsByType(UUID companyId, SalaryType salaryType) {
         List<PayrollItem> items = payrollItemRepository.findByCompanyIdAndSalaryTypeOrderByCreatedAtAsc(companyId, salaryType);
         return items.stream()
-                .map(PayrollItemRes::from)
+                .map(PayrollItemRes::fromEntity)
                 .collect(Collectors.toList());
     }
 
@@ -43,13 +43,13 @@ public class PayrollItemService {
     public PayrollItemRes getPayrollItem(UUID id) {
         PayrollItem item = payrollItemRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("급여 항목을 찾을 수 없습니다. ID: " + id));
-        return PayrollItemRes.from(item);
+        return PayrollItemRes.fromEntity(item);
     }
 
     public PayrollItemRes createPayrollItem(PayrollItemCreateReq req) {
         PayrollItem item = req.toEntity();
         PayrollItem savedItem = payrollItemRepository.save(item);
-        return PayrollItemRes.from(savedItem);
+        return PayrollItemRes.fromEntity(savedItem);
     }
 
     public List<PayrollItemRes> updatePayrollItems(List<PayrollItemUpdateReq> requests) {
@@ -64,7 +64,7 @@ public class PayrollItemService {
         
         item.updateItem(req.getSalaryType(), req.getName(), req.getIsActive(), req.getDescription());
         PayrollItem savedItem = payrollItemRepository.save(item);
-        return PayrollItemRes.from(savedItem);
+        return PayrollItemRes.fromEntity(savedItem);
     }
 
     public void deletePayrollItems(List<UUID> ids) {

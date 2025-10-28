@@ -15,4 +15,5 @@ public class NotificationMessage {
     private UUID memberId;
     private String notificationType;
     private String content;
+    private UUID targetId;
 }

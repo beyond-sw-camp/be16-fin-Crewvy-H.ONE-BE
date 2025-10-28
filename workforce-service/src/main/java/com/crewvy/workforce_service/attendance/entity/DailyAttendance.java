@@ -73,6 +73,18 @@ public class DailyAttendance extends BaseEntity {
     @Column(name = "early_leave_minutes")
     private Integer earlyLeaveMinutes = 0;
 
+    @Builder.Default
+    @Column(name = "daytime_overtime_minutes")
+    private Integer daytimeOvertimeMinutes = 0;  // 주간 연장근무
+
+    @Builder.Default
+    @Column(name = "night_work_minutes")
+    private Integer nightWorkMinutes = 0;        // 야간 근무 (22:00-06:00)
+
+    @Builder.Default
+    @Column(name = "holiday_work_minutes")
+    private Integer holidayWorkMinutes = 0;      // 휴일 근무 (주말/CompanyHoliday)
+
     // 외출/휴게 상태 추적 (DB 저장 안함, 메모리상에서만 사용)
     @Transient
     private LocalDateTime currentGoOutStartTime;

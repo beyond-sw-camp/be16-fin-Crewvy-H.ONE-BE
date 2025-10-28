@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.feignClient;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
+import com.crewvy.workforce_service.feignClient.dto.response.MemberSalaryListRes;
 import com.crewvy.workforce_service.feignClient.dto.response.NameDto;
 import com.crewvy.workforce_service.feignClient.dto.response.OrganizationNodeDto;
 import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
@@ -44,4 +45,9 @@ public interface MemberClient {
     @PostMapping("/member/name-list")
     ApiResponse<List<NameDto>> getNameList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                            @RequestBody IdListReq idListReq);
+
+    // 급여 계산용 회원 정보 조회 (companyId로 조회)
+    @GetMapping("/member/salary-list")
+    ApiResponse<List<MemberSalaryListRes>> getSalaryList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                                         @RequestParam UUID companyId);
 }
