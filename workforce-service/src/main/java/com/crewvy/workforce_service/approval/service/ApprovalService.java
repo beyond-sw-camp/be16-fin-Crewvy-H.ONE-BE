@@ -4,8 +4,6 @@ import com.crewvy.common.S3.S3Uploader;
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.dto.NotificationMessage;
 import com.crewvy.common.exception.BusinessException;
-import com.crewvy.common.kafka.KafkaMessagePublisher;
-import com.crewvy.common.notification.NotificationRedis;
 import com.crewvy.workforce_service.approval.constant.ApprovalState;
 import com.crewvy.workforce_service.approval.constant.LineStatus;
 import com.crewvy.workforce_service.approval.constant.RequirementType;
@@ -23,6 +21,7 @@ import com.crewvy.workforce_service.feignClient.dto.response.OrganizationNodeDto
 import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,8 +41,7 @@ public class ApprovalService {
     private final ApprovalReplyRepository approvalReplyRepository;
     private final S3Uploader s3Uploader;
     private final MemberClient memberClient;
-    private final NotificationRedis notification;
-    private final KafkaMessagePublisher messagePublisher;
+    private final ApplicationEventPublisher eventPublisher;
 
 //    문서 양식 생성
     public UUID uploadDocument(UploadDocumentDto dto) {
@@ -261,17 +259,12 @@ public class ApprovalService {
         if(alarmId != null) {
             NotificationMessage message = NotificationMessage.builder()
                     .memberId(alarmId)
-                    .notificationType("APPROVAL")
+                    .notificationType("NT004")
                     .content("전자결재 : " + approval.getTitle() + " 문서가  도착했습니다.")
+                    .targetId(approval.getId())
                     .build();
 
-            try {
-                messagePublisher.publish("notification", message);
-            }
-            catch (Exception e) {
-//                throw new BusinessException("레디스 알림 전송 실패");
-                throw new BusinessException("카프카 알림 전송 실패");
-            }
+            eventPublisher.publishEvent(message);
 
         }
 
@@ -363,16 +356,12 @@ public class ApprovalService {
 
                         NotificationMessage message = NotificationMessage.builder()
                                 .memberId(position.get(0).getMemberId())
-                                .notificationType("APPROVAL")
+                                .notificationType("NT004")
                                 .content("전자결재 : " + approval.getTitle() + " 문서가  도착했습니다.")
+                                .targetId(approval.getId())
                                 .build();
 
-                        try {
-                            messagePublisher.publish("notification", message);
-                        }
-                        catch (Exception e) {
-                            throw new BusinessException("레디스 알림 전송 실패");
-                        }
+                        eventPublisher.publishEvent(message);
                     });
         } else {
             // 5-2. 현재 결재자가 마지막인 경우, 문서 전체 상태를 최종 승인으로 변경
@@ -384,16 +373,12 @@ public class ApprovalService {
 
             NotificationMessage message = NotificationMessage.builder()
                     .memberId(position.get(0).getMemberId())
-                    .notificationType("APPROVAL")
+                    .notificationType("NT004")
                     .content("전자결재 : " + approval.getTitle() + " 문서가 결재가 완료되었습니다..")
+                    .targetId(approval.getId())
                     .build();
 
-            try {
-                messagePublisher.publish("notification", message);
-            }
-            catch (Exception e) {
-                throw new BusinessException("알림 전송 실패");
-            }
+            eventPublisher.publishEvent(message);
         }
     }
 
@@ -427,16 +412,12 @@ public class ApprovalService {
 
         NotificationMessage message = NotificationMessage.builder()
                 .memberId(position.get(0).getMemberId())
-                .notificationType("APPROVAL")
+                .notificationType("NT004")
                 .content("전자결재 : " + approval.getTitle() + " 문서가 결재가 완료되었습니다..")
+                .targetId(approval.getId())
                 .build();
 
-        try {
-            messagePublisher.publish("notification", message);
-        }
-        catch (Exception e) {
-            throw new BusinessException("레디스 알림 전송 실패");
-        }
+        eventPublisher.publishEvent(message);
     }
 
 //    결재 상세 조회
