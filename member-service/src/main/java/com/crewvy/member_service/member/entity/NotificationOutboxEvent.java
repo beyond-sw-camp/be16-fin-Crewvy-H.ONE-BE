@@ -14,7 +14,7 @@ import java.util.UUID;
 @Getter
 @Builder
 @Entity
-public class OutboxEvent {
+public class NotificationOutboxEvent {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;

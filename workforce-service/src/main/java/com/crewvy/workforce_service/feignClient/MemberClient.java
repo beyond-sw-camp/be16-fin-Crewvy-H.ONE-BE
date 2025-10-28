@@ -3,6 +3,10 @@ package com.crewvy.workforce_service.feignClient;
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
 import com.crewvy.workforce_service.feignClient.dto.response.*;
+import com.crewvy.workforce_service.feignClient.dto.response.MemberSalaryListRes;
+import com.crewvy.workforce_service.feignClient.dto.response.NameDto;
+import com.crewvy.workforce_service.feignClient.dto.response.OrganizationNodeDto;
+import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
@@ -39,4 +43,9 @@ public interface MemberClient {
     // memberPositionId -> 조직 List( 0: 내 부서, 1: 상위 부서, 2: 1의 상위 부서, ... , n: 회사 )
     @GetMapping("/member/organization-list")
     ApiResponse<List<OrganizationRes>> getOrganizationList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId);
+
+    // 급여 계산용 회원 정보 조회 (companyId로 조회)
+    @GetMapping("/member/salary-list")
+    ApiResponse<List<MemberSalaryListRes>> getSalaryList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                                         @RequestParam UUID companyId);
 }

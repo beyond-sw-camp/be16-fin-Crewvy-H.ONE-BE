@@ -27,10 +27,16 @@ public interface TeamGoalRepository extends JpaRepository<TeamGoal, UUID> {
     @Query("SELECT tg FROM TeamGoal tg LEFT JOIN FETCH tg.goalList WHERE tg.id = :teamGoalId")
     Optional<TeamGoal> findByIdWithGoals(@Param("teamGoalId") UUID teamGoalId);
 
+    @Query("SELECT tg FROM TeamGoal tg JOIN tg.teamGoalMembers m " +
+            "WHERE m.memberPositionId = :memberPositionId " +
+            "AND tg.status = :status")
+    List<TeamGoal> findAllByMemberPositionIdAndStatus(@Param("memberPositionId") UUID memberPositionId,
+                                                      @Param("status") TeamGoalStatus status);
+
     @Query("SELECT tg FROM TeamGoal tg " +
             "WHERE tg.memberPositionId = :memberPositionId " +
             "AND tg.status = :status")
-    List<TeamGoal> findAllByMemberPositionIdAndStatus(@Param("memberPositionId") UUID memberPositionId,
+    List<TeamGoal> findAllByMemberPositionIdAndStatus2(@Param("memberPositionId") UUID memberPositionId,
                                                       @Param("status") TeamGoalStatus status);
 
     @Modifying(clearAutomatically = true)

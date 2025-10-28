@@ -17,7 +17,6 @@ import java.util.UUID;
 public class PayrollItemCreateReq {
 
     private UUID companyId;
-    private UUID memberId;
     private SalaryType salaryType;
     private String name;
     private Bool isActive;
@@ -26,7 +25,6 @@ public class PayrollItemCreateReq {
     public PayrollItem toEntity() {
         return PayrollItem.builder()
                 .companyId(companyId)
-                .memberId(memberId)
                 .salaryType(salaryType)
                 .name(name)
                 .isActive(isActive)

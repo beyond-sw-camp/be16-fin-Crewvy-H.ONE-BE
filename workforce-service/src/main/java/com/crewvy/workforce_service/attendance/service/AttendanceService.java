@@ -987,4 +987,38 @@ public class AttendanceService {
         // 2. CompanyHoliday 확인
         return companyHolidayRepository.existsByCompanyIdAndHolidayDate(companyId, date);
     }
+
+    public List<DailyAttendanceRes> getMemberAttendance(UUID companyId, LocalDate startDate, LocalDate endDate) {
+
+        List<DailyAttendance> dailyAttendanceList
+                = dailyAttendanceRepository.findAllByDateRangeAndCompany(companyId, startDate, endDate);
+
+        Map<UUID, List<DailyAttendance>> groupedByMember = dailyAttendanceList.stream()
+                .collect(Collectors.groupingBy(DailyAttendance::getMemberId));
+
+        List<DailyAttendanceRes> dailyAttendanceResList = groupedByMember.entrySet().stream()
+                .map(entry -> {
+                    UUID memberId = entry.getKey();
+                    List<DailyAttendance> memberAttendances = entry.getValue();
+
+                    int sumWorkingDays = memberAttendances.size();
+
+                    int sumOvertime = memberAttendances.stream()
+                            .mapToInt(da -> da.getDaytimeOvertimeMinutes() != null ? da.getDaytimeOvertimeMinutes() : 0)
+                            .sum();
+
+                    int sumNight = memberAttendances.stream()
+                            .mapToInt(da -> da.getNightWorkMinutes() != null ? da.getNightWorkMinutes() : 0)
+                            .sum();
+
+                    int sumHoliday = memberAttendances.stream()
+                            .mapToInt(da -> da.getHolidayWorkMinutes() != null ? da.getHolidayWorkMinutes() : 0)
+                            .sum();
+
+                    return new DailyAttendanceRes(memberId, sumWorkingDays, sumOvertime, sumNight, sumHoliday);
+                }).toList();
+
+        return dailyAttendanceResList;
+
+    }
 }

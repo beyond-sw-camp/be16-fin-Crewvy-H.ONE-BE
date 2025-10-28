@@ -1,0 +1,23 @@
+package com.crewvy.common.event;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.io.Serializable;
+import java.util.UUID;
+
+@Getter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class OrganizationSavedEvent implements Serializable {
+    private static final long serialVersionUID = 1L;
+
+    private UUID organizationId;
+    private String name;
+    private UUID parentId;
+    private UUID companyId;
+    private Integer displayOrder;
+}

@@ -202,4 +202,12 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(e.getMessage()));
     }
+
+    @ExceptionHandler(SerializationException.class)
+    protected ResponseEntity<ApiResponse<?>> handleInvalidPolicyRuleException(SerializationException e) {
+        log.warn("SerializationException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(e.getMessage()));
+    }
 }

@@ -3,10 +3,7 @@ package com.crewvy.workforce_service.salary.entity;
 import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.workforce_service.salary.dto.request.SalaryInfoCreateReq;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.math.BigInteger;
 import java.time.LocalDateTime;
@@ -16,6 +13,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
+@Setter
 @Entity
 public class SalaryInfo extends BaseEntity {
 

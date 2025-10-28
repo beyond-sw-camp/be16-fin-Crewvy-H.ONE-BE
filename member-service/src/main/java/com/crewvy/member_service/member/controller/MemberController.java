@@ -121,6 +121,15 @@ public class MemberController {
                 memberService.createTitle(uuid, memberPositionId, createTitleReq), "직책 생성 성공"), HttpStatus.CREATED);
     }
 
+
+    // 직책 이력 영구 삭제
+    @DeleteMapping("/position/{memberPositionId}/delete")
+    public ResponseEntity<?> hardDeleteMemberPosition(@RequestHeader("X-User-MemberPositionId") UUID adminMemberPositionId,
+                                                      @PathVariable UUID memberPositionId) {
+        memberService.hardDeleteMemberPosition(adminMemberPositionId, memberPositionId);
+        return new ResponseEntity<>(ApiResponse.success(null, "직책 이력 영구 삭제 성공"), HttpStatus.OK);
+    }
+
     // 직책 목록 조회
     @GetMapping("/title")
     public ResponseEntity<?> getTitle(@RequestHeader("X-User-UUID") UUID uuid, @RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {

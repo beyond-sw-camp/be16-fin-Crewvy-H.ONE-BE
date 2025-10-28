@@ -1,20 +1,31 @@
 package com.crewvy.member_service.member.service;
 
 import com.crewvy.common.entity.Bool;
+import com.crewvy.common.event.MemberDeletedEvent;
+import com.crewvy.common.event.MemberSavedEvent;
+import com.crewvy.common.event.OrganizationSavedEvent;
 import com.crewvy.common.exception.PermissionDeniedException;
+import com.crewvy.common.exception.SerializationException;
 import com.crewvy.member_service.member.auth.JwtTokenProvider;
 import com.crewvy.member_service.member.constant.Action;
 import com.crewvy.member_service.member.constant.PermissionRange;
 import com.crewvy.member_service.member.dto.request.*;
 import com.crewvy.member_service.member.dto.response.*;
 import com.crewvy.member_service.member.entity.*;
+import com.crewvy.member_service.member.event.MemberChangedEvent;
 import com.crewvy.member_service.member.repository.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -26,7 +37,6 @@ import static java.lang.Boolean.TRUE;
 @Service
 @Transactional
 public class MemberService {
-
     private final CompanyRepository companyRepository;
     private final OrganizationRepository organizationRepository;
     private final MemberRepository memberRepository;
@@ -40,13 +50,17 @@ public class MemberService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final OutboxRepository outboxRepository;
+    private final SearchOutboxEventRepository searchOutboxEventRepository;
+    private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     public MemberService(CompanyRepository companyRepository, OrganizationRepository organizationRepository
             , MemberRepository memberRepository, MemberPositionRepository memberPositionRepository
             , RoleRepository roleRepository, RolePermissionRepository rolePermissionRepository
             , GradeRepository gradeRepository, GradeHistoryRepository gradeHistoryRepository
             , TitleRepository titleRepository, PermissionRepository permissionRepository
-            , PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider, OutboxRepository outboxRepository) {
+            , PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider, OutboxRepository outboxRepository
+            , SearchOutboxEventRepository searchOutboxEventRepository, ObjectMapper objectMapper, ApplicationEventPublisher eventPublisher) {
         this.companyRepository = companyRepository;
         this.organizationRepository = organizationRepository;
         this.memberRepository = memberRepository;
@@ -60,6 +74,9 @@ public class MemberService {
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.outboxRepository = outboxRepository;
+        this.searchOutboxEventRepository = searchOutboxEventRepository;
+        this.objectMapper = objectMapper;
+        this.eventPublisher = eventPublisher;
     }
 
     // 회원가입
@@ -72,16 +89,17 @@ public class MemberService {
         }
         String encodePassword = passwordEncoder.encode(createAdminReq.getPassword());
         Member adminMember = createAdminReq.toEntity(encodePassword, company);
-        memberRepository.save(adminMember);
+        Member savedMember = memberRepository.save(adminMember);
 
-        OutboxEvent outbox = OutboxEvent.builder()
+        // 알림 kafka
+        NotificationOutboxEvent notificationOutbox = NotificationOutboxEvent.builder()
                 .topic("member-create")
-                .memberId(adminMember.getId())
-                .processed(Bool.FALSE)
+                .memberId(savedMember.getId())
                 .build();
-        outboxRepository.save(outbox);
+        outboxRepository.save(notificationOutbox);
+        eventPublisher.publishEvent(new MemberChangedEvent(savedMember.getId()));
 
-        return adminMember;
+        return savedMember;
     }
 
     // 계정 생성
@@ -119,16 +137,17 @@ public class MemberService {
         Role role = roleRepository.findById(createMemberReq.getRoleId()).orElseThrow(()
                 -> new IllegalArgumentException("존재하지 않는 역할입니다."));
 
-        MemberPosition memberPosition = createMemberPosition(createMemberReq.getMemberPositionName(), savedMember, organization, title, role, LocalDate.now(), null);
+        MemberPosition memberPosition = createMemberPosition(createMemberReq.getMemberPositionName(), savedMember, organization, title, role, LocalDate.now());
         savedMember.updateDefaultMemberPosition(memberPosition);
 
-        OutboxEvent outbox = OutboxEvent.builder()
+        NotificationOutboxEvent outbox = NotificationOutboxEvent.builder()
                 .topic("member-create")
                 .memberId(savedMember.getId())
                 .processed(Bool.FALSE)
                 .build();
-
         outboxRepository.save(outbox);
+
+        eventPublisher.publishEvent(new MemberChangedEvent(savedMember.getId()));
 
         return savedMember.getId();
     }
@@ -301,7 +320,7 @@ public class MemberService {
         currentGradeHistorySet.stream()
                 .filter(gh -> !newGradeHistoryIdSet.contains(gh.getId()))
                 .forEach(gh -> {
-                    gh.updateYnDel(Bool.FALSE);
+                    gh.updateYnDel(Bool.TRUE);
                     gradeHistoryRepository.save(gh);
                 });
 
@@ -319,7 +338,7 @@ public class MemberService {
                 });
 
         Set<MemberPosition> currentPositionSet = new LinkedHashSet<>(member.getMemberPositionList());
-        Set<UUID> updatedMemberPositionIds = new LinkedHashSet<>();
+        Set<UUID> updatedMemberPositionIdSet = new LinkedHashSet<>();
 
         if (updateMemberReq.getPositionUpdateReqList() != null) {
             for (PositionUpdateReq req : updateMemberReq.getPositionUpdateReqList()) {
@@ -331,7 +350,7 @@ public class MemberService {
                             .findFirst()
                             .orElse(null);
                     if (memberPosition != null) {
-                        updatedMemberPositionIds.add(memberPosition.getId());
+                        updatedMemberPositionIdSet.add(memberPosition.getId());
                     }
                 }
 
@@ -365,18 +384,20 @@ public class MemberService {
                 }
 
                 memberPosition.update(organization, title, role, req.getStartDate(), req.getEndDate());
-                memberPosition.delete();
                 memberPositionRepository.save(memberPosition);
             }
         }
 
         // 삭제 처리: 프론트엔드에서 넘어오지 않은 기존 memberPosition은 ynDel = TRUE
         currentPositionSet.stream()
-                .filter(mp -> !updatedMemberPositionIds.contains(mp.getId()))
+                .filter(mp -> !updatedMemberPositionIdSet.contains(mp.getId()))
                 .forEach(mp -> {
                     mp.delete(); // ynDel = TRUE
                     memberPositionRepository.save(mp);
                 });
+
+        eventPublisher.publishEvent(new MemberChangedEvent(member.getId()));
+
         return member.getId();
     }
 
@@ -386,7 +407,25 @@ public class MemberService {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
-        memberRepository.findById(memberId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 계정입니다.")).delete();
+        Member member = memberRepository.findById(memberId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 계정입니다."));
+        member.delete();
+        memberRepository.save(member);
+
+        try {
+            MemberDeletedEvent event = MemberDeletedEvent.builder()
+                    .memberId(member.getId())
+                    .build();
+            String payload = objectMapper.writeValueAsString(event);
+
+            SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
+                    .topic("member-deleted-events")
+                    .aggregateId(member.getId())
+                    .payload(payload)
+                    .build();
+            searchOutboxEventRepository.save(searchOutbox);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("데이터 직렬화 실패");
+        }
     }
 
     // 직원 복원
@@ -395,7 +434,11 @@ public class MemberService {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
-        memberRepository.findById(memberId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 계정입니다.")).restore();
+        Member member = memberRepository.findById(memberId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 계정입니다."));
+        member.restore();
+        memberRepository.save(member);
+
+        eventPublisher.publishEvent(new MemberChangedEvent(member.getId()));
     }
 
     // 직원 상세 조회
@@ -504,6 +547,22 @@ public class MemberService {
 
         titleRepository.findById(titleId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 직책입니다.")).delete();
     }
+
+    // 직책 영구 삭제
+    public void hardDeleteMemberPosition(UUID adminMemberPositionId, UUID memberPositionId) {
+        if (checkPermission(adminMemberPositionId, "member", Action.DELETE, PermissionRange.COMPANY) == FALSE) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+
+        // 기본 직책으로 사용 중인지 확인
+        List<Member> membersWithThisAsDefault = memberRepository.findByDefaultMemberPosition_Id(memberPositionId);
+        if (!membersWithThisAsDefault.isEmpty()) {
+            throw new IllegalStateException("기본 직책으로 설정된 직무는 영구 삭제할 수 없습니다. 먼저 다른 직무를 기본으로 설정해주세요.");
+        }
+
+        memberPositionRepository.deleteById(memberPositionId);
+    }
+
 
     // 직책 복원
     public void restoreTitle(UUID memberPositionId, UUID titleId) {
@@ -860,6 +919,8 @@ public class MemberService {
 
             member.updateDefaultMemberPosition(newDefaultMemberPosition);
         }
+
+        eventPublisher.publishEvent(new MemberChangedEvent(member.getId()));
     }
 
     // 권한 확인
@@ -916,7 +977,7 @@ public class MemberService {
 
     // member_position 생성
     private MemberPosition createMemberPosition(String memberPositionName, Member member, Organization organization,
-                                                Title title, Role role, LocalDate startDate, LocalDate endDate) {
+                                                Title title, Role role, LocalDate startDate) {
         MemberPosition memberPosition = MemberPosition.builder()
                 .name(memberPositionName)
                 .member(member)
@@ -924,14 +985,14 @@ public class MemberService {
                 .title(title)
                 .role(role)
                 .startDate(startDate)
-                .endDate(endDate)
+                .endDate(null)
                 .build();
         return memberPositionRepository.save(memberPosition);
     }
 
     // member_position 생성
     public void createAndAssignDefaultPosition(String memberPositionName, Member member, Organization organization, Title title, Role role) {
-        MemberPosition memberPosition = createMemberPosition(memberPositionName, member, organization, title, role, LocalDate.now(), null);
+        MemberPosition memberPosition = createMemberPosition(memberPositionName, member, organization, title, role, LocalDate.now());
         member.updateDefaultMemberPosition(memberPosition);
         memberRepository.save(member);
     }
@@ -1031,7 +1092,85 @@ public class MemberService {
             }
             organizationResList.add(OrganizationRes.fromEntity(organization));
 
-            return  organizationResList;
+            return organizationResList;
         }).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 직원입니다."));
+    }
+
+    // 회원 데이터 변경이 완료된 후 Elasticsearch 동기화를 위한 이벤트 저장
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void handleMemberSaveEvent(MemberChangedEvent memberChangedEvent) {
+        saveSearchOutboxEvent(memberChangedEvent.getMemberId());
+    }
+
+    // elastic search에 저장
+    public void saveSearchOutboxEvent(UUID memberId) {
+        Member member = memberRepository.findByIdWithDetail(memberId)
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 직원입니다."));
+
+        try {
+            List<MemberPosition> positionList = member.getMemberPositionList().stream().toList();
+            if (positionList == null || positionList.isEmpty()) {
+                MemberPosition defaultPosition = member.getDefaultMemberPosition();
+                if (defaultPosition != null) {
+                    positionList = List.of(defaultPosition);
+                } else {
+                    positionList = Collections.emptyList();
+                }
+            }
+
+            List<MemberPosition> finalPositionList = positionList.stream()
+                    .filter(position -> position.getYnDel() == Bool.FALSE).toList();
+
+            List<String> titleNameList = finalPositionList.stream()
+                    .map(MemberPosition::getTitle)
+                    .map(Title::getName)
+                    .collect(Collectors.toList());
+            if (titleNameList.isEmpty()) {
+                titleNameList.add("미정");
+            }
+
+            Map<String, String> organizationParentId = new HashMap<>();
+            finalPositionList.stream()
+                    .map(MemberPosition::getOrganization)
+                    .forEach(org -> {
+                        if (org.getParent() != null) {
+                            organizationParentId.put(org.getId().toString(), org.getParent().getId().toString());
+                        } else {
+                            organizationParentId.put(org.getId().toString(), null);
+                        }
+                    });
+
+            List<OrganizationSavedEvent> organizationSavedEventList = finalPositionList.stream()
+                    .map(MemberPosition::getOrganization)
+                    .map(org -> OrganizationSavedEvent.builder()
+                            .organizationId(org.getId())
+                            .name(org.getName())
+                            .parentId(org.getParent() != null ? org.getParent().getId() : null)
+                            .build())
+                    .collect(Collectors.toList());
+
+            MemberSavedEvent event = MemberSavedEvent.builder()
+                    .memberId(member.getId())
+                    .companyId(member.getCompany().getId())
+                    .name(member.getName())
+                    .organizationList(organizationSavedEventList)
+                    .titleName(titleNameList)
+                    .phoneNumber(member.getIsPhoneNumberPublic() == Bool.TRUE ? member.getPhoneNumber() : null)
+                    .memberStatus(member.getMemberStatus().getCodeName())
+                    .position(member.getDefaultMemberPosition().getTitle().getName())
+                    .email(member.getEmail())
+                    .build();
+            String payload = objectMapper.writeValueAsString(event);
+
+            SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
+                    .topic("member-saved-events")
+                    .aggregateId(member.getId())
+                    .payload(payload)
+                    .build();
+            searchOutboxEventRepository.save(searchOutbox);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("데이터 직렬화 실패");
+        }
     }
 }

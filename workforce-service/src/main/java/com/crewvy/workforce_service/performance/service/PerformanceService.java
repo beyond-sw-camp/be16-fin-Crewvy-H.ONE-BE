@@ -2,6 +2,8 @@ package com.crewvy.workforce_service.performance.service;
 
 import com.crewvy.common.S3.S3Uploader;
 import com.crewvy.common.dto.ApiResponse;
+import com.crewvy.common.dto.NotificationMessage;
+import com.crewvy.common.kafka.KafkaMessagePublisher;
 import com.crewvy.common.exception.BusinessException;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
@@ -16,7 +18,9 @@ import com.crewvy.workforce_service.performance.repository.EvaluationRepository;
 import com.crewvy.workforce_service.performance.repository.PerformanceRepository;
 import com.crewvy.workforce_service.performance.repository.TeamGoalRepository;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.persistence.Id;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -33,6 +37,7 @@ public class PerformanceService {
     private final EvaluationRepository evaluationRepository;
     private final S3Uploader s3Uploader;
     private final MemberClient memberClient;
+    private final ApplicationEventPublisher eventPublisher;
     private final TeamGoalCompletionService teamGoalCompletionService;
 
 //    팀 목표 리스트
@@ -68,7 +73,7 @@ public class PerformanceService {
         }).toList();
     }
 
-    //    팀 목표 리스트
+    //    팀 목표 리스트(개인 목표 추가시 선택가능한 팀 목표)
     public List<TeamGoalResponseDto> getTeamGoalProcessing(UUID memberPositionId) {
         List<TeamGoal> teamGoalList = teamGoalRepository.findAllByMemberPositionIdAndStatus(memberPositionId, TeamGoalStatus.PROCESSING);
 
@@ -197,6 +202,24 @@ public class PerformanceService {
         teamGoalRepository.save(newTeamGoal);
 
 //        목표 생성 이후 목표에 초대된 팀원들에게 알림 발송
+        List<PositionDto> position = memberClient.getPositionList(memberPositionId,
+                new IdListReq(dto.getMembers().stream()
+                        .map(TeamGoalMemberReqDto::getMemberPositionId)
+                        .toList()
+                )).getData();
+
+        for(PositionDto p : position) {
+            if(p.getMemberPositionId().equals(newTeamGoal.getMemberPositionId())) {
+                continue;
+            }
+            NotificationMessage message = NotificationMessage.builder()
+                    .memberId(p.getMemberId())
+                    .notificationType("NT005")
+                    .content("팀 목표 : " + newTeamGoal.getTitle() + "에 초대되었습니다.")
+                    .targetId(newTeamGoal.getId())
+                    .build();
+            eventPublisher.publishEvent(message);
+        }
 
         return newTeamGoal.getId();
     }
@@ -238,6 +261,7 @@ public class PerformanceService {
                 .endDate(goal.getEndDate())
                 .status(goal.getStatus().getCodeName())
                 .comment(goal.getComment())
+                .teamGoalId(goal.getTeamGoal().getId())
                 .teamGoalTitle(goal.getTeamGoal().getTitle())
                 .teamGoalContents(goal.getTeamGoal().getContents())
                 .teamGoalMemberPositionId(goal.getTeamGoal().getMemberPositionId())
@@ -292,6 +316,16 @@ public class PerformanceService {
 
         performanceRepository.save(newGoal);
 
+        List<PositionDto> position = memberClient.getPositionList(memberPositionId,
+                new IdListReq(Arrays.asList(teamGoal.getMemberPositionId()))).getData();
+        NotificationMessage message = NotificationMessage.builder()
+                .memberId(position.get(0).getMemberId())
+                .notificationType("NT007")
+                .content("승인 요청 : 새로운 목표 " + newGoal.getTitle() + "가 승인 요청을 했습니다.")
+                .targetId(newGoal.getId())
+                .build();
+        eventPublisher.publishEvent(message);
+
         return newGoal.getId();
     }
 
@@ -300,6 +334,16 @@ public class PerformanceService {
         Goal goal = performanceRepository.findById(dto.getGoalId()).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 목표입니다."));
 
         goal.updateStatus(dto.getStatus(), dto.getComment());
+
+        List<PositionDto> position = memberClient.getPositionList(goal.getMemberPositionId(),
+                new IdListReq(Arrays.asList(goal.getMemberPositionId()))).getData();
+        NotificationMessage message = NotificationMessage.builder()
+                .memberId(position.get(0).getMemberId())
+                .notificationType("NT006")
+                .content("개인 목표 : " + goal.getTitle() + "이 " + dto.getStatus().getCodeName() + "되었습니다.")
+                .targetId(goal.getId())
+                .build();
+        eventPublisher.publishEvent(message);
 
         return goal.getId();
     }
@@ -320,10 +364,30 @@ public class PerformanceService {
 
         if(dto.getType().equals(EvaluationType.SELF)){
             goal.updateStatus(GoalStatus.SELF_EVAL_COMPLETED);
+
+            List<PositionDto> position = memberClient.getPositionList(memberPositionId,
+                    new IdListReq(Arrays.asList(goal.getTeamGoal().getMemberPositionId()))).getData();
+            NotificationMessage message = NotificationMessage.builder()
+                    .memberId(position.get(0).getMemberId())
+                    .notificationType("NT009")
+                    .targetId(goal.getId())
+                    .content("평가 : " + goal.getTitle() + "의 본인평가가 완료되었습니다.")
+                    .build();
+            eventPublisher.publishEvent(message);
         }
         else if(dto.getType().equals(EvaluationType.SUPERVISOR)) {
             goal.updateStatus(GoalStatus.MANAGER_EVAL_COMPLETED);
             teamGoalCompletionService.checkAndCompleteTeamGoal(goal.getTeamGoal());
+
+            List<PositionDto> position = memberClient.getPositionList(memberPositionId,
+                    new IdListReq(Arrays.asList(goal.getMemberPositionId()))).getData();
+            NotificationMessage message = NotificationMessage.builder()
+                    .memberId(position.get(0).getMemberId())
+                    .notificationType("NT008")
+                    .targetId(goal.getId())
+                    .content("평가 : " + goal.getTitle() + "의 평가가 모두 완료되었습니다.")
+                    .build();
+            eventPublisher.publishEvent(message);
         }
 
         return evaluation.getId();
@@ -410,6 +474,8 @@ public class PerformanceService {
         // (Iterator를 사용해야 ConcurrentModificationException이 발생하지 않음)
         existingMembers.removeIf(member -> !newMemberIds.contains(member.getMemberPositionId()));
 
+        List<UUID> uuidList = new ArrayList<>();
+
         // 2-5. [추가] 새 멤버 중 -> 기존 목록에 없는 멤버만 추가
         for (TeamGoalMemberReqDto m : dto.getMembers()) {
             if (!existingMemberIds.contains(m.getMemberPositionId())) {
@@ -419,7 +485,21 @@ public class PerformanceService {
                         .teamGoal(teamGoal)
                         .build();
                 existingMembers.add(member); // teamGoal.getTeamGoalMembers()와 같은 참조입니다.
+                uuidList.add(m.getMemberPositionId());
             }
+        }
+
+        List<PositionDto> position = memberClient.getPositionList(memberPositionId,
+                new IdListReq(uuidList)).getData();
+
+        for(PositionDto p : position) {
+            NotificationMessage message = NotificationMessage.builder()
+                    .memberId(p.getMemberId())
+                    .notificationType("NT005")
+                    .content("팀 목표 : " + teamGoal.getTitle() + "에 초대되었습니다.")
+                    .targetId(teamGoal.getId())
+                    .build();
+            eventPublisher.publishEvent(message);
         }
     }
 
@@ -439,7 +519,7 @@ public class PerformanceService {
 //    평가대상 팀 목표 조회
     public List<TeamGoalResponseDto> findMyTeamGoalsToEvaluate(UUID memberPositionId) {
         // 1. 내가 관리자(생성자)인 '평가 대기' 팀 목표 조회
-        List<TeamGoal> teamGoalList = teamGoalRepository.findAllByMemberPositionIdAndStatus(memberPositionId, TeamGoalStatus.AWAITING_EVALUATION);
+        List<TeamGoal> teamGoalList = teamGoalRepository.findAllByMemberPositionIdAndStatus2(memberPositionId, TeamGoalStatus.AWAITING_EVALUATION);
 
         // 2. (최적화) 조회된 팀 목표가 없으면 API 호출 없이 바로 빈 리스트 반환
         if (teamGoalList.isEmpty()) {
@@ -503,7 +583,7 @@ public class PerformanceService {
 //    평가완료 팀 목표 조회
     public List<TeamGoalResponseDto> findMyTeamGoalsComplete(UUID memberPositionId) {
         // 1. 내가 관리자(생성자)인 '평가 대기' 팀 목표 조회
-        List<TeamGoal> teamGoalList = teamGoalRepository.findAllByMemberPositionIdAndStatus(memberPositionId, TeamGoalStatus.EVALUATION_COMPLETED);
+        List<TeamGoal> teamGoalList = teamGoalRepository.findAllByMemberPositionIdAndStatus2(memberPositionId, TeamGoalStatus.EVALUATION_COMPLETED);
 
         // 2. (최적화) 조회된 팀 목표가 없으면 API 호출 없이 바로 빈 리스트 반환
         if (teamGoalList.isEmpty()) {
