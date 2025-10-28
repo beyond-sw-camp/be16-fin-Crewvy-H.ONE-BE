@@ -29,18 +29,4 @@ public interface SalaryHistoryRepository extends JpaRepository<SalaryHistory, UU
             @Param("targetDate") LocalDate targetDate
     );
 
-//    @Query("SELECT sh FROM SalaryHistory sh " +
-//            "WHERE sh.companyId = :companyId " +
-//            "  AND sh.member_id = :memberId " +
-//            "  AND sh.effectiveDate <= :targetDate " +
-//            "  AND sh.effectiveDate = ( " +
-//            "    SELECT MAX(sh2.effectiveDate) " +
-//            "    FROM SalaryHistory sh2 " +
-//            "    WHERE sh2.memberId = sh.memberId " +
-//            "      AND sh2.effectiveDate <= :targetDate " +
-//            "  )")
-//    List<SalaryHistory> findLatestSalaryHistoriesByCompanyAndMember(@Param("companyId") UUID companyId,
-//                                                                    @Param("memberId") UUID memberId,
-//                                                                    @Param("targetDate") LocalDate targetDate);
-
 }

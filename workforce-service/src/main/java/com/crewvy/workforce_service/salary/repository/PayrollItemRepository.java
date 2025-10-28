@@ -26,8 +26,8 @@ public interface PayrollItemRepository extends JpaRepository<PayrollItem, UUID> 
 
     // 수당 계산 항목 조회
     List<PayrollItem> findByCompanyIdIsNullAndSalaryTypeAndIsTaxableAndCalculationCodeNot(
-            SalaryType salaryType, // SalaryType.ST001
-            Bool isTaxable,      // true
-            String calculationCode   // "BASE_SALARY"
+            SalaryType salaryType,
+            Bool isTaxable,
+            String calculationCode
     );
 }

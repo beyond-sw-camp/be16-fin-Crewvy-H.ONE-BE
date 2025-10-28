@@ -45,4 +45,13 @@ public class Salary extends BaseEntity {
     @Builder.Default
     @OneToMany(mappedBy = "salary", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SalaryDetail> salaryDetailList = new ArrayList<>();
+
+    // 급여 정보 수정 메서드
+    public void updateSalary(BigInteger amount, BigInteger netPay, LocalDate paymentDate) {
+        this.amount = amount;
+        this.netPay = netPay;
+        if (paymentDate != null) {
+            this.paymentDate = paymentDate;
+        }
+    }
 }
