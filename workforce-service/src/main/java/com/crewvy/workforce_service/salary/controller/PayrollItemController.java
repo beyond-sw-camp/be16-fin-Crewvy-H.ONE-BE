@@ -26,7 +26,7 @@ public class PayrollItemController {
     // 급여 항목 목록 조회
     @GetMapping("/list")
     public ResponseEntity<?> getPayrollItems(@RequestParam UUID companyId) {
-        List<PayrollItemRes> response = payrollItemService.getPayrollItems(companyId);
+        List<PayrollItemRes> response = payrollItemService.getPayrollItemList(companyId);
         return new ResponseEntity<>(new ApiResponse<>(true, response, "목록 조회 성공"), HttpStatus.OK);
     }
 
