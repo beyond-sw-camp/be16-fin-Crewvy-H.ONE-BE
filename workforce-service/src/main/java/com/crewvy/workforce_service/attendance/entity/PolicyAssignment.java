@@ -31,8 +31,8 @@ public class PolicyAssignment {
     private UUID targetId; // 할당 대상의 ID (회사, 부서, 직원 등)
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "target_type", nullable = false)
-    private PolicyScopeType targetType; // 할당 대상의 종류 (COMPANY, ORGANIZATION, MEMBER)
+    @Column(name = "scope_type", nullable = false)
+    private PolicyScopeType scopeType; // 할당 대상의 종류 (COMPANY, ORGANIZATION, MEMBER)
 
     @Column(name = "is_active", nullable = false)
     private boolean isActive;

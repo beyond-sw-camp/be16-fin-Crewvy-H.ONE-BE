@@ -31,29 +31,29 @@ public class Request extends BaseEntity {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "policy_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
+    @JoinColumn(name = "policy_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private Policy policy;
 
     @Column(name = "member_id", nullable = false)
     private UUID memberId;
 
-    @Column(name = "document_id", nullable = false)
+    @Column(name = "document_id")
     private UUID documentId;
 
-    @Column(name = "request_unit", nullable = false)
+    @Column(name = "request_unit")
     @Convert(converter = RequestUnitConverter.class)
     private RequestUnit requestUnit;
 
-    @Column(name = "start_at", nullable = false)
-    private LocalDate startAt;
+    @Column(name = "start_date_time")
+    private LocalDateTime startDateTime;
 
-    @Column(name = "end_at", nullable = false)
-    private LocalDate endAt;
+    @Column(name = "end_date_time")
+    private LocalDateTime endDateTime;
 
-    @Column(name = "deduction_days", nullable = false)
+    @Column(name = "deduction_days")
     private Double deductionDays;
 
-    @Column(name = "reason", nullable = false)
+    @Column(name = "reason")
     private String reason;
 
     @Column(name = "status", nullable = false)
@@ -78,4 +78,23 @@ public class Request extends BaseEntity {
     @Column(name = "device_type")
     @Convert(converter = DeviceTypeConverter.class)
     private DeviceType deviceType;
+
+    /**
+     * 결재 문서 ID 업데이트
+     * Approval 생성 후 연결하기 위해 사용
+     */
+    public void updateDocumentId(UUID documentId) {
+        this.documentId = documentId;
+    }
+
+    /**
+     * Request 상태 업데이트
+     * Approval 결재 완료 시 APPROVED로 변경
+     */
+    public void updateStatus(RequestStatus status) {
+        this.status = status;
+        if (status == RequestStatus.APPROVED || status == RequestStatus.REJECTED) {
+            this.completedAt = LocalDateTime.now();
+        }
+    }
 }

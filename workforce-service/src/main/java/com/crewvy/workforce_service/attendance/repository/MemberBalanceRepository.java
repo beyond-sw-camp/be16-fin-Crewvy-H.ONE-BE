@@ -1,11 +1,13 @@
 package com.crewvy.workforce_service.attendance.repository;
 
+import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
 import com.crewvy.workforce_service.attendance.entity.MemberBalance;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface MemberBalanceRepository extends JpaRepository<MemberBalance, UUID> {
@@ -32,4 +34,17 @@ public interface MemberBalanceRepository extends JpaRepository<MemberBalance, UU
     List<MemberBalance> findAllByYearAndCompany(
             @Param("companyId") UUID companyId,
             @Param("year") Integer year);
+
+    /**
+     * 특정 직원의 특정 연도 특정 타입의 잔여 일수 조회
+     * @param memberId 직원 ID
+     * @param balanceTypeCode 잔여 일수 타입 (PolicyTypeCode)
+     * @param year 조회 연도
+     * @return 해당 직원의 해당 연도 해당 타입 잔여 일수
+     */
+    Optional<MemberBalance> findByMemberIdAndBalanceTypeCodeAndYear(
+            UUID memberId,
+            PolicyTypeCode balanceTypeCode,
+            Integer year
+    );
 }

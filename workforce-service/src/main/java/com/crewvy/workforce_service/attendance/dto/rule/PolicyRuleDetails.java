@@ -17,4 +17,5 @@ public class PolicyRuleDetails {
     private TripRuleDto tripRule;
     private ExpenseRuleDto expenseRule;
     private LatenessRuleDto latenessRule;
+    private OvertimeRuleDto overtimeRule;
 }
