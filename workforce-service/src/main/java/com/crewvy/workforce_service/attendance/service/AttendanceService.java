@@ -2,18 +2,11 @@ package com.crewvy.workforce_service.attendance.service;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.exception.*;
-import com.crewvy.workforce_service.attendance.constant.AttendanceStatus;
-import com.crewvy.workforce_service.attendance.constant.DeviceType;
-import com.crewvy.workforce_service.attendance.constant.EventType;
-import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
-import com.crewvy.workforce_service.attendance.constant.RequestStatus;
+import com.crewvy.workforce_service.attendance.constant.*;
 import com.crewvy.workforce_service.attendance.dto.request.EventRequest;
 import com.crewvy.workforce_service.attendance.dto.response.*;
 import com.crewvy.workforce_service.attendance.dto.rule.*;
-import com.crewvy.workforce_service.attendance.entity.AttendanceLog;
-import com.crewvy.workforce_service.attendance.entity.DailyAttendance;
-import com.crewvy.workforce_service.attendance.entity.MemberBalance;
-import com.crewvy.workforce_service.attendance.entity.Policy;
+import com.crewvy.workforce_service.attendance.entity.*;
 import com.crewvy.workforce_service.attendance.repository.*;
 import com.crewvy.workforce_service.attendance.util.DistanceCalculator;
 import com.crewvy.workforce_service.feignClient.MemberClient;
@@ -31,11 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -383,10 +372,10 @@ public class AttendanceService {
         }
 
         // 사용자 위치 정보로 매칭되는 근무지 찾기
-        com.crewvy.workforce_service.attendance.entity.WorkLocation matchedLocation = null;
+        WorkLocation matchedLocation = null;
         List<String> failureReasons = new ArrayList<>();
 
-        for (com.crewvy.workforce_service.attendance.entity.WorkLocation location : allowedLocations) {
+        for (WorkLocation location : allowedLocations) {
             List<String> locationFailures = new ArrayList<>();
             boolean allAuthTypesMatch = true;
 
@@ -442,7 +431,7 @@ public class AttendanceService {
     /**
      * WorkLocation의 GPS 정보와 사용자 위치가 매칭되는지 확인
      */
-    private boolean isGpsMatched(com.crewvy.workforce_service.attendance.entity.WorkLocation location, Double userLat, Double userLon) {
+    private boolean isGpsMatched(WorkLocation location, Double userLat, Double userLon) {
         // GPS 정보가 없으면 매칭 불가
         if (location.getLatitude() == null || location.getLongitude() == null || location.getGpsRadius() == null) {
             return false;
@@ -463,7 +452,7 @@ public class AttendanceService {
     /**
      * WorkLocation의 IP 정보와 사용자 IP가 매칭되는지 확인
      */
-    private boolean isIpMatched(com.crewvy.workforce_service.attendance.entity.WorkLocation location, String clientIp) {
+    private boolean isIpMatched(WorkLocation location, String clientIp) {
         if (location.getIpAddress() == null || location.getIpAddress().trim().isEmpty()) {
             return false;
         }
@@ -479,7 +468,7 @@ public class AttendanceService {
     /**
      * WorkLocation의 WiFi 정보와 사용자 WiFi가 매칭되는지 확인
      */
-    private boolean isWifiMatched(com.crewvy.workforce_service.attendance.entity.WorkLocation location, String userWifiSsid) {
+    private boolean isWifiMatched(WorkLocation location, String userWifiSsid) {
         if (location.getWifiSsid() == null || location.getWifiSsid().trim().isEmpty()) {
             return false;
         }
