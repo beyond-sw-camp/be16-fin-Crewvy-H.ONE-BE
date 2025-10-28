@@ -1,7 +1,7 @@
 package com.crewvy.search_service.entity;
 
 
-import com.crewvy.common.event.OrganizationEvent;
+import com.crewvy.common.event.OrganizationSavedEvent;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,9 +18,9 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Document(indexName = "members", createIndex = true)
-@Setting(settingPath = "elastic/members-setting.json")
-@Mapping(mappingPath = "elastic/members-mapping.json")
+@Document(indexName = "member", createIndex = true)
+@Setting(settingPath = "elastic/member-setting.json")
+@Mapping(mappingPath = "elastic/member-mapping.json")
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class MemberDocument {
     @Id
@@ -33,8 +33,8 @@ public class MemberDocument {
     @Field(type = FieldType.Text)
     private String name;
 
-    @Field(type = FieldType.Text)
-    private List<OrganizationEvent> organizationList;
+    @Field(type = FieldType.Nested)
+    private List<OrganizationSavedEvent> organizationList;
 
     @Field(type = FieldType.Text)
     private List<String> titleName;

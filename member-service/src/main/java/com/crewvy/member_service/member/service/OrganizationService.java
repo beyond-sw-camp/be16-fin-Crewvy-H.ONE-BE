@@ -1,25 +1,27 @@
 package com.crewvy.member_service.member.service;
 
+import com.crewvy.common.event.OrganizationSavedEvent;
 import com.crewvy.common.exception.PermissionDeniedException;
+import com.crewvy.common.exception.SerializationException;
 import com.crewvy.member_service.member.constant.Action;
 import com.crewvy.member_service.member.constant.PermissionRange;
 import com.crewvy.member_service.member.dto.request.CreateOrganizationReq;
 import com.crewvy.member_service.member.dto.request.UpdateOrganizationReq;
 import com.crewvy.member_service.member.dto.response.OrganizationTreeRes;
 import com.crewvy.member_service.member.dto.response.OrganizationTreeWithMembersRes;
-import com.crewvy.member_service.member.entity.Company;
-import com.crewvy.member_service.member.entity.Member;
-import com.crewvy.member_service.member.entity.MemberPosition;
-import com.crewvy.member_service.member.entity.Organization;
+import com.crewvy.member_service.member.entity.*;
 import com.crewvy.member_service.member.event.OrganizationChangedEvent;
-import com.crewvy.member_service.member.repository.CompanyRepository;
-import com.crewvy.member_service.member.repository.MemberPositionRepository;
-import com.crewvy.member_service.member.repository.MemberRepository;
-import com.crewvy.member_service.member.repository.OrganizationRepository;
-import org.springframework.context.ApplicationEventPublisher;
+import com.crewvy.member_service.member.repository.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,18 +40,21 @@ public class OrganizationService {
     private final MemberRepository memberRepository;
     private final MemberService memberService;
     private final MemberPositionRepository memberPositionRepository;
+    private final SearchOutboxEventRepository searchOutboxEventRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final ObjectMapper objectMapper;
 
-    public OrganizationService(OrganizationRepository organizationRepository,
-                               CompanyRepository companyRepository, MemberRepository memberRepository,
-                               MemberService memberService, MemberPositionRepository memberPositionRepository,
-                               ApplicationEventPublisher eventPublisher) {
+    public OrganizationService(OrganizationRepository organizationRepository, CompanyRepository companyRepository
+            , MemberRepository memberRepository, MemberService memberService, MemberPositionRepository memberPositionRepository
+            , SearchOutboxEventRepository searchOutboxEventRepository, ApplicationEventPublisher eventPublisher, ObjectMapper objectMapper) {
         this.organizationRepository = organizationRepository;
         this.companyRepository = companyRepository;
         this.memberRepository = memberRepository;
         this.memberService = memberService;
         this.memberPositionRepository = memberPositionRepository;
+        this.searchOutboxEventRepository = searchOutboxEventRepository;
         this.eventPublisher = eventPublisher;
+        this.objectMapper = objectMapper;
     }
 
     // 회사 생성
@@ -144,17 +149,20 @@ public class OrganizationService {
     }
 
     // 조직 순서 변경
-    public void reorderOrganization(List<UUID> organizationIds) {
+    public void reorderOrganization(List<UUID> organizationIdList) {
         List<Organization> organizationsToUpdate = new ArrayList<>();
-        for (int i = 0; i < organizationIds.size(); i++) {
+        for (int i = 0; i < organizationIdList.size(); i++) {
             int displayOrder = i;
-            UUID id = organizationIds.get(i);
+            UUID id = organizationIdList.get(i);
             organizationRepository.findById(id).ifPresent(organization -> {
                 organization.updateDisplayOrder(displayOrder);
                 organizationsToUpdate.add(organization);
             });
         }
-        organizationRepository.saveAll(organizationsToUpdate);
+
+        List<Organization> savedOrganizations = organizationRepository.saveAll(organizationsToUpdate);
+        savedOrganizations.forEach(org ->
+                eventPublisher.publishEvent(new OrganizationChangedEvent(org.getId())));
     }
 
     // 조직 삭제
@@ -178,5 +186,37 @@ public class OrganizationService {
 
         organizationRepository.delete(organization);
         eventPublisher.publishEvent(new OrganizationChangedEvent(organizationId));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void handleOrganizationSaveEvent(OrganizationChangedEvent organizationChangedEvent) {
+        saveSearchOutboxEvent(organizationChangedEvent.getOrganizationId());
+    }
+
+    public void saveSearchOutboxEvent(UUID organizationId) {
+        Organization organization = organizationRepository.findById(organizationId).orElseThrow(()
+                -> new EntityNotFoundException("존재하지 않는 조직입니다."));
+
+        try {
+            OrganizationSavedEvent event = OrganizationSavedEvent.builder()
+                    .organizationId(organization.getId())
+                    .name(organization.getName())
+                    .parentId(organization.getParent() != null ? organization.getParent().getId() : null)
+                    .companyId(organization.getCompany().getId())
+                    .displayOrder(organization.getDisplayOrder())
+                    .build();
+            String payload = objectMapper.writeValueAsString(event);
+
+            SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
+                    .topic("organization-saved-events")
+                    .aggregateId(organization.getId())
+                    .payload(payload)
+                    .build();
+            searchOutboxEventRepository.save(searchOutbox);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("데이터 직렬화 실패");
+        }
+
     }
 }

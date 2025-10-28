@@ -12,11 +12,12 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class OrganizationEvent implements Serializable {
+public class OrganizationSavedEvent implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    private UUID id;
+    private UUID organizationId;
     private String name;
     private UUID parentId;
     private UUID companyId;
+    private Integer displayOrder;
 }

@@ -1,7 +1,9 @@
 package com.crewvy.member_service.member.kafka;
 
 import com.crewvy.common.entity.Bool;
+import com.crewvy.common.event.MemberDeletedEvent;
 import com.crewvy.common.event.MemberSavedEvent;
+import com.crewvy.common.event.OrganizationSavedEvent;
 import com.crewvy.member_service.member.entity.SearchOutboxEvent;
 import com.crewvy.member_service.member.repository.SearchOutboxEventRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,8 +40,21 @@ public class SearchOutboxRelayScheduler {
 
         for (SearchOutboxEvent event : events) {
             try {
-                MemberSavedEvent memberSavedEvent = objectMapper.readValue(event.getPayload(), MemberSavedEvent.class);
-                memberSearchEventKafkaTemplate.send(event.getTopic(), memberSavedEvent);
+                Object eventPayload;
+                String topic = event.getTopic();
+
+                if ("member-saved-events".equals(topic)) {
+                    eventPayload = objectMapper.readValue(event.getPayload(), MemberSavedEvent.class);
+                } else if ("organization-saved-events".equals(topic)) {
+                    eventPayload = objectMapper.readValue(event.getPayload(), OrganizationSavedEvent.class);
+                } else if ("member-deleted-events".equals(topic)) {
+                    eventPayload = objectMapper.readValue(event.getPayload(), MemberDeletedEvent.class);
+                } else {
+                    log.warn("Unknown topic: {}", topic);
+                    continue; // 처리하지 않고 다음 이벤트로 넘어감
+                }
+
+                memberSearchEventKafkaTemplate.send(topic, eventPayload);
                 event.setProcessed();
             } catch (Exception e) {
                 log.error("Failed to send search outbox event to Kafka: {} Error: {}", event.getId(), e.getMessage());

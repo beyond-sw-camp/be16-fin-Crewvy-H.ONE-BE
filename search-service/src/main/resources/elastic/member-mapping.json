@@ -21,7 +21,7 @@
     "organizationList": {
       "type": "nested",
       "properties": {
-        "id": { "type": "keyword" },
+        "organizationId": { "type": "keyword" },
         "name": {
           "type": "text",
           "analyzer": "korean_analyzer"

@@ -19,7 +19,7 @@ public class MemberSavedEvent implements Serializable {
     private UUID memberId;
     private String name;
     private UUID companyId;
-    private List<OrganizationEvent> organizationList;
+    private List<OrganizationSavedEvent> organizationList;
     private List<String> titleName;
     private String phoneNumber;
     private String memberStatus;

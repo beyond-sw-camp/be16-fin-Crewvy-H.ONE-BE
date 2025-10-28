@@ -21,7 +21,7 @@ public class SearchOutboxEvent {
 
     private String topic;
 
-    private UUID memberId;
+    private UUID aggregateId;
 
     @Lob
     private String payload;

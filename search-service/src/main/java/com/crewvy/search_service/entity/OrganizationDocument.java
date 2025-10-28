@@ -1,6 +1,7 @@
 package com.crewvy.search_service.entity;
 
 import com.crewvy.common.event.MemberSavedEvent;
+import com.crewvy.common.event.OrganizationSavedEvent;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -23,7 +24,7 @@ import java.util.UUID;
 public class OrganizationDocument {
 
     @Id
-    private String id;
+    private String organizationId;
 
     @Field(type = FieldType.Keyword, name = "companyId")
     private String companyId;
@@ -39,6 +40,15 @@ public class OrganizationDocument {
 
     @Field(type = FieldType.Keyword)
     private String parentId;
+
+    @Field(type = FieldType.Integer)
+    private Integer displayOrder;
+
+    public void updateFromEvent(OrganizationSavedEvent event) {
+        this.label = event.getName();
+        this.parentId = event.getParentId() != null ? event.getParentId().toString() : null;
+        this.displayOrder = event.getDisplayOrder();
+    }
 
     @Getter
     @Builder

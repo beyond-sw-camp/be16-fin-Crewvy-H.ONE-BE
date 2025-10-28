@@ -9,4 +9,5 @@ import java.util.Optional;
 public interface OrganizationSearchRepository extends ElasticsearchRepository<OrganizationDocument, String> {
     List<OrganizationDocument> findByCompanyId(String companyId);
     Optional<OrganizationDocument> findByCompanyIdAndLabel(String companyId, String label);
+    List<OrganizationDocument> findByCompanyIdOrderByDisplayOrderAsc(String companyId);
 }

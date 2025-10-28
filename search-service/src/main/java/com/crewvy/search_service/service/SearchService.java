@@ -2,7 +2,7 @@ package com.crewvy.search_service.service;
 
 import com.crewvy.common.event.MemberDeletedEvent;
 import com.crewvy.common.event.MemberSavedEvent;
-import com.crewvy.common.event.OrganizationEvent;
+import com.crewvy.common.event.OrganizationSavedEvent;
 import com.crewvy.search_service.entity.MemberDocument;
 import com.crewvy.search_service.entity.OrganizationDocument;
 import com.crewvy.search_service.repository.MemberSearchRepository;
@@ -34,14 +34,14 @@ public class SearchService {
     public void listenMemberSavedEvent(MemberSavedEvent event) {
         // 기존 MemberDocument 조회
         memberSearchRepository.findById(event.getMemberId().toString()).ifPresent(existingMember -> {
-            List<OrganizationEvent> existingOrgs = existingMember.getOrganizationList();
-            List<OrganizationEvent> eventOrgs = event.getOrganizationList();
+            List<OrganizationSavedEvent> existingOrgs = existingMember.getOrganizationList();
+            List<OrganizationSavedEvent> eventOrgs = event.getOrganizationList();
 
             // 직원이 제거된 조직 찾기
             existingOrgs.stream()
-                    .filter(existingOrg -> eventOrgs.stream().noneMatch(eventOrg -> eventOrg.getId().equals(existingOrg.getId())))
+                    .filter(existingOrg -> eventOrgs.stream().noneMatch(eventOrg -> eventOrg.getOrganizationId().equals(existingOrg.getOrganizationId())))
                     .forEach(removedOrg -> {
-                        organizationSearchRepository.findById(removedOrg.getId().toString()).ifPresent(orgDoc -> {
+                        organizationSearchRepository.findById(removedOrg.getOrganizationId().toString()).ifPresent(orgDoc -> {
                             orgDoc.getMemberList().removeIf(member -> member.getId().equals(event.getMemberId()));
                             organizationSearchRepository.save(orgDoc);
                         });
@@ -49,7 +49,7 @@ public class SearchService {
         });
 
         List<String> orgNameList = event.getOrganizationList().stream()
-                .map(OrganizationEvent::getName)
+                .map(OrganizationSavedEvent::getName)
                 .collect(Collectors.toList());
         String suggestText = event.getName() + " " + String.join(" ", orgNameList);
 
@@ -70,7 +70,7 @@ public class SearchService {
             OrganizationDocument org = organizationSearchRepository.findByCompanyIdAndLabel(event.getCompanyId().toString(), orgEvent.getName())
                     .orElseGet(() -> {
                         OrganizationDocument newOrg = OrganizationDocument.builder()
-                                .id(orgEvent.getId().toString())
+                                .organizationId(orgEvent.getOrganizationId().toString())
                                 .companyId(event.getCompanyId().toString())
                                 .label(orgEvent.getName())
                                 .memberList(new ArrayList<>())
@@ -94,43 +94,27 @@ public class SearchService {
         });
     }
 
-        // 조직 추가/수정
+    // 조직 추가/수정
+    @KafkaListener(topics = "organization-saved-events", groupId = "search-service-group")
+    public void listenOrganizationChangedEvent(OrganizationSavedEvent event) {
+        OrganizationDocument organizationDocument = organizationSearchRepository.findById(event.getOrganizationId().toString())
+                .orElseGet(() ->
+                        OrganizationDocument.builder()
+                                .organizationId(event.getOrganizationId().toString())
+                                .companyId(event.getCompanyId().toString())
+                                .memberList(new ArrayList<>())
+                                .build());
+        organizationDocument.updateFromEvent(event);
 
-        @KafkaListener(topics = "organization-changed-events", groupId = "search-service-group")
+        organizationSearchRepository.save(organizationDocument);
+    }
 
-        public void listenOrganizationChangedEvent(OrganizationEvent event) {
-
-            OrganizationDocument organizationDocument = OrganizationDocument.builder()
-
-                    .id(event.getId().toString())
-
-                    .companyId(event.getCompanyId().toString())
-
-                    .label(event.getName())
-
-                    .parentId(event.getParentId() != null ? event.getParentId().toString() : null)
-
-                    .memberList(new ArrayList<>())
-
-                    .build();
-
-            organizationSearchRepository.save(organizationDocument);
-
-        }
-
-    
-
-        // 직원 삭제
-
-        @KafkaListener(topics = "member-deleted-events", groupId = "search-service-group")
-
-        public void listenMemberDeletedEvent(MemberDeletedEvent event) {
-
-            memberSearchRepository.delete(memberSearchRepository.findById(event.getMemberId().toString()).orElseThrow(
-
-                    () -> new EntityNotFoundException("존재하지 않는 직원입니다.")));
-
-        }
+    // 직원 삭제
+    @KafkaListener(topics = "member-deleted-events", groupId = "search-service-group")
+    public void listenMemberDeletedEvent(MemberDeletedEvent event) {
+        memberSearchRepository.delete(memberSearchRepository.findById(event.getMemberId().toString()).orElseThrow(
+                () -> new EntityNotFoundException("존재하지 않는 직원입니다.")));
+    }
 
     // 직원 검색
     public List<MemberDocument> searchEmployees(String query, String companyId) {
@@ -158,7 +142,7 @@ public class SearchService {
 
     // 조직 검색
     public List<OrganizationDocument> getOrganizationTree(String companyId) {
-        return organizationSearchRepository.findByCompanyId(companyId);
+        return organizationSearchRepository.findByCompanyIdOrderByDisplayOrderAsc(companyId);
     }
 
     // 조직별 직원 검색
@@ -167,7 +151,7 @@ public class SearchService {
                 .withQuery(q -> q.bool(b -> b
                         .must(s -> s.nested(n -> n
                                 .path("organizationList")
-                                .query(nq -> nq.term(t -> t.field("organizationList.id").value(organizationId)))))
+                                .query(nq -> nq.term(t -> t.field("organizationList.organizationId").value(organizationId)))))
                         .filter(f -> f.term(t -> t.field("companyId.keyword").value(companyId)))))
                 .build();
         SearchHits<MemberDocument> searchHits = elasticsearchOperations.search(searchQuery, MemberDocument.class);

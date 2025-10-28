@@ -3,7 +3,7 @@ package com.crewvy.member_service.member.service;
 import com.crewvy.common.entity.Bool;
 import com.crewvy.common.event.MemberDeletedEvent;
 import com.crewvy.common.event.MemberSavedEvent;
-import com.crewvy.common.event.OrganizationEvent;
+import com.crewvy.common.event.OrganizationSavedEvent;
 import com.crewvy.common.exception.PermissionDeniedException;
 import com.crewvy.common.exception.SerializationException;
 import com.crewvy.member_service.member.auth.JwtTokenProvider;
@@ -419,7 +419,7 @@ public class MemberService {
 
             SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
                     .topic("member-deleted-events")
-                    .memberId(member.getId())
+                    .aggregateId(member.getId())
                     .payload(payload)
                     .build();
             searchOutboxEventRepository.save(searchOutbox);
@@ -1106,7 +1106,7 @@ public class MemberService {
     // elastic search에 저장
     public void saveSearchOutboxEvent(UUID memberId) {
         Member member = memberRepository.findByIdWithDetail(memberId)
-                .orElseThrow(() -> new EntityNotFoundException("이벤트를 생성할 멤버를 찾을 수 없습니다: " + memberId));
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 직원입니다."));
 
         try {
             List<MemberPosition> positionList = member.getMemberPositionList().stream().toList();
@@ -1141,19 +1141,20 @@ public class MemberService {
                         }
                     });
 
-            List<OrganizationEvent> organizationEventList = finalPositionList.stream()
+            List<OrganizationSavedEvent> organizationSavedEventList = finalPositionList.stream()
                     .map(MemberPosition::getOrganization)
-                    .map(org -> OrganizationEvent.builder()
-                            .id(org.getId())
+                    .map(org -> OrganizationSavedEvent.builder()
+                            .organizationId(org.getId())
                             .name(org.getName())
                             .parentId(org.getParent() != null ? org.getParent().getId() : null)
                             .build())
                     .collect(Collectors.toList());
 
-            MemberSavedEvent event = MemberSavedEvent.builder().memberId(member.getId())
+            MemberSavedEvent event = MemberSavedEvent.builder()
+                    .memberId(member.getId())
                     .companyId(member.getCompany().getId())
                     .name(member.getName())
-                    .organizationList(organizationEventList)
+                    .organizationList(organizationSavedEventList)
                     .titleName(titleNameList)
                     .phoneNumber(member.getIsPhoneNumberPublic() == Bool.TRUE ? member.getPhoneNumber() : null)
                     .memberStatus(member.getMemberStatus().getCodeName())
@@ -1164,7 +1165,7 @@ public class MemberService {
 
             SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
                     .topic("member-saved-events")
-                    .memberId(member.getId())
+                    .aggregateId(member.getId())
                     .payload(payload)
                     .build();
             searchOutboxEventRepository.save(searchOutbox);
