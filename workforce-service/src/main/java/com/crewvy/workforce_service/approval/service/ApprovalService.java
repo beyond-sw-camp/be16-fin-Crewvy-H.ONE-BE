@@ -689,6 +689,55 @@ public class ApprovalService {
                 .toList();
     }
 
+//    내 결재(완료)
+    @Transactional(readOnly = true)
+    public List<ApprovalListDto> getCompletedApproveList(UUID memberPositionId) {
+        // 1. 조회할 상태 목록을 정의합니다.
+        List<ApprovalState> targetStates = List.of(ApprovalState.REJECTED, ApprovalState.APPROVED);
+
+        // 2. 최적화된 쿼리로 '완료' 또는 '반려' 상태의 결재 목록 조회
+        List<Approval> approvalList = approvalRepository.findByMemberPositionIdAndStateInWithDocumentAndLine(memberPositionId, targetStates);
+
+        // 3. 기안자 정보를 가져오기 위해 Map 준비
+        final Map<UUID, PositionDto> positionMap;
+        if (!approvalList.isEmpty()) {
+            List<UUID> requesterIds = approvalList.stream()
+                    .map(Approval::getMemberPositionId)
+                    .distinct()
+                    .toList();
+
+            ApiResponse<List<PositionDto>> response = memberClient.getPositionList(memberPositionId, new IdListReq(requesterIds));
+
+            if (response.isSuccess() && response.getData() != null) {
+                positionMap = response.getData().stream()
+                        .collect(Collectors.toMap(PositionDto::getMemberPositionId, position -> position));
+            } else {
+                positionMap = Collections.emptyMap();
+            }
+        } else {
+            return Collections.emptyList();
+        }
+
+        // 4. Stream API를 사용하여 최종 DTO 리스트 생성
+        return approvalList.stream()
+                .map(approval -> {
+                    PositionDto requesterPosition = positionMap.get(approval.getMemberPositionId());
+
+                    return ApprovalListDto.builder()
+                            .approvalId(approval.getId())
+                            .title(approval.getTitle())
+                            .documentName(approval.getApprovalDocument().getDocumentName())
+                            .status(approval.getState())
+                            .createAt(approval.getCreatedAt())
+                            .requesterId(approval.getMemberPositionId())
+                            .requesterName(requesterPosition != null ? requesterPosition.getMemberName() : null)
+                            .requesterPosition(requesterPosition != null ? requesterPosition.getTitleName() : null)
+                            .requesterOrganization(requesterPosition != null ? requesterPosition.getOrganizationName() : null)
+                            .build();
+                })
+                .toList();
+    }
+
 //    임시 저장 상태 문서 리스트 조회
     @Transactional(readOnly = true)
     public List<ApprovalListDto> getDraftApprovalList(UUID memberPositionId) {

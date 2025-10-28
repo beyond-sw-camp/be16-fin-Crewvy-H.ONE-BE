@@ -146,6 +146,15 @@ public class ApprovalController {
         );
     }
 
+    @GetMapping("/find-approve-complete-list")
+    public ResponseEntity<?> findCompleteApproveList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+        List<ApprovalListDto> approvalList = approvalService.getCompletedApproveList(memberPositionId);
+        return new ResponseEntity<>(
+                ApiResponse.success(approvalList, "결재 완료 리스트 조회"),
+                HttpStatus.OK
+        );
+    }
+
     @GetMapping("/find-pending-list")
     public ResponseEntity<?> findPendingList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
         List<ApprovalListDto> approvalList = approvalService.getRequsetedApprovalList(memberPositionId);
