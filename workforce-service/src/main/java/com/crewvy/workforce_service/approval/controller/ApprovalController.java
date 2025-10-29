@@ -6,6 +6,8 @@ import com.crewvy.workforce_service.approval.dto.response.*;
 import com.crewvy.workforce_service.approval.service.ApprovalService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -103,10 +105,12 @@ public class ApprovalController {
     }
 
     @GetMapping("/find-reply/{approvalId}")
-    ResponseEntity<?> getReply(@PathVariable UUID approvalId) {
-        List<ReplyResponseDto> dtoList = approvalService.getReply(approvalId);
+    ResponseEntity<?> getReply(@PathVariable UUID approvalId,
+                               @PageableDefault(size = 4, sort = "createdAt", direction = Sort.Direction.DESC)
+                               Pageable pageable
+    ) {
         return new ResponseEntity<>(
-                ApiResponse.success(dtoList, "댓글 조회"),
+                ApiResponse.success(approvalService.getReply(approvalId, pageable), "댓글 조회"),
                 HttpStatus.OK
         );
     }
@@ -122,6 +126,7 @@ public class ApprovalController {
 
     @GetMapping("/find-approval-list")
     public ResponseEntity<?> findApprovalList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                              @PageableDefault(size = 4, sort = "createdAt", direction = Sort.Direction.DESC)
                                               Pageable pageable
     ) {
         return new ResponseEntity<>(
@@ -132,6 +137,7 @@ public class ApprovalController {
 
     @GetMapping("/find-draft-list")
     public ResponseEntity<?> findDraftList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                           @PageableDefault(size = 4, sort = "createdAt", direction = Sort.Direction.DESC)
                                            Pageable pageable
     ) {
         return new ResponseEntity<>(
@@ -142,6 +148,7 @@ public class ApprovalController {
 
     @GetMapping("/find-complete-list")
     public ResponseEntity<?> findCompleteList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                              @PageableDefault(size = 4, sort = "createdAt", direction = Sort.Direction.DESC)
                                               Pageable pageable
     ) {
         return new ResponseEntity<>(
@@ -152,6 +159,7 @@ public class ApprovalController {
 
     @GetMapping("/find-approve-complete-list")
     public ResponseEntity<?> findCompleteApproveList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                                     @PageableDefault(size = 4, sort = "createdAt", direction = Sort.Direction.DESC)
                                                      Pageable pageable
     ) {
         return new ResponseEntity<>(
@@ -162,6 +170,7 @@ public class ApprovalController {
 
     @GetMapping("/find-pending-list")
     public ResponseEntity<?> findPendingList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                             @PageableDefault(size = 4, sort = "a.createdAt", direction = Sort.Direction.DESC)
                                              Pageable pageable
     ) {
         return new ResponseEntity<>(

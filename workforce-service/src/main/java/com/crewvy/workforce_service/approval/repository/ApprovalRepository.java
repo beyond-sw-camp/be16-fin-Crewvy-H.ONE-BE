@@ -39,7 +39,7 @@ public interface ApprovalRepository extends JpaRepository<Approval, UUID> {
     @Query("SELECT DISTINCT a FROM Approval a " +
             "JOIN FETCH a.approvalDocument ad " +
             "WHERE a.memberPositionId = :memberPositionId " +
-            "AND a.state = :state") // IN 대신 = 사용 (상태가 PENDING 하나만 조회하므로)
+            "AND a.state = :state")
     Page<Approval> findByMemberPositionIdAndStateWithDocument(
             @Param("memberPositionId") UUID memberPositionId,
             @Param("state") ApprovalState state,
@@ -58,13 +58,24 @@ public interface ApprovalRepository extends JpaRepository<Approval, UUID> {
 
     @Query("SELECT DISTINCT a FROM Approval a " +
             "JOIN FETCH a.approvalDocument ad " +
-            "JOIN FETCH a.approvalLineList al " +
-            "WHERE al.memberPositionId = :lineMemberPositionId " + // 결재 라인의 ID로 필터링
+            "JOIN a.approvalLineList al " +         // 일반 JOIN
+            "WHERE al.memberPositionId = :lineMemberPositionId " + // 내가 결재 라인에 있고
+            "AND al.lineIndex != 1 " + // (추가!) 내가 기안자가 아니고 (lineIndex가 1이 아님)
             "AND a.state IN :states")
     Page<Approval> findByLineMemberPositionIdAndStateInWithDocument(
             @Param("lineMemberPositionId") UUID lineMemberPositionId,
             @Param("states") List<ApprovalState> states,
             Pageable pageable // pageable 추가
+    );
+
+    @Query("SELECT count(DISTINCT a) FROM Approval a " +
+            "JOIN a.approvalLineList al " +
+            "WHERE al.memberPositionId = :lineMemberPositionId " +
+            "AND al.lineIndex != 1 " +
+            "AND a.state IN :states")
+    int countByLineMemberPositionIdAndStateIn( // 반환 타입을 int로 변경
+                                               @Param("lineMemberPositionId") UUID lineMemberPositionId,
+                                               @Param("states") List<ApprovalState> states
     );
 
     @Query("SELECT a FROM Approval a LEFT JOIN FETCH a.approvalLineList WHERE a.id = :id")

@@ -499,45 +499,46 @@ public class ApprovalService {
 
 //    댓글 조회
     @Transactional(readOnly = true)
-    public List<ReplyResponseDto> getReply(UUID approvalId) {
-        // 1. 특정 결재 문서에 달린 댓글(Reply) 목록을 모두 조회합니다.
-        List<ApprovalReply> replyList = approvalReplyRepository.findByApprovalId(approvalId);
+    public Page<ReplyResponseDto> getReply(UUID approvalId, Pageable pageable) {
 
-        // 2. 댓글 작성자들의 Position 정보를 조회하기 위해 Map을 준비합니다.
-        Map<UUID, PositionDto> positionMap = new HashMap<>();
-        if (!replyList.isEmpty()) {
-            // 댓글 목록에서 작성자(memberPositionId) ID들을 추출합니다.
-            List<UUID> mpidList = replyList.stream()
+        // 1. (수정) Repository 메서드에 pageable 전달, Page<ApprovalReply> 반환
+        Page<ApprovalReply> replyPage = approvalReplyRepository.findByApprovalId(approvalId, pageable);
+
+        // 2. (수정) 현재 페이지의 내용(List<ApprovalReply>) 가져오기
+        List<ApprovalReply> replyListOnPage = replyPage.getContent();
+
+        // 3. (수정) 현재 페이지 댓글 작성자 정보만 가져오도록 Map 준비
+        Map<UUID, PositionDto> positionMap = new HashMap<>(); // final 제거, 초기화 방식 변경
+        if (!replyListOnPage.isEmpty()) { // replyList -> replyListOnPage
+            // (수정) 현재 페이지의 작성자 ID 목록만 추출
+            List<UUID> mpidList = replyListOnPage.stream()
                     .map(ApprovalReply::getMemberPositionId)
                     .distinct()
                     .toList();
 
-            // FeignClient를 호출합니다.
+            // (주의) memberClient.getPositionList 첫번째 파라미터 확인 필요
             ApiResponse<List<PositionDto>> response = memberClient.getPositionList(approvalId, new IdListReq(mpidList));
 
             if (response.isSuccess() && response.getData() != null) {
-                // 3. 빠른 조회를 위해 PositionDto 리스트를 Map으로 변환합니다.
+                // (수정) memberPositionId가 아니라 실제 memberId 기준으로 Map 생성
                 positionMap = response.getData().stream()
                         .collect(Collectors.toMap(PositionDto::getMemberPositionId, position -> position));
             }
         }
-
-        // 4. Stream을 사용하여 Reply 엔티티를 ReplyResponseDto로 변환합니다.
-        final Map<UUID, PositionDto> finalPositionMap = positionMap; // 람다에서 사용하기 위해 final 변수로 복사
-        return replyList.stream().map(reply -> {
-            // Map에서 현재 댓글의 작성자 ID와 일치하는 PositionDto를 찾습니다.
+        // 4. (수정) Page.map()을 사용하여 Page<ApprovalReply> -> Page<ReplyResponseDto> 변환
+        final Map<UUID, PositionDto> finalPositionMap = positionMap; // 람다용 final 변수
+        return replyPage.map(reply -> { // replyList.stream() 대신 replyPage.map() 사용
             PositionDto position = finalPositionMap.get(reply.getMemberPositionId());
 
-            // ReplyResponseDto를 만들 때, 찾은 PositionDto의 데이터를 함께 넣어줍니다.
             return ReplyResponseDto.builder()
                     .contents(reply.getContents())
                     .memberPositionId(reply.getMemberPositionId())
                     .memberName(position != null ? position.getMemberName() : null)
                     .memberPosition(position != null ? position.getTitleName() : null)
                     .memberOrganization(position != null ? position.getOrganizationName() : null)
-                    .createdAt(reply.getCreatedAt()) // 생성일자도 추가하면 좋습니다.
+                    .createdAt(reply.getCreatedAt())
                     .build();
-        }).toList();
+        });
     }
 
 //    결재 리스트 조회(내가 기안한 문서)
@@ -874,17 +875,21 @@ public class ApprovalService {
         ).stream().map(ApprovalLine::getApproval).toList().size();
 
 
-//        진행중인 결재(내가 기안한)
+//        내 기안(진행중)
         int request = approvalRepository.countByMemberPositionIdAndState(memberPositionId, ApprovalState.PENDING);
 //        int request = approvalRepository.countByState(ApprovalState.PENDING);
 
-//        완료된 결재
+//        내 기안(완료)
         List<ApprovalState> stateList = new ArrayList<>();
         stateList.add(ApprovalState.REJECTED);
         stateList.add(ApprovalState.APPROVED);
         int complete = approvalRepository.countByMemberPositionIdAndStateIn(memberPositionId, stateList);
 //        int complete = approvalRepository.countByStateIn(stateList);
 
+//        내 결재(완료)
+        int approveComplete = approvalRepository.countByLineMemberPositionIdAndStateIn(memberPositionId, stateList);
+
+//        임시 저정함
         int draft = approvalRepository.countByMemberPositionIdAndState(memberPositionId, ApprovalState.DRAFT);
 //        int draft = approvalRepository.countByState(ApprovalState.DRAFT);
 
@@ -892,6 +897,7 @@ public class ApprovalService {
                 .pendingCount(pending)
                 .requestCount(request)
                 .completeCount(complete)
+                .approveCompleteCount(approveComplete)
                 .draftCount(draft)
                 .build();
     }
