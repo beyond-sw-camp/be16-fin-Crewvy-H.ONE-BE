@@ -373,4 +373,11 @@ public class MemberController {
         return new ResponseEntity<>(ApiResponse.success(
                 memberService.getOrganizationList(memberPositionId), "목록 조회 성공"), HttpStatus.OK);
     }
+
+    // 내 권한 목록 조회
+    @GetMapping("/my-permissions")
+    public ResponseEntity<?> getMyPermissions(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.getMyPermissions(memberPositionId), "내 권한 목록 조회 성공"), HttpStatus.OK);
+    }
 }

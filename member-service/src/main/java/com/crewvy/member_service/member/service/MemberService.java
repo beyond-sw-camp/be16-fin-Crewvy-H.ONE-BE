@@ -218,7 +218,8 @@ public class MemberService {
     // 직원 목록 조회
     @Transactional(readOnly = true)
     public List<MemberListRes> getMemberList(UUID memberId, UUID memberPositionId) {
-        if (checkPermission(memberPositionId, "member", Action.READ, PermissionRange.COMPANY) == FALSE &&
+        if (checkPermission(memberPositionId, "member", Action.READ, PermissionRange.DEPARTMENT) == FALSE &&
+                checkPermission(memberPositionId, "member", Action.READ, PermissionRange.COMPANY) == FALSE &&
                 checkPermission(memberPositionId, "member", Action.READ, PermissionRange.SYSTEM) == FALSE) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
@@ -1140,6 +1141,24 @@ public class MemberService {
 
             return organizationResList;
         }).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 직원입니다."));
+    }
+
+    // 내 권한 목록 조회
+    @Transactional(readOnly = true)
+    public List<String> getMyPermissions(UUID memberPositionId) {
+        MemberPosition memberPosition = memberPositionRepository.findById(memberPositionId)
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 직책입니다."));
+
+        Role role = memberPosition.getRole();
+        List<RolePermission> rolePermissions = role.getRolePermissionList();
+
+        return rolePermissions.stream()
+                .map(rolePermission -> {
+                    Permission permission = rolePermission.getPermission();
+                    return permission.getResource() + ":" + permission.getAction() + ":" + rolePermission.getPermissionRange();
+                })
+                .distinct()
+                .collect(Collectors.toList());
     }
 
     // 회원 데이터 변경이 완료된 후 Elasticsearch 동기화를 위한 이벤트 저장
