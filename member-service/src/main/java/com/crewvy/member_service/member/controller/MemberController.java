@@ -55,12 +55,20 @@ public class MemberController {
                 memberService.doLogin(loginReq), "로그인 성공"), HttpStatus.OK);
     }
 
-//    // AT 재발급
-//    @PostMapping("/generate-at")
-//    public ResponseEntity<?> generateNewAt(@RequestBody GenerateNewAtReq generateNewAtReq) {
-//        return new ResponseEntity<>(new ApiResponse(
-//                true, memberService.generateNewAt(generateNewAtReq), "Access token 재발급 성공"), HttpStatus.OK);
-//    }
+    // AT 재발급
+    @PostMapping("/generate-at")
+    public ResponseEntity<?> generateNewAt(@RequestBody GenerateNewAtReq generateNewAtReq) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.generateNewAt(generateNewAtReq), "로그인 성공"), HttpStatus.OK);
+    }
+
+    // memberPosition 선택
+    @PostMapping("/{memberPositionId}/select")
+    public ResponseEntity<?> selectMemberPosition(@RequestHeader("X-User-UUID") UUID uuid,
+                                                  @PathVariable UUID memberPositionId){
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.selectMemberPosition(uuid, memberPositionId), "직무 선택 성공"), HttpStatus.OK);
+    }
 
     // 직원 리스트 조회
     @GetMapping("/list")
@@ -320,6 +328,13 @@ public class MemberController {
                 memberService.getAllPermission(), "전체 권한 목록 조회 성공"), HttpStatus.OK);
     }
 
+    // memberId -> memberPositionId List
+    @GetMapping("/my-positions")
+    public ResponseEntity<?> getMyPositionList(@RequestHeader("X-User-UUID") UUID uuid){
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.getMyPositionList(uuid), "내 직무 목록 조회 성공"), HttpStatus.OK);
+    }
+
     // memberIdList -> 이름 List
     @PostMapping("/name-list")
     public ResponseEntity<?> getNameList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
@@ -337,9 +352,9 @@ public class MemberController {
     }
 
     // companyId -> ( 사번, 이름, 부서, 직급, 계좌, 은행 ) List
-    @GetMapping("/salary-list")
+    @GetMapping("/{companyId}/salary-list")
     public ResponseEntity<?> getSalaryList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                           @RequestParam UUID companyId) {
+                                           @PathVariable UUID companyId) {
         return new ResponseEntity<>(ApiResponse.success(
                 memberService.getSalaryList(memberPositionId, companyId), "목록 조회 성공"), HttpStatus.OK);
     }

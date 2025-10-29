@@ -183,6 +183,38 @@ public class MemberService {
                 .build();
     }
 
+    // AT 재발급
+    public LoginRes generateNewAt(GenerateNewAtReq generateNewAtReq) {
+        Member member = jwtTokenProvider.validateRt(generateNewAtReq.getRefreshToken());
+        MemberPosition memberPosition = memberPositionRepository.findById(generateNewAtReq.getMemberPositionId())
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 직원입니다."));
+
+        String accessToken = jwtTokenProvider.createAtToken(member, memberPosition);
+        return LoginRes.builder()
+                .accessToken(accessToken)
+                .build();
+    }
+
+    // memberPosition 선택
+    @Transactional(readOnly = true)
+    public LoginRes selectMemberPosition(UUID memberId, UUID memberPositionId) {
+        List<MemberPosition> memberPositionList = memberPositionRepository.findAllByMemberId(memberId);
+        if (memberPositionList.stream().noneMatch(mp -> mp.getId().equals(memberPositionId))) {
+            throw new PermissionDeniedException("자신의 직책으로만 변경할 수 있습니다.");
+        } else {
+            Member member = memberRepository.findById(memberId).orElseThrow(()
+                    -> new EntityNotFoundException("존재하지 않는 직원입니다."));
+            MemberPosition memberPosition = memberPositionRepository.findById(memberPositionId).orElseThrow(()
+                    -> new EntityNotFoundException("존재하지 않는 직원입니다."));
+
+            String accessToken = jwtTokenProvider.createAtToken(member, memberPosition);
+            return LoginRes.builder()
+                    .accessToken(accessToken)
+                    .memberPositionId(memberPositionId)
+                    .build();
+        }
+    }
+
     // 직원 목록 조회
     @Transactional(readOnly = true)
     public List<MemberListRes> getMemberList(UUID memberId, UUID memberPositionId) {
@@ -444,6 +476,13 @@ public class MemberService {
     // 직원 상세 조회
     @Transactional(readOnly = true)
     public MemberDetailRes getMemberDetail(UUID uuid, UUID memberPositionId, UUID memberId) {
+        // 자신의 정보를 조회하는 경우, 권한 검사를 통과
+        if (uuid.equals(memberId)) {
+            Member self = memberRepository.findByIdWithDetail(memberId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 계정입니다."));
+            return MemberDetailRes.fromEntity(self);
+        }
+
         if (checkPermission(memberPositionId, "member", Action.READ, PermissionRange.DEPARTMENT) == FALSE
                 && checkPermission(memberPositionId, "member", Action.READ, PermissionRange.COMPANY) == FALSE
                 && checkPermission(memberPositionId, "member", Action.READ, PermissionRange.SYSTEM) == FALSE) {
@@ -953,6 +992,13 @@ public class MemberService {
                     return PermissionRes.fromEntity(permission, PermissionRange.NONE, rangeToIdMap);
                 })
                 .collect(Collectors.toList());
+    }
+
+    // memberId -> memberPositionId List
+    @Transactional(readOnly = true)
+    public List<MemberPositionInfo> getMyPositionList(UUID memberId) {
+        List<MemberPosition> memberPositionList = memberPositionRepository.findAllByMemberId(memberId);
+        return memberPositionList.stream().map(MemberPositionInfo::fromEntity).collect(Collectors.toList());
     }
 
     // 권한 확인 (캐시 없음)

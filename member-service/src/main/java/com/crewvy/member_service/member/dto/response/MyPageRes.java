@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 @Builder
 public class MyPageRes {
+    private UUID memberId;
     private String profileUrl;
     private String memberName;
     private String memberStatusName;
@@ -51,10 +52,11 @@ public class MyPageRes {
                 + member.getDefaultMemberPosition().getTitle().getName();
 
         List<MemberPositionInfo> memberPositionInfoList = member.getMemberPositionList().stream()
-                .map(MemberPositionInfo::from)
+                .map(MemberPositionInfo::fromEntity)
                 .collect(Collectors.toList());
 
         return MyPageRes.builder()
+                .memberId(member.getId())
                 .profileUrl(member.getProfileUrl())
                 .memberName(member.getName())
                 .memberStatusName(member.getMemberStatus().getCodeName())
