@@ -5,6 +5,9 @@ import com.crewvy.workforce_service.approval.dto.request.*;
 import com.crewvy.workforce_service.approval.dto.response.*;
 import com.crewvy.workforce_service.approval.service.ApprovalService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -102,10 +105,12 @@ public class ApprovalController {
     }
 
     @GetMapping("/find-reply/{approvalId}")
-    ResponseEntity<?> getReply(@PathVariable UUID approvalId) {
-        List<ReplyResponseDto> dtoList = approvalService.getReply(approvalId);
+    ResponseEntity<?> getReply(@PathVariable UUID approvalId,
+                               @PageableDefault(size = 4, sort = "createdAt", direction = Sort.Direction.DESC)
+                               Pageable pageable
+    ) {
         return new ResponseEntity<>(
-                ApiResponse.success(dtoList, "댓글 조회"),
+                ApiResponse.success(approvalService.getReply(approvalId, pageable), "댓글 조회"),
                 HttpStatus.OK
         );
     }
@@ -120,37 +125,56 @@ public class ApprovalController {
     }
 
     @GetMapping("/find-approval-list")
-    public ResponseEntity<?> findApprovalList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
-        List<ApprovalListDto> approvalList = approvalService.getApprovalList(memberPositionId);
+    public ResponseEntity<?> findApprovalList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                              @PageableDefault(size = 4, sort = "createdAt", direction = Sort.Direction.DESC)
+                                              Pageable pageable
+    ) {
         return new ResponseEntity<>(
-                ApiResponse.success(approvalList, "결재내역 리스트 조회"),
+                ApiResponse.success(approvalService.getApprovalList(memberPositionId, pageable), "결재내역 리스트 조회"),
                 HttpStatus.OK
         );
     }
 
     @GetMapping("/find-draft-list")
-    public ResponseEntity<?> findDraftList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
-        List<ApprovalListDto> approvalList = approvalService.getDraftApprovalList(memberPositionId);
+    public ResponseEntity<?> findDraftList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                           @PageableDefault(size = 4, sort = "createdAt", direction = Sort.Direction.DESC)
+                                           Pageable pageable
+    ) {
         return new ResponseEntity<>(
-                ApiResponse.success(approvalList, "임시저장 리스트 조회"),
+                ApiResponse.success(approvalService.getDraftApprovalList(memberPositionId, pageable), "임시저장 리스트 조회"),
                 HttpStatus.OK
         );
     }
 
     @GetMapping("/find-complete-list")
-    public ResponseEntity<?> findCompleteList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
-        List<ApprovalListDto> approvalList = approvalService.getCompletedApprovalList(memberPositionId);
+    public ResponseEntity<?> findCompleteList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                              @PageableDefault(size = 4, sort = "createdAt", direction = Sort.Direction.DESC)
+                                              Pageable pageable
+    ) {
         return new ResponseEntity<>(
-                ApiResponse.success(approvalList, "결재 완료 리스트 조회"),
+                ApiResponse.success(approvalService.getCompletedApprovalList(memberPositionId, pageable), "결재 완료 리스트 조회"),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/find-approve-complete-list")
+    public ResponseEntity<?> findCompleteApproveList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                                     @PageableDefault(size = 4, sort = "createdAt", direction = Sort.Direction.DESC)
+                                                     Pageable pageable
+    ) {
+        return new ResponseEntity<>(
+                ApiResponse.success(approvalService.getCompletedApproveList(memberPositionId, pageable), "결재 완료 리스트 조회"),
                 HttpStatus.OK
         );
     }
 
     @GetMapping("/find-pending-list")
-    public ResponseEntity<?> findPendingList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
-        List<ApprovalListDto> approvalList = approvalService.getRequsetedApprovalList(memberPositionId);
+    public ResponseEntity<?> findPendingList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                             @PageableDefault(size = 4, sort = "a.createdAt", direction = Sort.Direction.DESC)
+                                             Pageable pageable
+    ) {
         return new ResponseEntity<>(
-                ApiResponse.success(approvalList, "승인 대기 리스트 조회"),
+                ApiResponse.success(approvalService.getRequestedApprovalList(memberPositionId, pageable), "승인 대기 리스트 조회"),
                 HttpStatus.OK
         );
     }
