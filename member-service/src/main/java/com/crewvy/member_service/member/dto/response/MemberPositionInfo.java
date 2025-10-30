@@ -16,7 +16,7 @@ public class MemberPositionInfo {
     private UUID id;
     private String name;
 
-    public static MemberPositionInfo from(MemberPosition memberPosition) {
+    public static MemberPositionInfo fromEntity(MemberPosition memberPosition) {
         String positionName = memberPosition.getOrganization().getName() + " / " + memberPosition.getTitle().getName();
         return new MemberPositionInfo(memberPosition.getId(), positionName);
     }
