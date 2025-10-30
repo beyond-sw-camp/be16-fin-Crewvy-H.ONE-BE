@@ -20,6 +20,7 @@ public class MyPageEditReq {
     private String extensionNumber;
     private String telNumber;
     private String address;
+    private String detailAddress;
     private Boolean isAddressDisclosure;
     private String bank;
     private String bankAccount;
