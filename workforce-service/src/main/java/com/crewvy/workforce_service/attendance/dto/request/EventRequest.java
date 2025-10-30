@@ -21,4 +21,7 @@ public class EventRequest {
 
     private Double latitude;
     private Double longitude;
+
+    private String wifiSsid;        // WiFi SSID (네트워크 이름)
+    private String wifiBssid;       // WiFi BSSID (MAC 주소, 선택 사항)
 }

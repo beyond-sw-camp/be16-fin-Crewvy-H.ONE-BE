@@ -11,4 +11,5 @@ import java.util.UUID;
 public interface PolicyTypeRepository extends JpaRepository<PolicyType, UUID> {
     Optional<PolicyType> findByCompanyIdAndTypeCode(UUID companyId, PolicyTypeCode typeCode);
     List<PolicyType> findByCompanyId(UUID companyId);
+    long countByCompanyId(UUID companyId);
 }

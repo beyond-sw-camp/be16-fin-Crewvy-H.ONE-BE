@@ -2,11 +2,14 @@ package com.crewvy.workforce_service.attendance.controller;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.attendance.constant.PolicyScopeType;
+import com.crewvy.workforce_service.attendance.dto.request.PolicyAssignmentIdListRequest;
 import com.crewvy.workforce_service.attendance.dto.request.PolicyAssignmentRequest;
 import com.crewvy.workforce_service.attendance.dto.response.PolicyAssignmentResponse;
 import com.crewvy.workforce_service.attendance.service.PolicyAssignmentService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,27 +25,77 @@ public class PolicyAssignmentController {
     private final PolicyAssignmentService policyAssignmentService;
 
     @PostMapping
-    public ResponseEntity<ApiResponse<Void>> assignPolicies(
+    public ResponseEntity<ApiResponse<List<PolicyAssignmentResponse>>> createAssignments(
             @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-            @RequestBody @Valid PolicyAssignmentRequest request) {
-        policyAssignmentService.assignPoliciesToTargets(memberPositionId, request);
-        return new ResponseEntity<>(ApiResponse.success(null, "정책 할당 완료"), HttpStatus.OK);
+            @RequestBody @Valid PolicyAssignmentRequest assignmentRequest) {
+        
+        List<PolicyAssignmentResponse> response = policyAssignmentService.createAssignments(memberPositionId, assignmentRequest);
+        return new ResponseEntity<>(ApiResponse.success(response, "정책이 성공적으로 할당되었습니다."), HttpStatus.CREATED);
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<PolicyAssignmentResponse>>> getPolicyAssignmentsByTarget(
+    public ResponseEntity<ApiResponse<Page<PolicyAssignmentResponse>>> findAssignments(
+            @RequestHeader("X-User-UUID") UUID memberId,
             @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-            @RequestParam("targetId") UUID targetId,
-            @RequestParam("targetType") PolicyScopeType targetType) {
-        List<PolicyAssignmentResponse> response = policyAssignmentService.findPolicyAssignmentsByTarget(memberPositionId, targetId, targetType);
+            @RequestHeader("X-User-CompanyId") UUID companyId,
+            Pageable pageable) {
+        
+        Page<PolicyAssignmentResponse> response = policyAssignmentService.findAssignments(memberId, memberPositionId, companyId, pageable);
         return new ResponseEntity<>(ApiResponse.success(response, "정책 할당 목록 조회 완료"), HttpStatus.OK);
     }
 
-    @PatchMapping("/{policyAssignmentId}/revoke")
-    public ResponseEntity<ApiResponse<Void>> revokePolicyAssignment(
+    @DeleteMapping("/{assignmentId}")
+    public ResponseEntity<ApiResponse<Void>> deleteAssignment(
             @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-            @PathVariable("policyAssignmentId") UUID policyAssignmentId) {
-        policyAssignmentService.revokePolicyAssignment(memberPositionId, policyAssignmentId);
-        return new ResponseEntity<>(ApiResponse.success(null, "정책 할당 해지 완료"), HttpStatus.OK);
+            @PathVariable UUID assignmentId) {
+        
+        policyAssignmentService.deleteAssignment(memberPositionId, assignmentId);
+        return new ResponseEntity<>(ApiResponse.success(null, "정책 할당이 삭제되었습니다."), HttpStatus.OK);
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<ApiResponse<List<PolicyAssignmentResponse>>> findAssignmentsByTarget(
+            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+            @RequestParam("targetId") UUID targetId,
+            @RequestParam(value = "scopeType", required = false) PolicyScopeType scopeType) {
+        
+        List<PolicyAssignmentResponse> response = policyAssignmentService.findPolicyAssignmentsByTarget(memberPositionId, targetId, scopeType);
+        return new ResponseEntity<>(ApiResponse.success(response, "대상별 정책 할당 목록 조회 완료"), HttpStatus.OK);
+    }
+
+    @PatchMapping("/{assignmentId}/revoke")
+    public ResponseEntity<ApiResponse<Void>> revokeAssignment(
+            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+            @PathVariable UUID assignmentId) {
+        
+        policyAssignmentService.revokePolicyAssignment(memberPositionId, assignmentId);
+        return new ResponseEntity<>(ApiResponse.success(null, "정책 할당이 해지되었습니다."), HttpStatus.OK);
+    }
+
+    @PatchMapping("/revoke")
+    public ResponseEntity<ApiResponse<Void>> revokeAssignments(
+            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+            @RequestBody @Valid PolicyAssignmentIdListRequest idListRequest) {
+        
+        policyAssignmentService.revokeAssignments(memberPositionId, idListRequest.getAssignmentIds());
+        return new ResponseEntity<>(ApiResponse.success(null, "선택된 정책 할당들이 해지되었습니다."), HttpStatus.OK);
+    }
+
+    @PatchMapping("/reactivate")
+    public ResponseEntity<ApiResponse<Void>> reactivateAssignments(
+            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+            @RequestBody @Valid PolicyAssignmentIdListRequest idListRequest) {
+        
+        policyAssignmentService.reactivateAssignments(memberPositionId, idListRequest.getAssignmentIds());
+        return new ResponseEntity<>(ApiResponse.success(null, "선택된 정책 할당들이 재활성화되었습니다."), HttpStatus.OK);
+    }
+
+    @DeleteMapping
+    public ResponseEntity<ApiResponse<Void>> deleteAssignments(
+            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+            @RequestParam("assignmentIds") List<UUID> assignmentIds) {
+        
+        policyAssignmentService.deleteAssignments(memberPositionId, assignmentIds);
+        return new ResponseEntity<>(ApiResponse.success(null, "선택된 정책 할당들이 삭제되었습니다."), HttpStatus.OK);
     }
 }

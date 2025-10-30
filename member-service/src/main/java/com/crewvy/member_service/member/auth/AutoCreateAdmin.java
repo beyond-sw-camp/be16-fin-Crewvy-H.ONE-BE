@@ -59,7 +59,7 @@ public class AutoCreateAdmin implements ApplicationRunner {
 
         List<Permission> permissionList = new ArrayList<>();
 
-        List<String> sysResourceList = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "salary", "system");
+        List<String> sysResourceList = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "attendance-policy", "salary", "system");
         for (String resource : sysResourceList) {
             for (Action action : Action.values()) {
                 Permission sysPermission = Permission.builder()
@@ -72,16 +72,16 @@ public class AutoCreateAdmin implements ApplicationRunner {
             }
         }
 
-        List<String> noneResourceList = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "salary");
-        for (String resource : noneResourceList) {
+        List<String> adminResourceList = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "attendance-policy", "salary");
+        for (String resource : adminResourceList) {
             for (Action action : Action.values()) {
-                Permission nonePermission = Permission.builder()
+                Permission adminPermission = Permission.builder()
                         .name(String.format("%s:%s:COMPANY", resource, action))
                         .resource(resource)
                         .action(action)
                         .permissionRange(PermissionRange.COMPANY)
                         .description(String.format("[%s]에 대한 %s 권한", resource, action.getCodeName())).build();
-                permissionList.add(nonePermission);
+                permissionList.add(adminPermission);
             }
         }
 
@@ -112,16 +112,16 @@ public class AutoCreateAdmin implements ApplicationRunner {
             }
         }
 
-        List<String> adminResourceList = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "salary");
-        for (String resource : adminResourceList) {
+        List<String> noneResourceList = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "attendance-policy", "salary");
+        for (String resource : noneResourceList) {
             for (Action action : Action.values()) {
-                Permission comPermission = Permission.builder()
+                Permission nonePermission = Permission.builder()
                         .name(String.format("%s:%s:NONE", resource, action))
                         .resource(resource)
                         .action(action)
                         .permissionRange(PermissionRange.NONE)
                         .description(String.format("[%s]에 대한 %s 권한", resource, action.getCodeName())).build();
-                permissionList.add(comPermission);
+                permissionList.add(nonePermission);
             }
         }
 
@@ -164,7 +164,7 @@ public class AutoCreateAdmin implements ApplicationRunner {
         roleRepository.save(systemAdminRole);
 
         List<Permission> systemAdminPermissions = new ArrayList<>();
-        List<String> systemResources = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "salary", "system");
+        List<String> systemResources = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "attendance-policy", "salary", "system");
         List<Action> systemActions = Arrays.asList(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE);
 
         for (String resource : systemResources) {

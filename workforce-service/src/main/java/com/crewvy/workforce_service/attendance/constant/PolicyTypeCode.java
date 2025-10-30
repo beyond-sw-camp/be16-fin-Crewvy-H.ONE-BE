@@ -12,11 +12,11 @@ import java.util.Arrays;
 public enum PolicyTypeCode {
     // 법적으로 필수 휴가
     ANNUAL_LEAVE("PTC001", "연차유급휴가", true),
-    MATERNITY_LEAVE("PTC002", "출산전후휴가", true),
-    PATERNITY_LEAVE("PTC003", "배우자 출산휴가", true),
-    CHILDCARE_LEAVE("PTC004", "육아휴직", true),
-    FAMILY_CARE_LEAVE("PTC005", "가족돌봄휴가", true),
-    MENSTRUAL_LEAVE("PTC006", "생리휴가", true),
+    MATERNITY_LEAVE("PTC002", "출산전후휴가", false),
+    PATERNITY_LEAVE("PTC003", "배우자 출산휴가", false),
+    CHILDCARE_LEAVE("PTC004", "육아휴직", false),
+    FAMILY_CARE_LEAVE("PTC005", "가족돌봄휴가", false),
+    MENSTRUAL_LEAVE("PTC006", "생리휴가", false),
 
     // 근로시간 관련
     STANDARD_WORK("PTC101", "기본근무", false),
