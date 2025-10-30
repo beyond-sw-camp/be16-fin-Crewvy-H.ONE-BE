@@ -24,6 +24,7 @@ public class MemberSalaryListRes {
     public static MemberSalaryListRes fromEntity(MemberPosition memberPosition){
         return MemberSalaryListRes.builder()
                 .memberId(memberPosition.getMember().getId())
+                .sabun(memberPosition.getMember().getSabun())
                 .memberName(memberPosition.getMember().getName())
                 .organizationName(memberPosition.getOrganization().getName())
                 .titleName(memberPosition.getTitle().getName())

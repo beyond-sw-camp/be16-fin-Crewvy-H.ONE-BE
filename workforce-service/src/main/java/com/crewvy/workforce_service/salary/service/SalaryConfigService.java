@@ -1,6 +1,7 @@
 package com.crewvy.workforce_service.salary.service;
 
 import com.crewvy.common.dto.ApiResponse;
+import com.crewvy.common.exception.PermissionDeniedException;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberSalaryListRes;
 import com.crewvy.workforce_service.salary.dto.request.SalaryHistoryListReq;
@@ -26,6 +27,13 @@ public class SalaryConfigService {
     private final MemberClient memberClient;
 
     public List<SalaryConfigRes> getSalaryConfigRes(UUID memberPositionId, UUID companyId) {
+
+        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
+                "salary", "READ", "COMPANY");
+
+        if (Boolean.FALSE.equals(hasPermission.getData())) {
+            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
+        }
 
         ApiResponse<List<MemberSalaryListRes>> salaryListResponse = memberClient.getSalaryList(memberPositionId,
                 companyId);
@@ -58,7 +66,7 @@ public class SalaryConfigService {
 
             SalaryHistory salaryHistory = salaryHistoryMap.get(memberId);
             List<FixedAllowanceRes> fixedAllowanceList = fixedAllowanceResMap.getOrDefault(memberId
-                                                                                        , Collections.emptyList());
+                    , Collections.emptyList());
 
             return SalaryConfigRes.builder()
                     .memberId(memberId)

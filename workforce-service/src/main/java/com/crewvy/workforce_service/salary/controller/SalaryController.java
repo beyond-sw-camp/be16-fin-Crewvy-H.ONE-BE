@@ -35,8 +35,9 @@ public class SalaryController {
 
     // 회사 전체 급여 조회
     @GetMapping("/list")
-    public ResponseEntity<?> getSalaryListByCompany(@RequestParam UUID companyId) {
-        List<SalaryCalculationRes> response = salaryService.getSalaryListByCompany(companyId);
+    public ResponseEntity<?> getSalaryListByCompany(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                                    @RequestParam UUID companyId) {
+        List<SalaryCalculationRes> response = salaryService.getSalaryListByCompany(memberPositionId, companyId);
         return new ResponseEntity<>(
             new ApiResponse<>(true, response, "급여 목록 조회 성공"),
             HttpStatus.OK
