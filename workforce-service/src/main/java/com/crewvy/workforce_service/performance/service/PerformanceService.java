@@ -43,13 +43,23 @@ public class PerformanceService {
     private final TeamGoalCompletionService teamGoalCompletionService;
 
 //    팀 목표 리스트
-    public Page<TeamGoalResponseDto> getTeamGoal(UUID memberPositionId, Pageable pageable) {
+    public Page<TeamGoalResponseDto> getTeamGoal(UUID memberPositionId, String type, Pageable pageable) {
 
-        // 1. (수정) Repository 메서드에 pageable 전달, Page<TeamGoal> 반환
-        Page<TeamGoal> teamGoalPage = teamGoalRepository.findAllByMemberPositionId(
-                memberPositionId, // 생성자(관리자) ID 기준
-                pageable // pageable 전달
-        );
+        Page<TeamGoal> teamGoalPage = null;
+        if(type.equals("processing")) {
+            teamGoalPage = teamGoalRepository.findAllByMemberPositionIdAndStatus(
+                    memberPositionId, // 생성자(관리자) ID 기준
+                    TeamGoalStatus.PROCESSING,
+                    pageable // pageable 전달
+            );
+        }
+        else {
+            teamGoalPage = teamGoalRepository.findAllByMemberPositionIdAndStatus(
+                    memberPositionId, // 생성자(관리자) ID 기준
+                    TeamGoalStatus.EVALUATION_COMPLETED,
+                    pageable // pageable 전달
+            );
+        }
 
         // 2. (수정) 현재 페이지의 내용(List<TeamGoal>) 가져오기
         List<TeamGoal> teamGoalListOnPage = teamGoalPage.getContent();
@@ -195,6 +205,7 @@ public class PerformanceService {
                 .contents(teamGoal.getContents())
                 .startDate(teamGoal.getStartDate())
                 .endDate(teamGoal.getEndDate())
+                .status(teamGoal.getStatus().getCodeName())
                 .memberPositionId(teamGoal.getMemberPositionId())
                 .goalList(goalDtoList)
                 .memberList(memberDtoList)
@@ -295,14 +306,36 @@ public class PerformanceService {
     }
 
     //    내 목표 조회
-    public Page<GoalResponseDto> getMyGoal(UUID memberPositionId, Pageable pageable) {
-
-        // 1. (수정) Repository 메서드에 pageable 전달, Page<Goal> 반환
-        Page<Goal> goalPage = performanceRepository.findActiveGoalsByMemberPositionIdWithTeamGoal(
-                memberPositionId,
-                GoalStatus.CANCELED, // 제외할 상태
-                pageable // pageable 전달
-        );
+    public Page<GoalResponseDto> getMyGoal(UUID memberPositionId, String type, Pageable pageable) {
+        Page<Goal> goalPage = null;
+        if(type.equals("approve")) {
+            goalPage = performanceRepository.findActiveGoalsByMemberPositionIdWithTeamGoal(
+                    memberPositionId,
+                    GoalStatus.APPROVED,
+                    pageable // pageable 전달
+            );
+        }
+        else if(type.equals("request")) {
+            goalPage = performanceRepository.findActiveGoalsByMemberPositionIdWithTeamGoal(
+                    memberPositionId,
+                    GoalStatus.REQUESTED,
+                    pageable // pageable 전달
+            );
+        }
+        else if(type.equals("reject")) {
+            goalPage = performanceRepository.findActiveGoalsByMemberPositionIdWithTeamGoal(
+                    memberPositionId,
+                    GoalStatus.REJECTED,
+                    pageable // pageable 전달
+            );
+        }
+        else if(type.equals("complete")) {
+            goalPage = performanceRepository.findActiveGoalsByMemberPositionIdWithTeamGoal(
+                    memberPositionId,
+                    GoalStatus.MANAGER_EVAL_COMPLETED,
+                    pageable // pageable 전달
+            );
+        }
 
         // 2. (수정) Page.map()을 사용하여 Page<Goal> -> Page<GoalResponseDto> 변환
         return goalPage.map(g -> GoalResponseDto.builder() // goalList.stream() 대신 goalPage.map() 사용
@@ -617,7 +650,7 @@ public class PerformanceService {
 
         // 1. (수정) Repository 메서드에 pageable 전달, Page<TeamGoal> 반환
         //    (findAllByMemberPositionIdAndStatus2 -> findAllByMemberPositionIdAndStatus 로 변경 가정)
-        Page<TeamGoal> teamGoalPage = teamGoalRepository.findAllByMemberPositionIdAndStatus(
+        Page<TeamGoal> teamGoalPage = teamGoalRepository.findAllByMemberPositionIdAndStatus2(
                 memberPositionId, // 생성자(관리자) ID 기준
                 TeamGoalStatus.EVALUATION_COMPLETED, // 평가 완료 상태
                 pageable // pageable 전달
@@ -702,7 +735,7 @@ public class PerformanceService {
                 memberPositionId,
                 GoalStatus.MANAGER_EVAL_COMPLETED
         );
-        int teamGoalCompleteCount = teamGoalRepository.countByMemberPositionIdAndStatus(
+        int teamGoalCompleteCount = teamGoalRepository.countByMemberPositionIdAndStatus2(
                 memberPositionId,
                 TeamGoalStatus.EVALUATION_COMPLETED
         );;

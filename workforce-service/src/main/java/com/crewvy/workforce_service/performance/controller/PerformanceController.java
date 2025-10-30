@@ -27,11 +27,12 @@ public class PerformanceController {
 
     @GetMapping("/team-goal")
     public ResponseEntity<?> getTeamGoal(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                         @RequestParam String type,
                                          @PageableDefault(size = 4, sort = "createdAt", direction = Sort.Direction.DESC)
                                          Pageable pageable
     ) {
         return new ResponseEntity<>(
-                ApiResponse.success(performanceService.getTeamGoal(memberPositionId, pageable), "팀 목표 조회"),
+                ApiResponse.success(performanceService.getTeamGoal(memberPositionId, type, pageable), "팀 목표 조회"),
                 HttpStatus.OK
         );
     }
@@ -99,11 +100,12 @@ public class PerformanceController {
 
     @GetMapping("/get-my-goal")
     public ResponseEntity<?> getMyGoal(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                       @RequestParam String type,
                                        @PageableDefault(size = 4, sort = "createdAt", direction = Sort.Direction.DESC)
                                        Pageable pageable
     ) {
         return new ResponseEntity<>(
-                ApiResponse.success(performanceService.getMyGoal(memberPositionId, pageable), "내 목표 조회"),
+                ApiResponse.success(performanceService.getMyGoal(memberPositionId, type, pageable), "내 목표 조회"),
                 HttpStatus.OK
         );
     }

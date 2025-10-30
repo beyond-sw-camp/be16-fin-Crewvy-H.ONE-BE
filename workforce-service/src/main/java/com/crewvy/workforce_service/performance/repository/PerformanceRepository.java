@@ -25,7 +25,7 @@ public interface PerformanceRepository extends JpaRepository<Goal, UUID> {
     @Query("SELECT g FROM Goal g " +
             "LEFT JOIN FETCH g.teamGoal tg " + // g.teamGoal을 즉시 로딩
             "WHERE g.memberPositionId = :memberPositionId " +
-            "AND g.status != :status")
+            "AND g.status = :status")
     Page<Goal> findActiveGoalsByMemberPositionIdWithTeamGoal(@Param("memberPositionId") UUID memberPositionId,
                                                              @Param("status") GoalStatus status,
                                                              Pageable pageable // (수정) pageable 추가

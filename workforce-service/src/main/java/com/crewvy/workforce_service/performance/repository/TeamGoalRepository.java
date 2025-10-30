@@ -56,8 +56,18 @@ public interface TeamGoalRepository extends JpaRepository<TeamGoal, UUID> {
     @Query("SELECT tg FROM TeamGoal tg " +
             "WHERE tg.memberPositionId = :memberPositionId " +
             "AND tg.status = :status")
-    List<TeamGoal> findAllByMemberPositionIdAndStatus2(@Param("memberPositionId") UUID memberPositionId,
-                                                      @Param("status") TeamGoalStatus status);
+    Page<TeamGoal> findAllByMemberPositionIdAndStatus2(@Param("memberPositionId") UUID memberPositionId,
+                                                      @Param("status") TeamGoalStatus status,
+                                                      Pageable pageable);
+
+    @Query("SELECT count(DISTINCT tg) FROM TeamGoal tg " + // count(DISTINCT tg) 사용
+            "JOIN tg.teamGoalMembers m " +                // 일반 JOIN 사용
+            "WHERE tg.memberPositionId = :memberPositionId " +
+            "AND tg.status = :status")
+    int countByMemberPositionIdAndStatus2( // 반환 타입을 int로
+                                          @Param("memberPositionId") UUID memberPositionId,
+                                          @Param("status") TeamGoalStatus status
+    );
 
     @Modifying(clearAutomatically = true)
     @Transactional
