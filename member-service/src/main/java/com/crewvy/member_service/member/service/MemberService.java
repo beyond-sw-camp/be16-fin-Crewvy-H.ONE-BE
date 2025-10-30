@@ -38,7 +38,6 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
-import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -1068,9 +1067,8 @@ public class MemberService {
         Map<String, List<Permission>> groupedPermissionList = permissionList.stream()
                 .collect(Collectors.groupingBy(p -> p.getResource() + ":" + p.getAction()));
 
-        return groupedPermissionList.entrySet().stream()
-                .map(entry -> {
-                    List<Permission> permsInGroup = entry.getValue();
+        return groupedPermissionList.values().stream()
+                .map(permsInGroup -> {
                     Permission permission = permsInGroup.get(0);
 
                     Map<PermissionRange, UUID> rangeToIdMap = permsInGroup.stream()
@@ -1261,7 +1259,7 @@ public class MemberService {
 
         try {
             List<MemberPosition> positionList = member.getMemberPositionList().stream().toList();
-            if (positionList == null || positionList.isEmpty()) {
+            if (positionList.isEmpty()) {
                 MemberPosition defaultPosition = member.getDefaultMemberPosition();
                 if (defaultPosition != null) {
                     positionList = List.of(defaultPosition);
