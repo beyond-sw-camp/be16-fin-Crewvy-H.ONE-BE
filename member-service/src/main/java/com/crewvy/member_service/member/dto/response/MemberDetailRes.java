@@ -33,6 +33,7 @@ public class MemberDetailRes {
     private String extensionNumber;
     private String telNumber;
     private String address;
+    private String detailAddress;
     private String bank;
     private String bankAccount;
     private LocalDate joinDate;
@@ -79,6 +80,7 @@ public class MemberDetailRes {
                 .extensionNumber(member.getExtensionNumber())
                 .telNumber(member.getTelNumber())
                 .address(member.getAddress())
+                .detailAddress(member.getDetailAddress())
                 .bank(member.getBank())
                 .bankAccount(member.getBankAccount())
                 .joinDate(member.getJoinDate())

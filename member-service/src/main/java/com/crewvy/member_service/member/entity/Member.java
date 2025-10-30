@@ -49,6 +49,8 @@ public class Member extends BaseEntity {
 
     private String address;
 
+    private String detailAddress;
+
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     @Builder.Default
@@ -109,6 +111,8 @@ public class Member extends BaseEntity {
 
     public void updateBasicInfo(UpdateMemberReq updateMemberReq, String encodePw) {
         this.name = updateMemberReq.getName();
+        this.address = updateMemberReq.getAddress();
+        this.detailAddress = updateMemberReq.getDetailAddress();
         this.password = encodePw;
         this.joinDate = updateMemberReq.getJoinDate();
         this.extensionNumber = updateMemberReq.getExtensionNumber();
@@ -131,6 +135,7 @@ public class Member extends BaseEntity {
         this.extensionNumber = myPageEditReq.getExtensionNumber();
         this.telNumber = myPageEditReq.getTelNumber();
         this.address = myPageEditReq.getAddress();
+        this.detailAddress = myPageEditReq.getDetailAddress();
         if (myPageEditReq.getIsPhoneNumberPublic() != null) {
             this.isPhoneNumberPublic = Bool.fromBoolean(myPageEditReq.getIsPhoneNumberPublic());
         }
@@ -150,5 +155,9 @@ public class Member extends BaseEntity {
     public void restore() {
         this.ynDel = Bool.FALSE;
         this.memberStatus = MemberStatus.WORKING;
+    }
+
+    public void resetPassword(String newPassword){
+        this.password = newPassword;
     }
 }

@@ -1,6 +1,7 @@
 package com.crewvy.member_service.member.controller;
 
 import com.crewvy.common.dto.ApiResponse;
+import com.crewvy.common.passwordgenerater.PasswordGenerator;
 import com.crewvy.member_service.member.constant.Action;
 import com.crewvy.member_service.member.constant.PermissionRange;
 import com.crewvy.member_service.member.dto.request.*;
@@ -32,6 +33,13 @@ public class MemberController {
                 onboardingService.createAdminAndInitialSetup(createAdminReq), "계정 생성 성공"), HttpStatus.CREATED);
     }
 
+    // 사업자 등록 정보 조회
+    @GetMapping("/check-business-number")
+    public ResponseEntity<?> getCompanyStatus(@RequestParam String businessNumber) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.getCompanyStatus(businessNumber), "사업자 등록 정보 조회 성공"), HttpStatus.CREATED);
+    }
+
     // 사용자 계정 생성
     @PostMapping("/create")
     public ResponseEntity<?> createMember(@RequestHeader("X-User-UUID") UUID uuid,
@@ -45,7 +53,14 @@ public class MemberController {
     @GetMapping("/check-email")
     public ResponseEntity<?> checkEmail(@RequestParam String email) {
         return new ResponseEntity<>(ApiResponse.success(
-                memberService.emailExist(email), "이메일 중복 확인 완료"), HttpStatus.OK);
+                memberService.emailExist(email), "이메일 중복 확인 성공"), HttpStatus.OK);
+    }
+
+    // 비밀번호 자동 생성
+    @GetMapping("/generate-password")
+    public ResponseEntity<?> generateRandomPassword() {
+        return new ResponseEntity<>(ApiResponse.success(
+                PasswordGenerator.generateRandomPassword(), "비밀번호 자동 생성 성공"), HttpStatus.OK);
     }
 
     // 로그인
@@ -93,6 +108,13 @@ public class MemberController {
                                           @RequestBody @Valid UpdateMemberReq updateMemberReq) {
         return new ResponseEntity<>(ApiResponse.success(
                 memberService.updateMember(memberPositionId, memberId, updateMemberReq), "직원 정보 수정 성공"), HttpStatus.OK);
+    }
+
+    // 비밀번호 재설정 + 메일 발송
+    @GetMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestParam String email) {
+        memberService.resetPassword(email);
+        return new ResponseEntity<>(ApiResponse.success(null, "메일 발송 성공"), HttpStatus.CREATED);
     }
 
     // 직원 삭제

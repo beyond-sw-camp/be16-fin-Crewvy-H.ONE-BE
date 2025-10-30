@@ -33,6 +33,8 @@ public class JwtTokenFilter implements GlobalFilter {
             "/member/generate-at",
             "/member/create-admin",
             "/member/check-email",
+            "/member/reset-password",
+            "/member/check-business-number",
             "/actuator/health",
             "/openvidu-webhooks",
             "/livekit/webhook"

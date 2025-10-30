@@ -66,6 +66,9 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
 	implementation 'org.springframework.data:spring-data-elasticsearch'
 
+	// SMTP
+	implementation 'org.springframework.boot:spring-boot-starter-mail'
+
 	// common 모듈을 의존성으로 추가
 	implementation project(':common')
 

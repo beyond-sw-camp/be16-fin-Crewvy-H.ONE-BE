@@ -30,6 +30,7 @@ public class MyPageRes {
     private boolean isPhoneNumberPublic;
     private String emergencyContact;
     private String address;
+    private String detailAddress;
     private boolean isAddressDisclosure;
 
     private String gradeName;
@@ -67,6 +68,7 @@ public class MyPageRes {
                 .isPhoneNumberPublic(member.getIsPhoneNumberPublic().toBoolean())
                 .emergencyContact(member.getEmergencyContact())
                 .address(member.getAddress())
+                .detailAddress(member.getDetailAddress())
                 .isAddressDisclosure(member.getIsAddressDisclosure().toBoolean())
                 .gradeName(grade.getName())
                 .sabun(member.getSabun())
