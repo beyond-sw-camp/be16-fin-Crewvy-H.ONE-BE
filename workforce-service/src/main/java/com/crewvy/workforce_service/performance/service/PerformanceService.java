@@ -21,6 +21,8 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.Id;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -41,23 +43,51 @@ public class PerformanceService {
     private final TeamGoalCompletionService teamGoalCompletionService;
 
 //    팀 목표 리스트
-    public List<TeamGoalResponseDto> getTeamGoal(UUID memberPositionId) {
-        List<TeamGoal> teamGoalList = teamGoalRepository.findAllByMemberPositionId(memberPositionId);
+    public Page<TeamGoalResponseDto> getTeamGoal(UUID memberPositionId, String type, Pageable pageable) {
 
-        IdListReq mpidList = new IdListReq(teamGoalList.stream()
-                        .map(TeamGoal::getMemberPositionId)
-                        .distinct()
-                        .toList());
-        ApiResponse<List<PositionDto>> response = memberClient.getPositionList(memberPositionId, mpidList);
+        Page<TeamGoal> teamGoalPage = null;
+        if(type.equals("processing")) {
+            teamGoalPage = teamGoalRepository.findAllByMemberPositionIdAndStatus(
+                    memberPositionId, // 생성자(관리자) ID 기준
+                    TeamGoalStatus.PROCESSING,
+                    pageable // pageable 전달
+            );
+        }
+        else {
+            teamGoalPage = teamGoalRepository.findAllByMemberPositionIdAndStatus(
+                    memberPositionId, // 생성자(관리자) ID 기준
+                    TeamGoalStatus.EVALUATION_COMPLETED,
+                    pageable // pageable 전달
+            );
+        }
 
-        Map<UUID, PositionDto> positionMap = response.getData().stream()
-                .collect(Collectors.toMap(PositionDto::getMemberPositionId, position -> position));
+        // 2. (수정) 현재 페이지의 내용(List<TeamGoal>) 가져오기
+        List<TeamGoal> teamGoalListOnPage = teamGoalPage.getContent();
 
-        return teamGoalList.stream().map(teamGoal -> {
-            // Map에서 현재 teamGoal의 memberPositionId와 일치하는 PositionDto를 찾습니다.
-            PositionDto matchingPosition = positionMap.get(teamGoal.getMemberPositionId());
+        // 3. (수정) 현재 페이지 생성자(관리자) 정보만 가져오도록 Map 준비
+        Map<UUID, PositionDto> positionMap = new HashMap<>(); // final 제거, 초기화 방식 변경
+        if (!teamGoalListOnPage.isEmpty()) { // teamGoalList -> teamGoalListOnPage
+            // (수정) 현재 페이지의 생성자 ID 목록만 추출
+            List<UUID> creatorIds = teamGoalListOnPage.stream()
+                    .map(TeamGoal::getMemberPositionId) // 생성자 ID 추출
+                    .distinct()
+                    .toList();
 
-            // TeamGoalResponseDto를 만들 때, 찾은 PositionDto의 데이터를 함께 넣어줍니다.
+            // (주의) memberClient.getPositionList 첫번째 파라미터 확인 필요
+            ApiResponse<List<PositionDto>> response = memberClient.getPositionList(memberPositionId, new IdListReq(creatorIds));
+
+            if (response.isSuccess() && response.getData() != null) {
+                // (수정) memberPositionId 기준으로 Map 생성
+                positionMap = response.getData().stream()
+                        .collect(Collectors.toMap(PositionDto::getMemberPositionId, position -> position));
+            }
+        }
+
+        // 4. (수정) Page.map()을 사용하여 Page<TeamGoal> -> Page<TeamGoalResponseDto> 변환
+        final Map<UUID, PositionDto> finalPositionMap = positionMap; // 람다용 final 변수
+        return teamGoalPage.map(teamGoal -> { // teamGoalList.stream() 대신 teamGoalPage.map() 사용
+            PositionDto matchingPosition = finalPositionMap.get(teamGoal.getMemberPositionId());
+
             return TeamGoalResponseDto.builder()
                     .teamGoalId(teamGoal.getId())
                     .title(teamGoal.getTitle())
@@ -65,12 +95,12 @@ public class PerformanceService {
                     .status(teamGoal.getStatus().getCodeName())
                     .startDate(teamGoal.getStartDate())
                     .endDate(teamGoal.getEndDate())
-                    .memberPositionId(teamGoal.getMemberPositionId())
+                    .memberPositionId(teamGoal.getMemberPositionId()) // 생성자 ID
                     .memberName(matchingPosition != null ? matchingPosition.getMemberName() : null)
                     .memberPosition(matchingPosition != null ? matchingPosition.getTitleName() : null)
                     .memberOrganization(matchingPosition != null ? matchingPosition.getOrganizationName() : null)
                     .build();
-        }).toList();
+        });
     }
 
     //    팀 목표 리스트(개인 목표 추가시 선택가능한 팀 목표)
@@ -175,6 +205,7 @@ public class PerformanceService {
                 .contents(teamGoal.getContents())
                 .startDate(teamGoal.getStartDate())
                 .endDate(teamGoal.getEndDate())
+                .status(teamGoal.getStatus().getCodeName())
                 .memberPositionId(teamGoal.getMemberPositionId())
                 .goalList(goalDtoList)
                 .memberList(memberDtoList)
@@ -275,28 +306,49 @@ public class PerformanceService {
     }
 
     //    내 목표 조회
-    public List<GoalResponseDto> getMyGoal(UUID memberPositionId) {
+    public Page<GoalResponseDto> getMyGoal(UUID memberPositionId, String type, Pageable pageable) {
+        Page<Goal> goalPage = null;
+        if(type.equals("approve")) {
+            goalPage = performanceRepository.findActiveGoalsByMemberPositionIdWithTeamGoal(
+                    memberPositionId,
+                    GoalStatus.APPROVED,
+                    pageable // pageable 전달
+            );
+        }
+        else if(type.equals("request")) {
+            goalPage = performanceRepository.findActiveGoalsByMemberPositionIdWithTeamGoal(
+                    memberPositionId,
+                    GoalStatus.REQUESTED,
+                    pageable // pageable 전달
+            );
+        }
+        else if(type.equals("reject")) {
+            goalPage = performanceRepository.findActiveGoalsByMemberPositionIdWithTeamGoal(
+                    memberPositionId,
+                    GoalStatus.REJECTED,
+                    pageable // pageable 전달
+            );
+        }
+        else if(type.equals("complete")) {
+            goalPage = performanceRepository.findActiveGoalsByMemberPositionIdWithTeamGoal(
+                    memberPositionId,
+                    GoalStatus.MANAGER_EVAL_COMPLETED,
+                    pageable // pageable 전달
+            );
+        }
 
-        // 1. CANCELED 상태를 제외하고, N+1 문제도 해결된 메서드 호출
-        List<Goal> goalList = performanceRepository.findActiveGoalsByMemberPositionIdWithTeamGoal(
-                memberPositionId,
-                GoalStatus.CANCELED // 제외할 상태
-        );
-
-        // 2. Stream을 사용한 DTO 변환 (for-loop 대체)
-        return goalList.stream()
-                .map(g -> GoalResponseDto.builder()
-                        .goalId(g.getId())
-                        .title(g.getTitle())
-                        .contents(g.getContents())
-                        .memberPositionId(g.getMemberPositionId())
-                        .status(g.getStatus().getCodeName())
-                        .startDate(g.getStartDate())
-                        .endDate(g.getEndDate())
-                        // Fetch Join을 했기 때문에 추가 쿼리 없이 바로 사용 가능
-                        .teamGoalTitle(g.getTeamGoal() != null ? g.getTeamGoal().getTitle() : null)
-                        .build())
-                .toList();
+        // 2. (수정) Page.map()을 사용하여 Page<Goal> -> Page<GoalResponseDto> 변환
+        return goalPage.map(g -> GoalResponseDto.builder() // goalList.stream() 대신 goalPage.map() 사용
+                .goalId(g.getId())
+                .title(g.getTitle())
+                .contents(g.getContents())
+                .memberPositionId(g.getMemberPositionId())
+                .status(g.getStatus().getCodeName())
+                .startDate(g.getStartDate())
+                .endDate(g.getEndDate())
+                // Fetch Join을 했기 때문에 추가 쿼리 없이 바로 사용 가능
+                .teamGoalTitle(g.getTeamGoal() != null ? g.getTeamGoal().getTitle() : null)
+                .build());
     }
 
     //    내 목표 생성
@@ -517,33 +569,43 @@ public class PerformanceService {
     }
 
 //    평가대상 팀 목표 조회
-    public List<TeamGoalResponseDto> findMyTeamGoalsToEvaluate(UUID memberPositionId) {
-        // 1. 내가 관리자(생성자)인 '평가 대기' 팀 목표 조회
-        List<TeamGoal> teamGoalList = teamGoalRepository.findAllByMemberPositionIdAndStatus2(memberPositionId, TeamGoalStatus.AWAITING_EVALUATION);
+    public Page<TeamGoalResponseDto> findMyTeamGoalsToEvaluate(UUID memberPositionId, Pageable pageable) {
 
-        // 2. (최적화) 조회된 팀 목표가 없으면 API 호출 없이 바로 빈 리스트 반환
-        if (teamGoalList.isEmpty()) {
-            return new ArrayList<>(); // 또는 Collections.emptyList()
-        }
-
-        // 3. (수정) 나의 Position 정보 1건만 조회 (Map 불필요)
-        ApiResponse<List<PositionDto>> response = memberClient.getPositionList(
-                memberPositionId,
-                new IdListReq(List.of(memberPositionId))
+        // 1. (수정) Repository 메서드에 pageable 전달, Page<TeamGoal> 반환
+        //    (findAllByMemberPositionIdAndStatus2 -> findAllByMemberPositionIdAndStatus 로 변경 가정)
+        Page<TeamGoal> teamGoalPage = teamGoalRepository.findAllByMemberPositionIdAndStatus(
+                memberPositionId, // 생성자(관리자) ID 기준
+                TeamGoalStatus.AWAITING_EVALUATION,
+                pageable // pageable 전달
         );
 
-        // 4. (수정) Map 대신 단일 PositionDto 객체로 관리
-        // API 응답이 정상이면서, 데이터가 있고, 비어있지 않은지 확인
-        PositionDto creatorInfo = null;
-        if (response != null && response.getData() != null && !response.getData().isEmpty()) {
-            creatorInfo = response.getData().get(0); // 1건만 있으므로 0번째 인덱스
+        // 2. (수정) 현재 페이지의 내용(List<TeamGoal>) 가져오기
+        List<TeamGoal> teamGoalListOnPage = teamGoalPage.getContent();
+
+        // 3. (수정) 현재 페이지 생성자(관리자) 정보만 조회 (Map 불필요)
+        PositionDto creatorInfo = null; // 초기화
+        if (!teamGoalListOnPage.isEmpty()) {
+            // (최적화) 어차피 모든 TeamGoal의 생성자는 memberPositionId로 동일하므로
+            // API는 딱 한 번만 호출하면 됩니다.
+            ApiResponse<List<PositionDto>> response = memberClient.getPositionList(
+                    memberPositionId,
+                    new IdListReq(List.of(memberPositionId)) // 자기 자신의 ID만 전달
+            );
+
+            if (response != null && response.isSuccess() && response.getData() != null && !response.getData().isEmpty()) {
+                creatorInfo = response.getData().get(0);
+            }
+        } else {
+            // 조회된 목표가 없으면 빈 Page 반환
+            return Page.empty(pageable);
         }
 
-        // 5. DTO 변환 (람다에서 사용하기 위해 effectively final 변수 사용)
+        // 4. DTO 변환 (람다에서 사용하기 위해 effectively final 변수 사용)
         final PositionDto finalCreatorInfo = creatorInfo;
 
-        return teamGoalList.stream().map(teamGoal -> {
-            // (수정) Map 조회 로직 삭제, finalCreatorInfo 변수 직접 사용
+        // 5. (수정) Page.map()을 사용하여 Page<TeamGoal> -> Page<TeamGoalResponseDto> 변환
+        return teamGoalPage.map(teamGoal -> { // teamGoalList.stream() 대신 teamGoalPage.map() 사용
+            // Map 조회 로직 삭제, finalCreatorInfo 변수 직접 사용
             return TeamGoalResponseDto.builder()
                     .teamGoalId(teamGoal.getId())
                     .title(teamGoal.getTitle())
@@ -551,63 +613,76 @@ public class PerformanceService {
                     .status(teamGoal.getStatus().getCodeName())
                     .startDate(teamGoal.getStartDate())
                     .endDate(teamGoal.getEndDate())
-                    .memberPositionId(teamGoal.getMemberPositionId()) // 이 ID는 항상 memberPositionId와 동일
+                    .memberPositionId(teamGoal.getMemberPositionId()) // 생성자 ID
                     .memberName(finalCreatorInfo != null ? finalCreatorInfo.getMemberName() : null)
                     .memberPosition(finalCreatorInfo != null ? finalCreatorInfo.getTitleName() : null)
                     .memberOrganization(finalCreatorInfo != null ? finalCreatorInfo.getOrganizationName() : null)
                     .build();
-        }).toList();
+        });
     }
 
     //    본인평가 대상 내 목표 조회
-    public List<GoalResponseDto> findMyGoalToEvaluate(UUID memberPositionId) {
-        List<Goal> goalList = performanceRepository.findGoalsByMemberPositionIdAndStatus(
+    public Page<GoalResponseDto> findMyGoalToEvaluate(UUID memberPositionId, Pageable pageable) {
+
+        // 1. (수정) Repository 메서드에 pageable 전달, Page<Goal> 반환
+        Page<Goal> goalPage = performanceRepository.findGoalsByMemberPositionIdAndStatus(
                 memberPositionId,
-                GoalStatus.AWAITING_EVALUATION // 제외할 상태
+                GoalStatus.AWAITING_EVALUATION, // 평가 대기 상태 조회
+                pageable // pageable 전달
         );
 
-        return goalList.stream()
-                .map(g -> GoalResponseDto.builder()
-                        .goalId(g.getId())
-                        .title(g.getTitle())
-                        .contents(g.getContents())
-                        .memberPositionId(g.getMemberPositionId())
-                        .status(g.getStatus().getCodeName())
-                        .startDate(g.getStartDate())
-                        .endDate(g.getEndDate())
-                        .teamGoalTitle(g.getTeamGoal() != null ? g.getTeamGoal().getTitle() : null)
-                        .build())
-                .toList();
+        // 2. (수정) Page.map()을 사용하여 Page<Goal> -> Page<GoalResponseDto> 변환
+        return goalPage.map(g -> GoalResponseDto.builder() // goalList.stream() 대신 goalPage.map() 사용
+                .goalId(g.getId())
+                .title(g.getTitle())
+                .contents(g.getContents())
+                .memberPositionId(g.getMemberPositionId())
+                .status(g.getStatus().getCodeName())
+                .startDate(g.getStartDate())
+                .endDate(g.getEndDate())
+                // Fetch Join을 했는지 여부에 따라 추가 쿼리 발생 가능성 있음
+                .teamGoalTitle(g.getTeamGoal() != null ? g.getTeamGoal().getTitle() : null)
+                .build());
     }
 
 //    평가완료 팀 목표 조회
-    public List<TeamGoalResponseDto> findMyTeamGoalsComplete(UUID memberPositionId) {
-        // 1. 내가 관리자(생성자)인 '평가 대기' 팀 목표 조회
-        List<TeamGoal> teamGoalList = teamGoalRepository.findAllByMemberPositionIdAndStatus2(memberPositionId, TeamGoalStatus.EVALUATION_COMPLETED);
+    public Page<TeamGoalResponseDto> findMyTeamGoalsComplete(UUID memberPositionId, Pageable pageable) {
 
-        // 2. (최적화) 조회된 팀 목표가 없으면 API 호출 없이 바로 빈 리스트 반환
-        if (teamGoalList.isEmpty()) {
-            return new ArrayList<>(); // 또는 Collections.emptyList()
-        }
-
-        // 3. (수정) 나의 Position 정보 1건만 조회 (Map 불필요)
-        ApiResponse<List<PositionDto>> response = memberClient.getPositionList(
-                memberPositionId,
-                new IdListReq(List.of(memberPositionId))
+        // 1. (수정) Repository 메서드에 pageable 전달, Page<TeamGoal> 반환
+        //    (findAllByMemberPositionIdAndStatus2 -> findAllByMemberPositionIdAndStatus 로 변경 가정)
+        Page<TeamGoal> teamGoalPage = teamGoalRepository.findAllByMemberPositionIdAndStatus2(
+                memberPositionId, // 생성자(관리자) ID 기준
+                TeamGoalStatus.EVALUATION_COMPLETED, // 평가 완료 상태
+                pageable // pageable 전달
         );
 
-        // 4. (수정) Map 대신 단일 PositionDto 객체로 관리
-        // API 응답이 정상이면서, 데이터가 있고, 비어있지 않은지 확인
-        PositionDto creatorInfo = null;
-        if (response != null && response.getData() != null && !response.getData().isEmpty()) {
-            creatorInfo = response.getData().get(0); // 1건만 있으므로 0번째 인덱스
+        // 2. (수정) 현재 페이지의 내용(List<TeamGoal>) 가져오기
+        List<TeamGoal> teamGoalListOnPage = teamGoalPage.getContent();
+
+        // 3. (수정) 현재 페이지 생성자(관리자) 정보만 조회 (Map 불필요)
+        PositionDto creatorInfo = null; // 초기화
+        if (!teamGoalListOnPage.isEmpty()) {
+            // (최적화) 어차피 모든 TeamGoal의 생성자는 memberPositionId로 동일하므로
+            // API는 딱 한 번만 호출하면 됩니다.
+            ApiResponse<List<PositionDto>> response = memberClient.getPositionList(
+                    memberPositionId,
+                    new IdListReq(List.of(memberPositionId)) // 자기 자신의 ID만 전달
+            );
+
+            if (response != null && response.isSuccess() && response.getData() != null && !response.getData().isEmpty()) {
+                creatorInfo = response.getData().get(0);
+            }
+        } else {
+            // 조회된 목표가 없으면 빈 Page 반환
+            return Page.empty(pageable);
         }
 
-        // 5. DTO 변환 (람다에서 사용하기 위해 effectively final 변수 사용)
+        // 4. DTO 변환 (람다에서 사용하기 위해 effectively final 변수 사용)
         final PositionDto finalCreatorInfo = creatorInfo;
 
-        return teamGoalList.stream().map(teamGoal -> {
-            // (수정) Map 조회 로직 삭제, finalCreatorInfo 변수 직접 사용
+        // 5. (수정) Page.map()을 사용하여 Page<TeamGoal> -> Page<TeamGoalResponseDto> 변환
+        return teamGoalPage.map(teamGoal -> { // teamGoalList.stream() 대신 teamGoalPage.map() 사용
+            // Map 조회 로직 삭제, finalCreatorInfo 변수 직접 사용
             return TeamGoalResponseDto.builder()
                     .teamGoalId(teamGoal.getId())
                     .title(teamGoal.getTitle())
@@ -615,32 +690,61 @@ public class PerformanceService {
                     .status(teamGoal.getStatus().getCodeName())
                     .startDate(teamGoal.getStartDate())
                     .endDate(teamGoal.getEndDate())
-                    .memberPositionId(teamGoal.getMemberPositionId()) // 이 ID는 항상 memberPositionId와 동일
+                    .memberPositionId(teamGoal.getMemberPositionId()) // 생성자 ID
                     .memberName(finalCreatorInfo != null ? finalCreatorInfo.getMemberName() : null)
                     .memberPosition(finalCreatorInfo != null ? finalCreatorInfo.getTitleName() : null)
                     .memberOrganization(finalCreatorInfo != null ? finalCreatorInfo.getOrganizationName() : null)
                     .build();
-        }).toList();
+        });
     }
 
     //    평가 완료 내 목표 조회
-    public List<GoalResponseDto> findMyGoalComplete(UUID memberPositionId) {
-        List<Goal> goalList = performanceRepository.findGoalsByMemberPositionIdAndStatus(
+    public Page<GoalResponseDto> findMyGoalComplete(UUID memberPositionId, Pageable pageable) {
+
+        // 1. (수정) Repository 메서드에 pageable 전달, Page<Goal> 반환
+        Page<Goal> goalPage = performanceRepository.findGoalsByMemberPositionIdAndStatus(
+                memberPositionId,
+                GoalStatus.MANAGER_EVAL_COMPLETED, // 최종 평가 완료 상태
+                pageable // pageable 전달
+        );
+
+        // 2. (수정) Page.map()을 사용하여 Page<Goal> -> Page<GoalResponseDto> 변환
+        return goalPage.map(g -> GoalResponseDto.builder() // goalList.stream() 대신 goalPage.map() 사용
+                .goalId(g.getId())
+                .title(g.getTitle())
+                .contents(g.getContents())
+                .memberPositionId(g.getMemberPositionId())
+                .status(g.getStatus().getCodeName())
+                .startDate(g.getStartDate())
+                .endDate(g.getEndDate())
+                // Fetch Join을 했는지 여부에 따라 추가 쿼리 발생 가능성 있음
+                .teamGoalTitle(g.getTeamGoal() != null ? g.getTeamGoal().getTitle() : null)
+                .build());
+    }
+
+    public EvaluationStatResDto getStat(UUID memberPositionId) {
+        int myGoalCount = performanceRepository.countGoalsByMemberPositionIdAndStatus(
+                        memberPositionId,
+                        GoalStatus.AWAITING_EVALUATION
+        );
+        int teamGoalCount = teamGoalRepository.countByMemberPositionIdAndStatus(
+                        memberPositionId,
+                        TeamGoalStatus.AWAITING_EVALUATION
+        );
+        int myGoalCompleteCount = performanceRepository.countGoalsByMemberPositionIdAndStatus(
                 memberPositionId,
                 GoalStatus.MANAGER_EVAL_COMPLETED
         );
+        int teamGoalCompleteCount = teamGoalRepository.countByMemberPositionIdAndStatus2(
+                memberPositionId,
+                TeamGoalStatus.EVALUATION_COMPLETED
+        );;
 
-        return goalList.stream()
-                .map(g -> GoalResponseDto.builder()
-                        .goalId(g.getId())
-                        .title(g.getTitle())
-                        .contents(g.getContents())
-                        .memberPositionId(g.getMemberPositionId())
-                        .status(g.getStatus().getCodeName())
-                        .startDate(g.getStartDate())
-                        .endDate(g.getEndDate())
-                        .teamGoalTitle(g.getTeamGoal() != null ? g.getTeamGoal().getTitle() : null)
-                        .build())
-                .toList();
+        return EvaluationStatResDto.builder()
+                .myGoalCount(myGoalCount)
+                .teamGoalCount(teamGoalCount)
+                .myGoalCompleteCount(myGoalCompleteCount)
+                .teamGoalCompleteCount(teamGoalCompleteCount)
+                .build();
     }
 }

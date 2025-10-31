@@ -1,16 +1,14 @@
 package com.crewvy.member_service.member.dto.request;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import java.util.UUID;
 
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
-public class GenerateNewAtReq {
-    private String refreshToken;
-    private UUID memberPositionId;
-
+@Builder
+public class ResetPasswordReq {
+    private String targetMemberId;
 }

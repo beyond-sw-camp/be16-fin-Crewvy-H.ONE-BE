@@ -150,11 +150,29 @@ public class OrganizationService {
 
     // 조직 순서 변경
     public void reorderOrganization(List<UUID> organizationIdList) {
+        if (organizationIdList == null || organizationIdList.isEmpty()) {
+            return; // 아무것도 하지 않음
+        }
+
+        List<Organization> organizations = organizationRepository.findAllById(organizationIdList);
+        if (organizations.size() != organizationIdList.size()) {
+            throw new EntityNotFoundException("일부 조직을 찾을 수 없습니다.");
+        }
+
+        // 모든 조직이 동일한 부모를 갖는지 확인
+        UUID firstParentId = organizations.get(0).getParent() != null ? organizations.get(0).getParent().getId() : null;
+        for (Organization org : organizations) {
+            UUID currentParentId = org.getParent() != null ? org.getParent().getId() : null;
+            if (!java.util.Objects.equals(firstParentId, currentParentId)) {
+                throw new IllegalArgumentException("다른 레벨의 조직을 함께 변경할 수 없습니다.");
+            }
+        }
+
         List<Organization> organizationsToUpdate = new ArrayList<>();
         for (int i = 0; i < organizationIdList.size(); i++) {
             int displayOrder = i;
             UUID id = organizationIdList.get(i);
-            organizationRepository.findById(id).ifPresent(organization -> {
+            organizations.stream().filter(o -> o.getId().equals(id)).findFirst().ifPresent(organization -> {
                 organization.updateDisplayOrder(displayOrder);
                 organizationsToUpdate.add(organization);
             });

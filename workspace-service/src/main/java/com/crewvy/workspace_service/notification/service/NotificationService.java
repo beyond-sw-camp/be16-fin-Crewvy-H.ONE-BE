@@ -11,6 +11,7 @@ import com.crewvy.workspace_service.notification.repository.NotificationReposito
 import com.crewvy.workspace_service.notification.repository.NotificationSettingRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +22,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final NotificationSettingRepository notificationSettingRepository;
@@ -96,5 +98,15 @@ public class NotificationService {
 
             setting.updateIsActive(dto.getIsActive());
         });
+    }
+
+    public void readAll(UUID memberId) {
+        int updateCount = notificationRepository.readAllByReceiverId(
+                memberId,
+                Bool.TRUE,  // :newStatus 값
+                Bool.FALSE  // :oldStatus 값
+        );
+
+        log.info("{}님의 알림 {}건을 '읽음' 처리했습니다.", memberId, updateCount);
     }
 }
