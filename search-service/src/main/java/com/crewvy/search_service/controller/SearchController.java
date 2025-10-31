@@ -33,4 +33,10 @@ public class SearchController {
         return new ResponseEntity<>(ApiResponse.success(
                 searchService.searchEmployeesByOrganization(organizationId, companyId), "조직별 직원 검색 성공"), HttpStatus.OK);
     }
+
+    @GetMapping("/global")
+    public ResponseEntity<?> searchGlobal(@RequestParam String query, @RequestHeader("X-User-CompanyId") String companyId) {
+        return new ResponseEntity<>(ApiResponse.success(
+                searchService.searchGlobal(query, companyId), "통합 검색 성공"), HttpStatus.OK);
+    }
 }

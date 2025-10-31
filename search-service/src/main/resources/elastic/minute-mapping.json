@@ -1,0 +1,17 @@
+{
+  "properties": {
+    "minuteId": {
+      "type": "keyword"
+    },
+    "summary": {
+      "type": "text",
+      "analyzer": "korean_analyzer"
+    },
+    "memberId": {
+      "type": "keyword"
+    },
+    "createDateTime": {
+      "type": "date"
+    }
+  }
+}

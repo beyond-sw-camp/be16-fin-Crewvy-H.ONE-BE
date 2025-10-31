@@ -1,0 +1,17 @@
+{
+  "properties": {
+    "approvalId": {
+      "type": "keyword"
+    },
+    "memberId": {
+      "type": "keyword"
+    },
+    "title": {
+      "type": "text",
+      "analyzer": "korean_analyzer"
+    },
+    "createDateTime": {
+      "type": "date"
+    }
+  }
+}

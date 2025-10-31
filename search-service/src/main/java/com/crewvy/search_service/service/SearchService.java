@@ -3,6 +3,7 @@ package com.crewvy.search_service.service;
 import com.crewvy.common.event.MemberDeletedEvent;
 import com.crewvy.common.event.MemberSavedEvent;
 import com.crewvy.common.event.OrganizationSavedEvent;
+import com.crewvy.search_service.dto.response.GlobalSearchRes;
 import com.crewvy.search_service.entity.MemberDocument;
 import com.crewvy.search_service.entity.OrganizationDocument;
 import com.crewvy.search_service.repository.MemberSearchRepository;
@@ -118,24 +119,7 @@ public class SearchService {
 
     // 직원 검색
     public List<MemberDocument> searchEmployees(String query, String companyId) {
-        Query searchQuery;
-        if (query.matches("^[0-9\\-]+$")) {
-            searchQuery = new NativeQueryBuilder()
-                    .withQuery(q -> q.bool(b -> b
-                            .must(m -> m.term(t -> t.field("phoneNumber").value(query)))
-                            .filter(f -> f.term(t -> t.field("companyId.keyword").value(companyId)))))
-                    .build();
-        } else {
-            searchQuery = new NativeQueryBuilder()
-                    .withQuery(q -> q.bool(b -> b
-                            .should(s -> s.multiMatch(mm -> mm.query(query).fields("name")))
-                            .should(s -> s.nested(n -> n
-                                    .path("organizationList")
-                                    .query(nq -> nq.match(m -> m.field("organizationList.name").query(query)))))
-                            .minimumShouldMatch("1")
-                            .filter(f -> f.term(t -> t.field("companyId.keyword").value(companyId)))))
-                    .build();
-        }
+        Query searchQuery = buildEmployeeSearchQuery(query, companyId);
         SearchHits<MemberDocument> searchHits = elasticsearchOperations.search(searchQuery, MemberDocument.class);
         return searchHits.stream().map(SearchHit::getContent).collect(Collectors.toList());
     }
@@ -156,5 +140,49 @@ public class SearchService {
                 .build();
         SearchHits<MemberDocument> searchHits = elasticsearchOperations.search(searchQuery, MemberDocument.class);
         return searchHits.stream().map(SearchHit::getContent).collect(Collectors.toList());
+    }
+
+    // 통합 검색
+    public List<GlobalSearchRes> searchGlobal(String query, String companyId) {
+        Query employeeSearchQuery = buildEmployeeSearchQuery(query, companyId);
+
+        SearchHits<MemberDocument> employeeHits = elasticsearchOperations.search(employeeSearchQuery, MemberDocument.class);
+
+        List<GlobalSearchRes> results = new ArrayList<>();
+
+        employeeHits.forEach(hit -> {
+            MemberDocument doc = hit.getContent();
+            results.add(GlobalSearchRes.builder()
+                    .id(doc.getMemberId())
+                    .category("employee")
+                    .title(doc.getName())
+                    .department(doc.getOrganizationList().stream().map(OrganizationSavedEvent::getName).collect(Collectors.joining(", ")))
+                    .position(String.join(", ", doc.getTitleName()))
+                    .contact(doc.getPhoneNumber())
+                    .status(doc.getMemberStatus())
+                    .build());
+        });
+
+        return results;
+    }
+
+    private Query buildEmployeeSearchQuery(String query, String companyId) {
+        if (query.matches("^[0-9\\-]+$")) {
+            return new NativeQueryBuilder()
+                    .withQuery(q -> q.bool(b -> b
+                            .must(m -> m.term(t -> t.field("phoneNumber").value(query)))
+                            .filter(f -> f.term(t -> t.field("companyId.keyword").value(companyId)))))
+                    .build();
+        } else {
+            return new NativeQueryBuilder()
+                    .withQuery(q -> q.bool(b -> b
+                            .should(s -> s.multiMatch(mm -> mm.query(query).fields("name")))
+                            .should(s -> s.nested(n -> n
+                                    .path("organizationList")
+                                    .query(nq -> nq.match(m -> m.field("organizationList.name").query(query)))))
+                            .minimumShouldMatch("1")
+                            .filter(f -> f.term(t -> t.field("companyId.keyword").value(companyId)))))
+                    .build();
+        }
     }
 }
