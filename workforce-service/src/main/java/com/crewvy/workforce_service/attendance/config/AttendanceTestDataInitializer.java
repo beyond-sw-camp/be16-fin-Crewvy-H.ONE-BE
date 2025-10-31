@@ -30,23 +30,38 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     private final DailyAttendanceRepository dailyAttendanceRepository;
 
     // member-service의 AutoCreateAdmin에서 생성되는 H.ONE 컴퍼니 ID
-    private static final UUID COMPANY_ID = UUID.fromString("8892759c-b28b-4395-a1b4-7ebe86bb65cc");
+    private static final UUID COMPANY_ID = UUID.fromString("042c11f9-ec9b-49ba-a32e-41723bbdc3e5");
 
     // 테스트용 멤버 ID들 (DB에서 확인 후 실제 UUID로 교체 필요)
     // 인사팀 직원 (emp1@h.one - 김민준) - 관리자로 사용
-    private static final UUID HR_ADMIN_ID = UUID.fromString("ee088d44-9bc7-417f-911e-cd1fa4b42b1e"); // TODO: DB 확인 후 교체
+    private static final UUID HR_ADMIN_ID = UUID.fromString("f2deb0ff-d527-41fd-be25-d0f87eaa896e"); // TODO: DB 확인 후 교체
 
     // 인사팀 직원 (emp2@h.one - 이서준)
-    private static final UUID HR_MEMBER1_ID = UUID.fromString("b523d3ee-8fc5-4c7d-a120-a419cc0d4ef0"); // TODO: DB 확인 후 교체
+    private static final UUID HR_MEMBER1_ID = UUID.fromString("b869ec13-4406-46c9-9588-45bf9e9cdff3"); // TODO: DB 확인 후 교체
 
     // 인사팀 직원 (emp3@h.one - 박도윤)
-    private static final UUID HR_MEMBER2_ID = UUID.fromString("abfa6d37-b49b-4358-9e02-49bc0a8b41cd"); // TODO: DB 확인 후 교체
+    private static final UUID HR_MEMBER2_ID = UUID.fromString("b2e42207-fa34-46b1-af3f-3846e723aee0"); // TODO: DB 확인 후 교체
+
+    // 인사팀 직원 (emp4@h.one - 최시우)
+    private static final UUID HR_MEMBER3_ID = UUID.fromString("bbf598ff-6f69-44c7-aacf-41c253da302e"); // TODO: DB 확인 후 교체
+
+    // 인사팀 직원 (emp5@h.one - 정하준)
+    private static final UUID HR_MEMBER4_ID = UUID.fromString("f2c1b71b-c8a2-4bb0-97b2-7a40fe85e50c"); // TODO: DB 확인 후 교체
 
     // 개발팀 직원 (emp6@h.one - 강지호)
-    private static final UUID DEV_MEMBER1_ID = UUID.fromString("75953373-c31c-4985-8be2-7e2d969b870d"); // TODO: DB 확인 후 교체
+    private static final UUID DEV_MEMBER1_ID = UUID.fromString("4a07c318-b980-49f2-8514-0cc98c6e312a"); // TODO: DB 확인 후 교체
 
     // 개발팀 직원 (emp7@h.one - 윤은우)
-    private static final UUID DEV_MEMBER2_ID = UUID.fromString("9ea19f30-12f8-4bdf-8d45-3e61c0933c2b"); // TODO: DB 확인 후 교체
+    private static final UUID DEV_MEMBER2_ID = UUID.fromString("c55c16c9-4551-4f63-a846-26e23fb49d3a"); // TODO: DB 확인 후 교체
+
+    // 개발팀 직원 (emp8@h.one - 임선우)
+    private static final UUID DEV_MEMBER3_ID = UUID.fromString("06908a23-31fc-4355-a44d-82602c3f96ea"); // TODO: DB 확인 후 교체
+
+    // 개발팀 직원 (emp9@h.one - 한유찬)
+    private static final UUID DEV_MEMBER4_ID = UUID.fromString("dfa12591-a3ea-4b92-8daf-a3d0ef315861"); // TODO: DB 확인 후 교체
+
+    // 개발팀 직원 (emp10@h.one - 오이안)
+    private static final UUID DEV_MEMBER5_ID = UUID.fromString("be7cd1ed-4457-49d5-bcf1-e2e0b79d564d"); // TODO: DB 확인 후 교체
 
     @Override
     @Transactional
@@ -71,7 +86,10 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         // 5. 테스트용 디바이스 등록 신청 생성
         createSampleDeviceRequests();
 
-        // 6. 테스트용 근태 기록 (Log & Daily) 생성
+        // 6. 테스트용 휴가 신청 생성
+        createSampleLeaveRequests(policyTypes);
+
+        // 7. 테스트용 근태 기록 (Log & Daily) 생성
         createAttendanceData();
     }
 
@@ -136,6 +154,92 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         // 어제 기록 (휴가)
         dailies.add(DailyAttendance.builder()
             .memberId(DEV_MEMBER2_ID).companyId(COMPANY_ID).attendanceDate(yesterday).status(AttendanceStatus.ANNUAL_LEAVE)
+            .build());
+
+        // --- 5. 김민준 (HR_ADMIN_ID): 어제 정상 근무, 오늘 출근 + 휴게 ---
+        // 어제 기록
+        logs.add(AttendanceLog.builder().memberId(HR_ADMIN_ID).eventType(EventType.CLOCK_IN).eventTime(yesterday.atTime(8, 50)).build());
+        logs.add(AttendanceLog.builder().memberId(HR_ADMIN_ID).eventType(EventType.CLOCK_OUT).eventTime(yesterday.atTime(18, 10)).build());
+        dailies.add(DailyAttendance.builder()
+            .memberId(HR_ADMIN_ID).companyId(COMPANY_ID).attendanceDate(yesterday).status(AttendanceStatus.NORMAL_WORK)
+            .firstClockIn(yesterday.atTime(8, 50)).lastClockOut(yesterday.atTime(18, 10))
+            .workedMinutes(500).totalBreakMinutes(60).overtimeMinutes(20)
+            .daytimeOvertimeMinutes(20).nightWorkMinutes(0).holidayWorkMinutes(0)
+            .isLate(false).isEarlyLeave(false).build());
+        // 오늘 기록
+        logs.add(AttendanceLog.builder().memberId(HR_ADMIN_ID).eventType(EventType.CLOCK_IN).eventTime(today.atTime(9, 0)).build());
+        logs.add(AttendanceLog.builder().memberId(HR_ADMIN_ID).eventType(EventType.BREAK_START).eventTime(today.atTime(12, 0)).build());
+        dailies.add(DailyAttendance.builder()
+            .memberId(HR_ADMIN_ID).companyId(COMPANY_ID).attendanceDate(today).status(AttendanceStatus.NORMAL_WORK)
+            .firstClockIn(today.atTime(9, 0)).build());
+
+        // --- 6. 최시우 (HR_MEMBER3_ID): 어제 조퇴, 오늘 출근 ---
+        // 어제 기록
+        logs.add(AttendanceLog.builder().memberId(HR_MEMBER3_ID).eventType(EventType.CLOCK_IN).eventTime(yesterday.atTime(9, 0)).build());
+        logs.add(AttendanceLog.builder().memberId(HR_MEMBER3_ID).eventType(EventType.CLOCK_OUT).eventTime(yesterday.atTime(16, 30)).build());
+        dailies.add(DailyAttendance.builder()
+            .memberId(HR_MEMBER3_ID).companyId(COMPANY_ID).attendanceDate(yesterday).status(AttendanceStatus.NORMAL_WORK)
+            .firstClockIn(yesterday.atTime(9, 0)).lastClockOut(yesterday.atTime(16, 30))
+            .workedMinutes(390).totalBreakMinutes(60)
+            .isLate(false).isEarlyLeave(true).earlyLeaveMinutes(90).build());
+        // 오늘 기록
+        logs.add(AttendanceLog.builder().memberId(HR_MEMBER3_ID).eventType(EventType.CLOCK_IN).eventTime(today.atTime(8, 58)).build());
+        dailies.add(DailyAttendance.builder()
+            .memberId(HR_MEMBER3_ID).companyId(COMPANY_ID).attendanceDate(today).status(AttendanceStatus.NORMAL_WORK)
+            .firstClockIn(today.atTime(8, 58)).build());
+
+        // --- 7. 정하준 (HR_MEMBER4_ID): 어제 정상 근무, 오늘 미출근 ---
+        // 어제 기록
+        logs.add(AttendanceLog.builder().memberId(HR_MEMBER4_ID).eventType(EventType.CLOCK_IN).eventTime(yesterday.atTime(9, 3)).build());
+        logs.add(AttendanceLog.builder().memberId(HR_MEMBER4_ID).eventType(EventType.CLOCK_OUT).eventTime(yesterday.atTime(18, 2)).build());
+        dailies.add(DailyAttendance.builder()
+            .memberId(HR_MEMBER4_ID).companyId(COMPANY_ID).attendanceDate(yesterday).status(AttendanceStatus.NORMAL_WORK)
+            .firstClockIn(yesterday.atTime(9, 3)).lastClockOut(yesterday.atTime(18, 2))
+            .workedMinutes(479).totalBreakMinutes(60)
+            .isLate(true).lateMinutes(3).isEarlyLeave(false).build());
+
+        // --- 8. 한유찬 (DEV_MEMBER3_ID): 어제 지각 + 야근, 오늘 출근 ---
+        // 어제 기록
+        logs.add(AttendanceLog.builder().memberId(DEV_MEMBER3_ID).eventType(EventType.CLOCK_IN).eventTime(yesterday.atTime(9, 45)).build());
+        logs.add(AttendanceLog.builder().memberId(DEV_MEMBER3_ID).eventType(EventType.CLOCK_OUT).eventTime(yesterday.atTime(21, 30)).build());
+        dailies.add(DailyAttendance.builder()
+            .memberId(DEV_MEMBER3_ID).companyId(COMPANY_ID).attendanceDate(yesterday).status(AttendanceStatus.NORMAL_WORK)
+            .firstClockIn(yesterday.atTime(9, 45)).lastClockOut(yesterday.atTime(21, 30))
+            .workedMinutes(645).totalBreakMinutes(60).overtimeMinutes(165)
+            .daytimeOvertimeMinutes(150).nightWorkMinutes(15)
+            .isLate(true).lateMinutes(45).isEarlyLeave(false).build());
+        // 오늘 기록
+        logs.add(AttendanceLog.builder().memberId(DEV_MEMBER3_ID).eventType(EventType.CLOCK_IN).eventTime(today.atTime(9, 5)).build());
+        dailies.add(DailyAttendance.builder()
+            .memberId(DEV_MEMBER3_ID).companyId(COMPANY_ID).attendanceDate(today).status(AttendanceStatus.NORMAL_WORK)
+            .firstClockIn(today.atTime(9, 5)).build());
+
+        // --- 9. 오이안 (DEV_MEMBER4_ID): 어제 정상 근무, 오늘 출근 + 외출 복귀 ---
+        // 어제 기록
+        logs.add(AttendanceLog.builder().memberId(DEV_MEMBER4_ID).eventType(EventType.CLOCK_IN).eventTime(yesterday.atTime(8, 55)).build());
+        logs.add(AttendanceLog.builder().memberId(DEV_MEMBER4_ID).eventType(EventType.CLOCK_OUT).eventTime(yesterday.atTime(18, 5)).build());
+        dailies.add(DailyAttendance.builder()
+            .memberId(DEV_MEMBER4_ID).companyId(COMPANY_ID).attendanceDate(yesterday).status(AttendanceStatus.NORMAL_WORK)
+            .firstClockIn(yesterday.atTime(8, 55)).lastClockOut(yesterday.atTime(18, 5))
+            .workedMinutes(490).totalBreakMinutes(60).overtimeMinutes(10)
+            .daytimeOvertimeMinutes(10).nightWorkMinutes(0)
+            .isLate(false).isEarlyLeave(false).build());
+        // 오늘 기록
+        logs.add(AttendanceLog.builder().memberId(DEV_MEMBER4_ID).eventType(EventType.CLOCK_IN).eventTime(today.atTime(9, 0)).build());
+        logs.add(AttendanceLog.builder().memberId(DEV_MEMBER4_ID).eventType(EventType.GO_OUT).eventTime(today.atTime(15, 0)).build());
+        logs.add(AttendanceLog.builder().memberId(DEV_MEMBER4_ID).eventType(EventType.COME_BACK).eventTime(today.atTime(16, 30)).build());
+        dailies.add(DailyAttendance.builder()
+            .memberId(DEV_MEMBER4_ID).companyId(COMPANY_ID).attendanceDate(today).status(AttendanceStatus.NORMAL_WORK)
+            .firstClockIn(today.atTime(9, 0)).totalGoOutMinutes(90).build());
+
+        // --- 10. 김도윤 (DEV_MEMBER5_ID): 어제 휴가, 오늘 휴가 ---
+        // 어제 기록 (휴가)
+        dailies.add(DailyAttendance.builder()
+            .memberId(DEV_MEMBER5_ID).companyId(COMPANY_ID).attendanceDate(yesterday).status(AttendanceStatus.ANNUAL_LEAVE)
+            .build());
+        // 오늘 기록 (휴가)
+        dailies.add(DailyAttendance.builder()
+            .memberId(DEV_MEMBER5_ID).companyId(COMPANY_ID).attendanceDate(today).status(AttendanceStatus.ANNUAL_LEAVE)
             .build());
 
         attendanceLogRepository.saveAll(logs);
@@ -586,6 +690,71 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                 .isPaid(true)
                 .build());
 
+        // 인사팀 직원3 (emp4@h.one - 최시우) - 15일 중 4일 사용
+        balances.add(MemberBalance.builder()
+                .memberId(HR_MEMBER3_ID)
+                .companyId(COMPANY_ID)
+                .year(currentYear)
+                .balanceTypeCode(annualLeaveType.getTypeCode())
+                .totalGranted(15.0)
+                .totalUsed(4.0)
+                .remaining(11.0)
+                .expirationDate(LocalDate.of(currentYear, 12, 31))
+                .isPaid(true)
+                .build());
+
+        // 인사팀 직원4 (emp5@h.one - 정하준) - 15일 중 6일 사용
+        balances.add(MemberBalance.builder()
+                .memberId(HR_MEMBER4_ID)
+                .companyId(COMPANY_ID)
+                .year(currentYear)
+                .balanceTypeCode(annualLeaveType.getTypeCode())
+                .totalGranted(15.0)
+                .totalUsed(6.0)
+                .remaining(9.0)
+                .expirationDate(LocalDate.of(currentYear, 12, 31))
+                .isPaid(true)
+                .build());
+
+        // 개발팀 직원3 (emp8@h.one - 한유찬) - 15일 중 1일 사용
+        balances.add(MemberBalance.builder()
+                .memberId(DEV_MEMBER3_ID)
+                .companyId(COMPANY_ID)
+                .year(currentYear)
+                .balanceTypeCode(annualLeaveType.getTypeCode())
+                .totalGranted(15.0)
+                .totalUsed(1.0)
+                .remaining(14.0)
+                .expirationDate(LocalDate.of(currentYear, 12, 31))
+                .isPaid(true)
+                .build());
+
+        // 개발팀 직원4 (emp9@h.one - 오이안) - 15일 중 8일 사용
+        balances.add(MemberBalance.builder()
+                .memberId(DEV_MEMBER4_ID)
+                .companyId(COMPANY_ID)
+                .year(currentYear)
+                .balanceTypeCode(annualLeaveType.getTypeCode())
+                .totalGranted(15.0)
+                .totalUsed(8.0)
+                .remaining(7.0)
+                .expirationDate(LocalDate.of(currentYear, 12, 31))
+                .isPaid(true)
+                .build());
+
+        // 개발팀 직원5 (emp10@h.one - 김도윤) - 15일 중 10일 사용
+        balances.add(MemberBalance.builder()
+                .memberId(DEV_MEMBER5_ID)
+                .companyId(COMPANY_ID)
+                .year(currentYear)
+                .balanceTypeCode(annualLeaveType.getTypeCode())
+                .totalGranted(15.0)
+                .totalUsed(10.0)
+                .remaining(5.0)
+                .expirationDate(LocalDate.of(currentYear, 12, 31))
+                .isPaid(true)
+                .build());
+
         memberBalanceRepository.saveAll(balances);
     }
 
@@ -672,5 +841,183 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                 .build());
 
         requestRepository.saveAll(requests);
+    }
+
+    /**
+     * 테스트용 휴가 신청 생성
+     * 다양한 상태의 휴가 신청을 생성하여 승인 프로세스 및 잔여일수 차감 테스트 가능하도록 함
+     */
+    private void createSampleLeaveRequests(Map<PolicyTypeCode, PolicyType> policyTypes) {
+        List<Request> leaveRequests = new ArrayList<>();
+        LocalDate today = LocalDate.now();
+
+        // 연차 정책 타입 찾기
+        PolicyType annualLeaveType = policyTypes.get(PolicyTypeCode.ANNUAL_LEAVE);
+        if (annualLeaveType == null) {
+            return; // 연차 정책 타입이 없으면 휴가 신청 생성 안 함
+        }
+
+        // 연차 정책 조회
+        Policy annualLeavePolicy = policyRepository.findAll().stream()
+                .filter(p -> p.getPolicyType().equals(annualLeaveType))
+                .filter(p -> p.getCompanyId().equals(COMPANY_ID))
+                .findFirst()
+                .orElse(null);
+
+        if (annualLeavePolicy == null) {
+            return; // 연차 정책이 없으면 휴가 신청 생성 안 함
+        }
+
+        // 1. 이서준 (HR_MEMBER1_ID) - APPROVED 연차 (이미 사용한 3일 중 하나)
+        leaveRequests.add(Request.builder()
+                .memberId(HR_MEMBER1_ID)
+                .policy(annualLeavePolicy)
+                .requestUnit(RequestUnit.DAY)
+                .startDateTime(today.minusDays(10).atTime(0, 0))
+                .endDateTime(today.minusDays(8).atTime(23, 59))
+                .deductionDays(3.0)
+                .reason("가족 여행")
+                .status(RequestStatus.APPROVED)
+                .deviceId(null)
+                .deviceName(null)
+                .deviceType(null)
+                .build());
+
+        // 2. 박도윤 (HR_MEMBER2_ID) - APPROVED 연차 반차 (이미 사용한 5일 중 일부)
+        leaveRequests.add(Request.builder()
+                .memberId(HR_MEMBER2_ID)
+                .policy(annualLeavePolicy)
+                .requestUnit(RequestUnit.HALF_DAY_AM)
+                .startDateTime(today.minusDays(7).atTime(0, 0))
+                .endDateTime(today.minusDays(7).atTime(12, 0))
+                .deductionDays(0.5)
+                .reason("병원 진료")
+                .status(RequestStatus.APPROVED)
+                .deviceId(null)
+                .deviceName(null)
+                .deviceType(null)
+                .build());
+
+        // 3. 박도윤 (HR_MEMBER2_ID) - APPROVED 연차 (추가)
+        leaveRequests.add(Request.builder()
+                .memberId(HR_MEMBER2_ID)
+                .policy(annualLeavePolicy)
+                .requestUnit(RequestUnit.DAY)
+                .startDateTime(today.minusDays(15).atTime(0, 0))
+                .endDateTime(today.minusDays(11).atTime(23, 59))
+                .deductionDays(4.5)
+                .reason("개인 사정")
+                .status(RequestStatus.APPROVED)
+                .deviceId(null)
+                .deviceName(null)
+                .deviceType(null)
+                .build());
+
+        // 4. 강지호 (DEV_MEMBER1_ID) - PENDING 연차 신청 (내일부터 3일)
+        leaveRequests.add(Request.builder()
+                .memberId(DEV_MEMBER1_ID)
+                .policy(annualLeavePolicy)
+                .requestUnit(RequestUnit.DAY)
+                .startDateTime(today.plusDays(1).atTime(0, 0))
+                .endDateTime(today.plusDays(3).atTime(23, 59))
+                .deductionDays(3.0)
+                .reason("연말 휴가")
+                .status(RequestStatus.PENDING)
+                .deviceId(null)
+                .deviceName(null)
+                .deviceType(null)
+                .build());
+
+        // 5. 윤은우 (DEV_MEMBER2_ID) - APPROVED 연차 (어제)
+        leaveRequests.add(Request.builder()
+                .memberId(DEV_MEMBER2_ID)
+                .policy(annualLeavePolicy)
+                .requestUnit(RequestUnit.DAY)
+                .startDateTime(today.minusDays(1).atTime(0, 0))
+                .endDateTime(today.minusDays(1).atTime(23, 59))
+                .deductionDays(1.0)
+                .reason("개인 용무")
+                .status(RequestStatus.APPROVED)
+                .deviceId(null)
+                .deviceName(null)
+                .deviceType(null)
+                .build());
+
+        // 6. 윤은우 (DEV_MEMBER2_ID) - APPROVED 연차 (이미 사용한 2일 중 나머지)
+        leaveRequests.add(Request.builder()
+                .memberId(DEV_MEMBER2_ID)
+                .policy(annualLeavePolicy)
+                .requestUnit(RequestUnit.DAY)
+                .startDateTime(today.minusDays(20).atTime(0, 0))
+                .endDateTime(today.minusDays(20).atTime(23, 59))
+                .deductionDays(1.0)
+                .reason("병가")
+                .status(RequestStatus.APPROVED)
+                .deviceId(null)
+                .deviceName(null)
+                .deviceType(null)
+                .build());
+
+        // 7. 최시우 (HR_MEMBER3_ID) - REJECTED 연차 신청
+        leaveRequests.add(Request.builder()
+                .memberId(HR_MEMBER3_ID)
+                .policy(annualLeavePolicy)
+                .requestUnit(RequestUnit.DAY)
+                .startDateTime(today.plusDays(5).atTime(0, 0))
+                .endDateTime(today.plusDays(7).atTime(23, 59))
+                .deductionDays(3.0)
+                .reason("해외 출장")
+                .status(RequestStatus.REJECTED)
+                .deviceId(null)
+                .deviceName(null)
+                .deviceType(null)
+                .build());
+
+        // 8. 정하준 (HR_MEMBER4_ID) - PENDING 연차 신청 (오후 반차)
+        leaveRequests.add(Request.builder()
+                .memberId(HR_MEMBER4_ID)
+                .policy(annualLeavePolicy)
+                .requestUnit(RequestUnit.HALF_DAY_PM)
+                .startDateTime(today.plusDays(2).atTime(13, 0))
+                .endDateTime(today.plusDays(2).atTime(18, 0))
+                .deductionDays(0.5)
+                .reason("오후 반차 신청")
+                .status(RequestStatus.PENDING)
+                .deviceId(null)
+                .deviceName(null)
+                .deviceType(null)
+                .build());
+
+        // 9. 오이안 (DEV_MEMBER4_ID) - APPROVED 연차 (이미 사용한 8일)
+        leaveRequests.add(Request.builder()
+                .memberId(DEV_MEMBER4_ID)
+                .policy(annualLeavePolicy)
+                .requestUnit(RequestUnit.DAY)
+                .startDateTime(today.minusDays(30).atTime(0, 0))
+                .endDateTime(today.minusDays(23).atTime(23, 59))
+                .deductionDays(8.0)
+                .reason("하계 휴가")
+                .status(RequestStatus.APPROVED)
+                .deviceId(null)
+                .deviceName(null)
+                .deviceType(null)
+                .build());
+
+        // 10. 김도윤 (DEV_MEMBER5_ID) - APPROVED 연차 (어제, 오늘 포함 10일 중 일부)
+        leaveRequests.add(Request.builder()
+                .memberId(DEV_MEMBER5_ID)
+                .policy(annualLeavePolicy)
+                .requestUnit(RequestUnit.DAY)
+                .startDateTime(today.minusDays(1).atTime(0, 0))
+                .endDateTime(today.atTime(23, 59))
+                .deductionDays(2.0)
+                .reason("연말 휴가")
+                .status(RequestStatus.APPROVED)
+                .deviceId(null)
+                .deviceName(null)
+                .deviceType(null)
+                .build());
+
+        requestRepository.saveAll(leaveRequests);
     }
 }
