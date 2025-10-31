@@ -45,6 +45,8 @@ public class LeaveRequestResponse {
 
     private String workLocation;        // 출장지
 
+    private Boolean autoApproved;       // 자동 승인 여부
+
     private LocalDateTime completedAt;
 
     private LocalDateTime createdAt;
@@ -76,6 +78,7 @@ public class LeaveRequestResponse {
                 .reason(request.getReason())
                 .status(request.getStatus())
                 .requesterComment(request.getRequesterComment())
+                .autoApproved(request.getPolicy() != null ? request.getPolicy().getAutoApprove() : null)
                 .workLocation(request.getWorkLocation())
                 .completedAt(request.getCompletedAt())
                 .createdAt(request.getCreatedAt())

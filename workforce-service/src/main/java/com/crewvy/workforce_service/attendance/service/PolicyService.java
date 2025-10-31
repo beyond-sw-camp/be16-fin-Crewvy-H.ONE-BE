@@ -61,6 +61,7 @@ public class PolicyService {
                 .effectiveFrom(request.getEffectiveFrom())
                 .effectiveTo(request.getEffectiveTo())
                 .ruleDetails(ruleDetails)
+                .autoApprove(request.getAutoApprove())
                 .build();
 
         Policy savedPolicy = policyRepository.save(newPolicy);
@@ -107,7 +108,8 @@ public class PolicyService {
                 request.getIsPaid(),
                 request.getEffectiveFrom(),
                 request.getEffectiveTo(),
-                ruleDetails
+                ruleDetails,
+                request.getAutoApprove()
         );
         return new PolicyResponse(policy);
     }

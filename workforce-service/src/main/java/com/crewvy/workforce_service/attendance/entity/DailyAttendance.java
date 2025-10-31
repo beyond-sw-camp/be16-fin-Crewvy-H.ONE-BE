@@ -303,4 +303,11 @@ public class DailyAttendance extends BaseEntity {
             this.earlyLeaveMinutes = 0;
         }
     }
+
+    /**
+     * 근태 상태 변경 (사후 휴가 신청 등에 사용)
+     */
+    public void updateStatus(AttendanceStatus newStatus) {
+        this.status = newStatus;
+    }
 }

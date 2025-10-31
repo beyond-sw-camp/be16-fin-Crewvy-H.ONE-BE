@@ -51,6 +51,15 @@ public class Policy extends BaseEntity {
     @Column(name = "is_active")
     private Boolean isActive;
 
+    /**
+     * 자동 승인 여부.
+     * true일 경우, 이 정책으로 신청한 요청이 결재 없이 자동으로 승인됩니다.
+     * false일 경우, 일반적인 결재 프로세스를 따릅니다.
+     * 주로 연장근무, 야간근무, 휴일근무 등에 사용됩니다.
+     */
+    @Column(name = "auto_approve")
+    private Boolean autoApprove;
+
     public void activate() {
         this.isActive = true;
     }
@@ -59,12 +68,13 @@ public class Policy extends BaseEntity {
         this.isActive = false;
     }
 
-    public void update(PolicyType policyType, String name, Boolean isPaid, LocalDate effectiveFrom, LocalDate effectiveTo, PolicyRuleDetails ruleDetails) {
+    public void update(PolicyType policyType, String name, Boolean isPaid, LocalDate effectiveFrom, LocalDate effectiveTo, PolicyRuleDetails ruleDetails, Boolean autoApprove) {
         this.policyType = policyType;
         this.name = name;
         this.isPaid = isPaid;
         this.effectiveFrom = effectiveFrom;
         this.effectiveTo = effectiveTo;
         this.ruleDetails = ruleDetails;
+        this.autoApprove = autoApprove;
     }
 }
