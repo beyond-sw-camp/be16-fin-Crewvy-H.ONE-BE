@@ -347,4 +347,54 @@ public class PolicyAssignmentService {
             throw new com.crewvy.common.exception.PermissionDeniedException("권한이 없습니다.");
         }
     }
+
+    /**
+     * 직원에게 할당된 모든 활성 정책을 조회합니다.
+     * 계층 구조 우선순위: 직책(MEMBER_POSITION) > 개인(MEMBER) > 조직(ORGANIZATION) > 상위 조직 ... > 회사(COMPANY)
+     * 같은 타입의 정책이 여러 레벨에 할당되어 있으면 우선순위가 높은 것만 반환합니다.
+     *
+     * @param memberId 직원 ID
+     * @param memberPositionId 직원의 직책 ID
+     * @param companyId 회사 ID
+     * @return 할당된 정책 목록 (타입별로 중복 제거된 최우선 정책만 포함)
+     */
+    @Transactional(readOnly = true)
+    public List<Policy> findAllAssignedPoliciesForMember(UUID memberId, UUID memberPositionId, UUID companyId) {
+        // 1. 조직 계층 조회
+        List<OrganizationRes> orgPath = new ArrayList<>();
+        try {
+            ApiResponse<List<OrganizationRes>> response = memberClient.getOrganizationList(memberPositionId);
+            if (response != null && response.getData() != null) {
+                orgPath = response.getData();
+            }
+        } catch (Exception e) {
+            throw new BusinessException("Member-service에서 조직 정보를 가져오는 데 실패했습니다.", e);
+        }
+
+        // 2. 탐색 우선순위 구성
+        List<PolicyTarget> priorityTargets = new ArrayList<>();
+        priorityTargets.add(new PolicyTarget(memberPositionId, PolicyScopeType.MEMBER_POSITION));
+        priorityTargets.add(new PolicyTarget(memberId, PolicyScopeType.MEMBER));
+        orgPath.forEach(org -> priorityTargets.add(new PolicyTarget(org.getId(), PolicyScopeType.ORGANIZATION)));
+
+        // 3. 활성 정책 조회
+        List<UUID> targetIds = priorityTargets.stream().map(PolicyTarget::id).collect(Collectors.toList());
+        List<PolicyAssignment> assignments = policyAssignmentRepository.findActiveAssignmentsByTargets(
+                targetIds, companyId, LocalDateTime.now().toLocalDate());
+
+        // 4. 타입별로 최우선 정책만 선택
+        Map<PolicyTypeCode, Policy> policyByType = new LinkedHashMap<>();
+        for (PolicyTarget target : priorityTargets) {
+            for (PolicyAssignment pa : assignments) {
+                if (pa.getScopeType() == target.scopeType() &&
+                    pa.getTargetId().equals(target.id())) {
+                    PolicyTypeCode typeCode = pa.getPolicy().getPolicyType().getTypeCode();
+                    // 아직 이 타입의 정책이 선택되지 않았으면 추가 (우선순위 높은 것만)
+                    policyByType.putIfAbsent(typeCode, pa.getPolicy());
+                }
+            }
+        }
+
+        return new ArrayList<>(policyByType.values());
+    }
 }

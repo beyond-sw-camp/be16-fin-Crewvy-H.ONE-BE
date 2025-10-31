@@ -2,7 +2,10 @@ package com.crewvy.workforce_service.attendance.service;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.exception.*;
-import com.crewvy.workforce_service.attendance.constant.*;
+import com.crewvy.workforce_service.attendance.constant.AttendanceStatus;
+import com.crewvy.workforce_service.attendance.constant.DeviceType;
+import com.crewvy.workforce_service.attendance.constant.EventType;
+import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
 import com.crewvy.workforce_service.attendance.dto.request.EventRequest;
 import com.crewvy.workforce_service.attendance.dto.response.*;
 import com.crewvy.workforce_service.attendance.dto.rule.*;
@@ -11,7 +14,9 @@ import com.crewvy.workforce_service.attendance.repository.*;
 import com.crewvy.workforce_service.attendance.util.DistanceCalculator;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
+import com.crewvy.workforce_service.feignClient.dto.response.MemberDto;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberPositionListRes;
+import com.crewvy.workforce_service.feignClient.dto.response.OrganizationNodeDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -50,27 +55,27 @@ public class AttendanceService {
         List<EventType> validationRequiredEvents = List.of(EventType.CLOCK_IN, EventType.CLOCK_OUT);
 
         if (validationRequiredEvents.contains(request.getEventType())) {
-            validate(memberId, companyId, organizationId, request.getDeviceId(), request.getDeviceType(), request.getLatitude(), request.getLongitude(), clientIp, request.getWifiSsid());
+            validate(memberId, memberPositionId, companyId, request.getDeviceId(), request.getDeviceType(), request.getLatitude(), request.getLongitude(), clientIp, request.getWifiSsid());
         }
 
         switch (request.getEventType()) {
             case CLOCK_IN:
-                ClockInResponse clockInResponse = clockIn(memberId, companyId, organizationId, request);
+                ClockInResponse clockInResponse = clockIn(memberId, memberPositionId, companyId, request);
                 return ApiResponse.success(clockInResponse, "출근 등록 완료.");
             case CLOCK_OUT:
-                ClockOutResponse clockOutResponse = clockOut(memberId, companyId, organizationId, request);
+                ClockOutResponse clockOutResponse = clockOut(memberId, memberPositionId, companyId, request);
                 return ApiResponse.success(clockOutResponse, "퇴근 등록 완료.");
             case GO_OUT:
-                GoOutResponse goOutResponse = goOut(memberId, organizationId, request);
+                GoOutResponse goOutResponse = goOut(memberId, memberPositionId, companyId, request);
                 return ApiResponse.success(goOutResponse, "외출 등록 완료.");
             case COME_BACK:
-                ComeBackResponse comeBackResponse = comeBack(memberId, organizationId, request);
+                ComeBackResponse comeBackResponse = comeBack(memberId, memberPositionId, companyId, request);
                 return ApiResponse.success(comeBackResponse, "복귀 등록 완료.");
             case BREAK_START:
-                BreakStartResponse breakStartResponse = breakStart(memberId, organizationId, request);
+                BreakStartResponse breakStartResponse = breakStart(memberId, memberPositionId, companyId, request);
                 return ApiResponse.success(breakStartResponse, "휴게 시작 등록 완료.");
             case BREAK_END:
-                BreakEndResponse breakEndResponse = breakEnd(memberId, organizationId, request);
+                BreakEndResponse breakEndResponse = breakEnd(memberId, memberPositionId, companyId, request);
                 return ApiResponse.success(breakEndResponse, "휴게 종료 등록 완료.");
             default:
                 throw new BusinessException("지원하지 않는 이벤트 타입입니다.");
@@ -84,7 +89,20 @@ public class AttendanceService {
         }
     }
 
-    private ClockInResponse clockIn(UUID memberId, UUID companyId, UUID organizationId, EventRequest request) {
+    /**
+     * 권한 체크 (예외 발생 없이 boolean 반환)
+     */
+    private boolean hasPermission(UUID memberPositionId, String resource, String action, String range) {
+        try {
+            ApiResponse<Boolean> response = memberClient.checkPermission(memberPositionId, resource, action, range);
+            return response != null && Boolean.TRUE.equals(response.getData());
+        } catch (Exception e) {
+            log.debug("Permission check failed for {}/{}/{}: {}", resource, action, range, e.getMessage());
+            return false;
+        }
+    }
+
+    private ClockInResponse clockIn(UUID memberId, UUID memberPositionId, UUID companyId, EventRequest request) {
         LocalDate today = LocalDate.now();
         dailyAttendanceRepository.findByMemberIdAndAttendanceDate(memberId, today)
                 .ifPresent(d -> {
@@ -95,7 +113,7 @@ public class AttendanceService {
 
         // 기본근무 정책 조회 (WorkTimeRule, LatenessRule 포함)
         Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
-                memberId, organizationId, companyId, PolicyTypeCode.STANDARD_WORK);
+                memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
 
         // 근무 시간 제한 검증
         validateWorkingHoursLimit(today, standardWorkPolicy, clockInTime, null);
@@ -117,7 +135,7 @@ public class AttendanceService {
         return new ClockInResponse(newLog.getId(), newLog.getEventTime());
     }
 
-    private ClockOutResponse clockOut(UUID memberId, UUID companyId, UUID organizationId, EventRequest request) {
+    private ClockOutResponse clockOut(UUID memberId, UUID memberPositionId, UUID companyId, EventRequest request) {
         LocalDate today = LocalDate.now();
         DailyAttendance dailyAttendance = getTodaysAttendanceOrThrow(memberId, today);
 
@@ -125,7 +143,7 @@ public class AttendanceService {
         validateStateTransition(lastEvent, EventType.CLOCK_OUT);
 
         Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
-                memberId, organizationId, companyId, PolicyTypeCode.STANDARD_WORK);
+                memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
 
         // 퇴근 중복 허용 정책 체크
         if (lastEvent == EventType.CLOCK_OUT) {
@@ -148,6 +166,9 @@ public class AttendanceService {
         dailyAttendance.updateClockOut(clockOutTime, standardWorkMinutes, isHoliday);
         checkEarlyLeave(dailyAttendance, standardWorkPolicy);
 
+        // 법정 최소 휴게 시간 검증 (근로기준법 제54조)
+        validateMandatoryBreakTime(dailyAttendance, standardWorkPolicy);
+
         return new ClockOutResponse(
                 newLog.getId(),
                 newLog.getEventTime(),
@@ -156,7 +177,7 @@ public class AttendanceService {
         );
     }
 
-    private GoOutResponse goOut(UUID memberId, UUID organizationId, EventRequest request) {
+    private GoOutResponse goOut(UUID memberId, UUID memberPositionId, UUID companyId, EventRequest request) {
         LocalDate today = LocalDate.now();
         DailyAttendance dailyAttendance = getTodaysAttendanceOrThrow(memberId, today);
         EventType lastEvent = getLastEventTypeToday(memberId);
@@ -164,14 +185,14 @@ public class AttendanceService {
 
         LocalDateTime goOutTime = LocalDateTime.now();
         Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
-                memberId, organizationId, dailyAttendance.getCompanyId(), PolicyTypeCode.STANDARD_WORK);
+                memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
         validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), standardWorkPolicy, goOutTime, dailyAttendance.getFirstClockIn());
 
         AttendanceLog newLog = createAttendanceLog(memberId, goOutTime, EventType.GO_OUT, request.getLatitude(), request.getLongitude());
         return new GoOutResponse(newLog.getId(), newLog.getEventTime());
     }
 
-    private ComeBackResponse comeBack(UUID memberId, UUID organizationId, EventRequest request) {
+    private ComeBackResponse comeBack(UUID memberId, UUID memberPositionId, UUID companyId, EventRequest request) {
         LocalDate today = LocalDate.now();
         DailyAttendance dailyAttendance = getTodaysAttendanceOrThrow(memberId, today);
         EventType lastEvent = getLastEventTypeToday(memberId);
@@ -182,7 +203,7 @@ public class AttendanceService {
 
         LocalDateTime comeBackTime = LocalDateTime.now();
         Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
-                memberId, organizationId, dailyAttendance.getCompanyId(), PolicyTypeCode.STANDARD_WORK);
+                memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
         validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), standardWorkPolicy, comeBackTime, dailyAttendance.getFirstClockIn());
 
         AttendanceLog newLog = createAttendanceLog(memberId, comeBackTime, EventType.COME_BACK, request.getLatitude(), request.getLongitude());
@@ -193,12 +214,12 @@ public class AttendanceService {
         }
 
         dailyAttendance.addGoOutMinutes((int) goOutMinutes);
-        validateGoOutTimePolicy(dailyAttendance.getCompanyId(), memberId, organizationId, (int) goOutMinutes, dailyAttendance.getTotalGoOutMinutes());
+        validateGoOutTimePolicy(companyId, memberId, memberPositionId, (int) goOutMinutes, dailyAttendance.getTotalGoOutMinutes());
 
         return new ComeBackResponse(newLog.getId(), newLog.getEventTime(), dailyAttendance.getTotalGoOutMinutes());
     }
 
-    private BreakStartResponse breakStart(UUID memberId, UUID organizationId, EventRequest request) {
+    private BreakStartResponse breakStart(UUID memberId, UUID memberPositionId, UUID companyId, EventRequest request) {
         LocalDate today = LocalDate.now();
         DailyAttendance dailyAttendance = getTodaysAttendanceOrThrow(memberId, today);
         EventType lastEvent = getLastEventTypeToday(memberId);
@@ -206,14 +227,14 @@ public class AttendanceService {
 
         LocalDateTime breakStartTime = LocalDateTime.now();
         Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
-                memberId, organizationId, dailyAttendance.getCompanyId(), PolicyTypeCode.STANDARD_WORK);
+                memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
         validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), standardWorkPolicy, breakStartTime, dailyAttendance.getFirstClockIn());
 
         AttendanceLog newLog = createAttendanceLog(memberId, breakStartTime, EventType.BREAK_START, request.getLatitude(), request.getLongitude());
         return new BreakStartResponse(newLog.getId(), newLog.getEventTime());
     }
 
-    private BreakEndResponse breakEnd(UUID memberId, UUID organizationId, EventRequest request) {
+    private BreakEndResponse breakEnd(UUID memberId, UUID memberPositionId, UUID companyId, EventRequest request) {
         LocalDate today = LocalDate.now();
         DailyAttendance dailyAttendance = getTodaysAttendanceOrThrow(memberId, today);
         EventType lastEvent = getLastEventTypeToday(memberId);
@@ -224,7 +245,7 @@ public class AttendanceService {
 
         LocalDateTime breakEndTime = LocalDateTime.now();
         Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
-                memberId, organizationId, dailyAttendance.getCompanyId(), PolicyTypeCode.STANDARD_WORK);
+                memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
         validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), standardWorkPolicy, breakEndTime, dailyAttendance.getFirstClockIn());
 
         AttendanceLog newLog = createAttendanceLog(memberId, breakEndTime, EventType.BREAK_END, request.getLatitude(), request.getLongitude());
@@ -235,7 +256,7 @@ public class AttendanceService {
         }
 
         dailyAttendance.addBreakMinutes((int) breakMinutes);
-        validateBreakTimePolicy(dailyAttendance.getCompanyId(), memberId, organizationId, dailyAttendance.getTotalBreakMinutes());
+        validateBreakTimePolicy(companyId, memberId, memberPositionId, dailyAttendance.getTotalBreakMinutes());
 
         return new BreakEndResponse(newLog.getId(), newLog.getEventTime(), dailyAttendance.getTotalBreakMinutes());
     }
@@ -271,29 +292,13 @@ public class AttendanceService {
     }
 
     // --- 이하 검증(validate) 관련 헬퍼 메서드들 ---
-    private void validate(UUID memberId, UUID companyId, UUID organizationId, String deviceId, DeviceType deviceType, Double latitude, Double longitude, String clientIp, String wifiSsid) {
-        validateApprovedDevice(deviceId, memberId, deviceType);
+    private void validate(UUID memberId, UUID memberPositionId, UUID companyId, String deviceId, DeviceType deviceType, Double latitude, Double longitude, String clientIp, String wifiSsid) {
         // 기본근무 정책에서 AuthRule 조회
         Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
-                memberId, organizationId, companyId, PolicyTypeCode.STANDARD_WORK);
+                memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
         if (standardWorkPolicy != null) {
             PolicyRuleDetails ruleDetails = standardWorkPolicy.getRuleDetails();
             validateAuthRule(ruleDetails, deviceType, latitude, longitude, clientIp, wifiSsid);
-        }
-    }
-
-    private void validateApprovedDevice(String deviceId, UUID memberId, DeviceType deviceType) {
-        if (deviceId == null) {
-            throw new IllegalArgumentException("디바이스 ID가 없습니다.");
-        }
-        boolean isApproved = requestRepository.existsApprovedDevice(
-                memberId,
-                deviceId,
-                deviceType,
-                RequestStatus.APPROVED
-        );
-        if (!isApproved) {
-            throw new UnauthorizedDeviceException("등록되지 않았거나 미승인된 디바이스입니다.");
         }
     }
 
@@ -307,10 +312,15 @@ public class AttendanceService {
     }
 
     /**
-     * WorkLocation 기반 인증 규칙 검증
+     * WorkLocation 기반 인증 규칙 검증 (디바이스 타입별)
+     *
+     * 디바이스 타입별 검증 방식:
+     * - LAPTOP/DESKTOP: IP 주소 필수 (WiFi SSID 선택적 허용)
+     * - MOBILE: GPS 또는 WiFi SSID 중 하나 이상
+     *
      * 1. 허용된 근무지 목록 조회
-     * 2. 사용자의 현재 위치 정보로 매칭되는 근무지 찾기
-     * 3. 필수 인증 방식을 모두 만족하는지 확인
+     * 2. 디바이스 타입에 따라 필요한 인증 정보 확인
+     * 3. 사용자의 현재 위치 정보로 매칭되는 근무지 찾기
      */
     private void validateAuthRule(PolicyRuleDetails ruleDetails, DeviceType deviceType, Double latitude, Double longitude, String clientIp, String wifiSsid) {
         if (ruleDetails == null || ruleDetails.getAuthRule() == null) {
@@ -340,71 +350,63 @@ public class AttendanceService {
                     authRule.getAllowedWorkLocationIds().size(), allowedLocations.size());
         }
 
-        // 필수 인증 방식 목록
-        List<String> requiredAuthTypes = authRule.getRequiredAuthTypes();
-        if (requiredAuthTypes == null || requiredAuthTypes.isEmpty()) {
-            requiredAuthTypes = List.of("GPS"); // 기본값: GPS
-        }
-
-        // 필수 인증 정보 누락 체크
-        for (String authType : requiredAuthTypes) {
-            switch (authType) {
-                case "GPS":
-                    if (latitude == null || longitude == null) {
-                        throw new AuthenticationFailedException("GPS 위치 정보가 필요합니다. 위치 권한을 허용해주세요.");
-                    }
-                    break;
-                case "IP":
-                    if (clientIp == null || clientIp.trim().isEmpty()) {
-                        log.error("클라이언트 IP 주소를 가져올 수 없습니다.");
-                        throw new AuthenticationFailedException("IP 주소 정보를 가져올 수 없습니다.");
-                    }
-                    break;
-                case "WIFI":
-                    if (wifiSsid == null || wifiSsid.trim().isEmpty()) {
-                        throw new AuthenticationFailedException("WiFi 네트워크 정보가 필요합니다. WiFi에 연결되어 있는지 확인해주세요.");
-                    }
-                    break;
-                default:
-                    log.error("정책에 알 수 없는 인증 방식이 설정되어 있습니다: {}", authType);
-                    throw new InvalidPolicyRuleException("정책 설정 오류: 알 수 없는 인증 방식 (" + authType + ")");
+        // 디바이스 타입별 필수 인증 정보 검증
+        if (deviceType == DeviceType.LAPTOP) {
+            // 노트북/데스크톱: IP 주소 또는 WiFi 정보 필요
+            if ((clientIp == null || clientIp.trim().isEmpty()) && (wifiSsid == null || wifiSsid.trim().isEmpty())) {
+                throw new AuthenticationFailedException("노트북/데스크톱 출퇴근은 네트워크 정보(IP 주소 또는 WiFi)가 필요합니다.");
+            }
+        } else if (deviceType == DeviceType.MOBILE) {
+            // 모바일: GPS 또는 WiFi 중 하나 필요
+            boolean hasGps = (latitude != null && longitude != null);
+            boolean hasWifi = (wifiSsid != null && !wifiSsid.trim().isEmpty());
+            if (!hasGps && !hasWifi) {
+                throw new AuthenticationFailedException("모바일 출퇴근은 GPS 위치 정보 또는 WiFi 네트워크 정보가 필요합니다.");
             }
         }
 
-        // 사용자 위치 정보로 매칭되는 근무지 찾기
+        // 사용자 위치/네트워크 정보로 매칭되는 근무지 찾기
         WorkLocation matchedLocation = null;
         List<String> failureReasons = new ArrayList<>();
 
         for (WorkLocation location : allowedLocations) {
+            boolean isMatched = false;
             List<String> locationFailures = new ArrayList<>();
-            boolean allAuthTypesMatch = true;
 
-            // 각 필수 인증 방식에 대해 검증
-            for (String authType : requiredAuthTypes) {
-                switch (authType) {
-                    case "GPS":
-                        if (!isGpsMatched(location, latitude, longitude)) {
-                            allAuthTypesMatch = false;
-                            locationFailures.add("GPS 범위 초과");
-                        }
-                        break;
-                    case "IP":
-                        if (!isIpMatched(location, clientIp)) {
-                            allAuthTypesMatch = false;
-                            locationFailures.add("IP 불일치");
-                        }
-                        break;
-                    case "WIFI":
-                        if (!isWifiMatched(location, wifiSsid)) {
-                            allAuthTypesMatch = false;
-                            locationFailures.add("WiFi 불일치");
-                        }
-                        break;
+            if (deviceType == DeviceType.LAPTOP) {
+                // 노트북/데스크톱: IP 또는 WiFi 매칭
+                boolean ipMatched = isIpMatched(location, clientIp);
+                boolean wifiMatched = isWifiMatched(location, wifiSsid);
+
+                if (ipMatched || wifiMatched) {
+                    isMatched = true;
+                } else {
+                    if (clientIp != null && !clientIp.trim().isEmpty()) {
+                        locationFailures.add("IP 불일치");
+                    }
+                    if (wifiSsid != null && !wifiSsid.trim().isEmpty()) {
+                        locationFailures.add("WiFi 불일치");
+                    }
+                }
+            } else if (deviceType == DeviceType.MOBILE) {
+                // 모바일: GPS 또는 WiFi 매칭
+                boolean gpsMatched = isGpsMatched(location, latitude, longitude);
+                boolean wifiMatched = isWifiMatched(location, wifiSsid);
+
+                if (gpsMatched || wifiMatched) {
+                    isMatched = true;
+                } else {
+                    if (latitude != null && longitude != null) {
+                        locationFailures.add("GPS 범위 초과");
+                    }
+                    if (wifiSsid != null && !wifiSsid.trim().isEmpty()) {
+                        locationFailures.add("WiFi 불일치");
+                    }
                 }
             }
 
-            // 모든 인증 방식이 일치하면 매칭된 근무지로 설정
-            if (allAuthTypesMatch) {
+            // 매칭되면 해당 근무지로 설정
+            if (isMatched) {
                 matchedLocation = location;
                 break;
             } else {
@@ -414,18 +416,18 @@ public class AttendanceService {
 
         // 매칭된 근무지가 없으면 인증 실패
         if (matchedLocation == null) {
-            String requiredMethodsStr = String.join(", ", requiredAuthTypes);
+            String deviceTypeStr = deviceType == DeviceType.MOBILE ? "모바일" : "노트북/데스크톱";
             String detailedMessage = String.format(
-                "허용된 근무지에서의 인증에 실패했습니다.%n필수 인증: %s%n시도한 근무지: %s",
-                requiredMethodsStr,
+                "허용된 근무지에서의 인증에 실패했습니다.%n디바이스 타입: %s%n시도한 근무지: %s",
+                deviceTypeStr,
                 String.join(" / ", failureReasons)
             );
-            log.warn("근무지 인증 실패 - 사용자 정보: GPS({}, {}), IP({}), WiFi({}), 실패 상세: {}",
-                    latitude, longitude, clientIp, wifiSsid, String.join(" / ", failureReasons));
+            log.warn("근무지 인증 실패 - 디바이스: {}, GPS({}, {}), IP({}), WiFi({}), 실패 상세: {}",
+                    deviceType, latitude, longitude, clientIp, wifiSsid, String.join(" / ", failureReasons));
             throw new AuthenticationFailedException(detailedMessage);
         }
 
-        log.info("근무지 인증 성공: {} ({})", matchedLocation.getName(), matchedLocation.getId());
+        log.info("근무지 인증 성공: {} ({}) - 디바이스: {}", matchedLocation.getName(), matchedLocation.getId(), deviceType);
     }
 
     /**
@@ -639,6 +641,125 @@ public class AttendanceService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 연차 현황 조회 (권한에 따라 조회 범위 자동 결정)
+     * - COMPANY 권한: 전사 직원 연차 현황 조회
+     * - TEAM/DEPARTMENT 권한: 요청자가 속한 조직 및 하위 조직 직원 연차 현황만 조회
+     *
+     * @param memberId 요청자 ID
+     * @param memberPositionId 요청자 직책 ID
+     * @param companyId 회사 ID
+     * @param year 조회 연도
+     * @return 권한 범위 내 직원들의 연차 현황 리스트
+     */
+    @Transactional(readOnly = true)
+    public List<MemberBalanceSummaryRes> getLeaveBalanceStatus(
+            UUID memberId,
+            UUID memberPositionId,
+            UUID companyId,
+            Integer year) {
+
+        validateYear(year);
+
+        // 1. member-service에서 조직 트리 가져오기
+        List<OrganizationNodeDto> organizationTree;
+        try {
+            ApiResponse<List<OrganizationNodeDto>> orgResponse = memberClient.getOrganization(memberId);
+            if (orgResponse == null || orgResponse.getData() == null) {
+                log.error("Failed to fetch organization tree from member-service");
+                throw new BusinessException("조직 정보를 가져오는 데 실패했습니다.");
+            }
+            organizationTree = orgResponse.getData();
+        } catch (Exception e) {
+            log.error("Error fetching organization tree", e);
+            throw new BusinessException("조직 정보를 가져오는 데 실패했습니다.");
+        }
+
+        // 2. 권한에 따라 조회 범위 결정
+        final List<UUID> targetMemberIds;
+        boolean hasCompanyPermission = hasPermission(memberPositionId, "attendance", "READ", "COMPANY");
+
+        if (hasCompanyPermission) {
+            // COMPANY 권한: 전사 모든 직원 조회
+            log.info("User has COMPANY level permission - fetching all company members' leave balance");
+            List<UUID> allMembers = new ArrayList<>();
+            extractAllMemberIds(organizationTree, allMembers);
+            targetMemberIds = allMembers;
+        } else {
+            // TEAM/DEPARTMENT 권한: 본인 조직 및 하위 조직 직원만 조회
+            boolean hasTeamPermission = hasPermission(memberPositionId, "attendance", "READ", "TEAM");
+            if (!hasTeamPermission) {
+                throw new PermissionDeniedException("연차 현황을 조회할 권한이 없습니다.");
+            }
+
+            log.info("User has TEAM level permission - fetching organization members' leave balance only");
+            UUID myOrganizationId = findMemberOrganization(organizationTree, memberId);
+            if (myOrganizationId == null) {
+                log.warn("Member {} not found in organization tree", memberId);
+                return new ArrayList<>();
+            }
+            targetMemberIds = extractMemberIdsFromOrganization(organizationTree, myOrganizationId);
+        }
+
+        if (targetMemberIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 3. 해당 연도의 MemberBalance 조회
+        List<MemberBalance> allBalances = memberBalanceRepository.findAllByYearAndCompany(companyId, year);
+
+        // 4. 대상 직원들의 Balance만 필터링
+        List<MemberBalance> filteredBalances = allBalances.stream()
+                .filter(mb -> targetMemberIds.contains(mb.getMemberId()))
+                .collect(Collectors.toList());
+
+        if (filteredBalances.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 5. 직책 정보 조회 (member-service)
+        List<UUID> memberIds = filteredBalances.stream()
+                .map(MemberBalance::getMemberId)
+                .distinct()
+                .collect(Collectors.toList());
+
+        Map<UUID, MemberPositionListRes> positionMap = new HashMap<>();
+        if (!memberIds.isEmpty()) {
+            IdListReq request = IdListReq.builder()
+                    .uuidList(memberIds)
+                    .build();
+            try {
+                ApiResponse<List<MemberPositionListRes>> response = memberClient.getDefaultPositionList(memberPositionId, request);
+                if (response != null && response.getData() != null) {
+                    positionMap = response.getData().stream()
+                            .collect(Collectors.toMap(MemberPositionListRes::getMemberId, p -> p));
+                }
+            } catch (Exception e) {
+                log.error("Failed to fetch position info from member-service", e);
+            }
+        }
+
+        // 6. 응답 조립
+        final Map<UUID, MemberPositionListRes> finalPositionMap = positionMap;
+        return filteredBalances.stream()
+                .map(mb -> {
+                    MemberPositionListRes position = finalPositionMap.get(mb.getMemberId());
+                    return MemberBalanceSummaryRes.builder()
+                            .memberId(mb.getMemberId())
+                            .memberName(position != null ? position.getMemberName() : null)
+                            .organizationName(position != null ? position.getOrganizationName() : null)
+                            .titleName(position != null ? position.getTitleName() : null)
+                            .policyTypeCode(mb.getBalanceTypeCode().getCodeValue())
+                            .policyTypeName(mb.getBalanceTypeCode().getCodeName())
+                            .totalGranted(mb.getTotalGranted())
+                            .totalUsed(mb.getTotalUsed())
+                            .remainingBalance(mb.getRemaining())
+                            .isPaid(mb.getIsPaid())
+                            .build();
+                })
+                .collect(Collectors.toList());
+    }
+
 
     // --- 검증 메서드들 ---
 
@@ -797,9 +918,9 @@ public class AttendanceService {
     /**
      * 외출 시간 정책 검증
      */
-    private void validateGoOutTimePolicy(UUID companyId, UUID memberId, UUID organizationId, int singleGoOutMinutes, int totalGoOutMinutes) {
+    private void validateGoOutTimePolicy(UUID companyId, UUID memberId, UUID memberPositionId, int singleGoOutMinutes, int totalGoOutMinutes) {
         Policy policy = policyAssignmentService.findEffectivePolicyForMemberByType(
-                memberId, organizationId, companyId, PolicyTypeCode.STANDARD_WORK);
+                memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
         if (policy == null || policy.getRuleDetails() == null || policy.getRuleDetails().getGoOutRule() == null) {
             return; // 정책이 없으면 검증 안 함
         }
@@ -818,11 +939,11 @@ public class AttendanceService {
     }
 
     /**
-     * 휴게 시간 정책 검증
+     * 휴게 시간 정책 검증 (휴게 종료 시 호출)
      */
-    private void validateBreakTimePolicy(UUID companyId, UUID memberId, UUID organizationId, int totalBreakMinutes) {
+    private void validateBreakTimePolicy(UUID companyId, UUID memberId, UUID memberPositionId, int totalBreakMinutes) {
         Policy policy = policyAssignmentService.findEffectivePolicyForMemberByType(
-                memberId, organizationId, companyId, PolicyTypeCode.STANDARD_WORK);
+                memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
         if (policy == null || policy.getRuleDetails() == null || policy.getRuleDetails().getBreakRule() == null) {
             return; // 정책이 없으면 검증 안 함
         }
@@ -832,6 +953,58 @@ public class AttendanceService {
         // 일일 최대 휴게 시간 체크
         if (breakRule.getMaxDailyBreakMinutes() != null && totalBreakMinutes > breakRule.getMaxDailyBreakMinutes()) {
             throw new BusinessException(String.format("일일 휴게 시간이 최대 허용 시간(%d분)을 초과했습니다.", breakRule.getMaxDailyBreakMinutes()));
+        }
+    }
+
+    /**
+     * 법정 최소 휴게 시간 검증 (퇴근 시 호출)
+     * 근로기준법 제54조: 4시간 근무 시 30분, 8시간 근무 시 1시간(60분) 이상 휴게 부여 의무
+     */
+    private void validateMandatoryBreakTime(DailyAttendance dailyAttendance, Policy policy) {
+        if (policy == null || policy.getRuleDetails() == null || policy.getRuleDetails().getBreakRule() == null) {
+            return; // 정책이 없으면 검증 안 함
+        }
+
+        BreakRuleDto breakRule = policy.getRuleDetails().getBreakRule();
+
+        // AUTO 모드일 때만 검증 (MANUAL 모드는 사용자가 직접 관리)
+        if (!"AUTO".equals(breakRule.getType())) {
+            return;
+        }
+
+        // 근무 시간과 실제 휴게 시간
+        Integer workedMinutes = dailyAttendance.getWorkedMinutes();
+        Integer totalBreakMinutes = dailyAttendance.getTotalBreakMinutes();
+
+        if (workedMinutes == null || totalBreakMinutes == null) {
+            return; // 데이터가 없으면 검증 스킵
+        }
+
+        // 실제 총 근로 시간 = 근무 시간 + 휴게 시간
+        int totalMinutes = workedMinutes + totalBreakMinutes;
+
+        // 법정 최소 휴게 시간 계산
+        int requiredBreakMinutes = 0;
+
+        if (totalMinutes >= 480) {
+            // 8시간 이상 근무: 60분 이상 휴게 필요
+            requiredBreakMinutes = (breakRule.getDefaultBreakMinutesFor8Hours() != null)
+                ? breakRule.getDefaultBreakMinutesFor8Hours()
+                : 60; // 기본값: 법정 최소 60분
+        } else if (totalMinutes >= 240) {
+            // 4시간 이상 근무: 30분 이상 휴게 필요
+            requiredBreakMinutes = (breakRule.getMandatoryBreakMinutes() != null)
+                ? breakRule.getMandatoryBreakMinutes()
+                : 30; // 기본값: 법정 최소 30분
+        }
+
+        // 법정 최소 휴게 시간 미달 체크
+        if (requiredBreakMinutes > 0 && totalBreakMinutes < requiredBreakMinutes) {
+            String workHours = String.format("%.1f", totalMinutes / 60.0);
+            throw new BusinessException(
+                String.format("근로기준법 위반: %s시간 근무 시 최소 %d분의 휴게 시간이 필요합니다. (현재: %d분)",
+                    workHours, requiredBreakMinutes, totalBreakMinutes)
+            );
         }
     }
 
@@ -923,6 +1096,204 @@ public class AttendanceService {
                 PolicyTypeCode.ANNUAL_LEAVE,
                 currentYear
         ).orElse(null);
+    }
+
+    /**
+     * 내 모든 휴가 정책 잔액 조회 (현재 연도 기준)
+     * 연차, 병가, 육아휴직 등 부여받은 모든 정책의 잔액을 조회합니다.
+     */
+    @Transactional(readOnly = true)
+    public List<MyBalanceRes> getMyAllBalances(UUID memberId) {
+        int currentYear = LocalDate.now().getYear();
+        List<MemberBalance> balances = memberBalanceRepository.findAllByMemberIdAndYear(memberId, currentYear);
+
+        return balances.stream()
+                .map(balance -> MyBalanceRes.builder()
+                        .balanceTypeCode(MyBalanceRes.BalanceTypeInfo.builder()
+                                .codeValue(balance.getBalanceTypeCode().getCodeValue())
+                                .codeName(balance.getBalanceTypeCode().getCodeName())
+                                .isBalanceDeductible(balance.getBalanceTypeCode().isBalanceDeductible())
+                                .build())
+                        .year(balance.getYear())
+                        .totalGranted(balance.getTotalGranted())
+                        .totalUsed(balance.getTotalUsed())
+                        .remaining(balance.getRemaining())
+                        .expirationDate(balance.getExpirationDate())
+                        .isPaid(balance.getIsPaid())
+                        .build())
+                .toList();
+    }
+
+    /**
+     * 내게 할당된 모든 정책 조회
+     * 관리자가 할당한 정책만 반환합니다.
+     */
+    @Transactional(readOnly = true)
+    public List<AssignedPolicyRes> getMyAssignedPolicies(UUID memberId, UUID memberPositionId, UUID companyId) {
+        List<Policy> policies = policyAssignmentService.findAllAssignedPoliciesForMember(memberId, memberPositionId, companyId);
+
+        return policies.stream()
+                .map(policy -> {
+                    // allowedRequestUnits 추출 (leaveRule이 있는 경우만)
+                    List<String> allowedRequestUnits = null;
+                    if (policy.getRuleDetails() != null && policy.getRuleDetails().getLeaveRule() != null) {
+                        allowedRequestUnits = policy.getRuleDetails().getLeaveRule().getAllowedRequestUnits();
+                    }
+
+                    return AssignedPolicyRes.builder()
+                            .policyId(policy.getId())
+                            .name(policy.getName())
+                            .typeCode(policy.getPolicyType().getTypeCode().getCodeValue())
+                            .typeName(policy.getPolicyType().getTypeCode().getCodeName())
+                            .isActive(policy.getIsActive())
+                            .allowedRequestUnits(allowedRequestUnits)
+                            .build();
+                })
+                .toList();
+    }
+
+    /**
+     * 근태 현황 조회 (권한에 따라 조회 범위 자동 결정)
+     * - COMPANY 권한: 전사 직원 조회
+     * - TEAM/DEPARTMENT 권한: 요청자가 속한 조직 및 하위 조직 직원 조회
+     *
+     * @param memberId 요청자 ID
+     * @param memberPositionId 요청자 직책 ID
+     * @param companyId 회사 ID
+     * @return 권한 범위 내 직원들의 근태 현황 리스트
+     */
+    @Transactional(readOnly = true)
+    public List<TeamMemberAttendanceRes> getTeamAttendanceStatus(UUID memberId, UUID memberPositionId, UUID companyId) {
+        // 1. member-service에서 조직 트리 가져오기
+        List<OrganizationNodeDto> organizationTree;
+        try {
+            ApiResponse<List<OrganizationNodeDto>> orgResponse = memberClient.getOrganization(memberId);
+            if (orgResponse == null || orgResponse.getData() == null) {
+                log.error("Failed to fetch organization tree from member-service");
+                throw new BusinessException("조직 정보를 가져오는 데 실패했습니다.");
+            }
+            organizationTree = orgResponse.getData();
+        } catch (Exception e) {
+            log.error("Error fetching organization tree", e);
+            throw new BusinessException("조직 정보를 가져오는 데 실패했습니다.");
+        }
+
+        // 2. 권한에 따라 조회 범위 결정
+        final List<UUID> targetMemberIds;
+        boolean hasCompanyPermission = hasPermission(memberPositionId, "attendance", "READ", "COMPANY");
+
+        if (hasCompanyPermission) {
+            // COMPANY 권한: 전사 모든 직원 조회
+            log.info("User has COMPANY level permission - fetching all company members");
+            List<UUID> allMembers = new ArrayList<>();
+            extractAllMemberIds(organizationTree, allMembers);
+            targetMemberIds = allMembers;
+        } else {
+            // TEAM/DEPARTMENT 권한: 본인 조직 및 하위 조직 직원만 조회
+            boolean hasTeamPermission = hasPermission(memberPositionId, "attendance", "READ", "TEAM");
+            if (!hasTeamPermission) {
+                throw new PermissionDeniedException("근태 현황을 조회할 권한이 없습니다.");
+            }
+
+            log.info("User has TEAM level permission - fetching organization members only");
+            UUID myOrganizationId = findMemberOrganization(organizationTree, memberId);
+            if (myOrganizationId == null) {
+                log.warn("Member {} not found in organization tree", memberId);
+                return new ArrayList<>();
+            }
+            targetMemberIds = extractMemberIdsFromOrganization(organizationTree, myOrganizationId);
+        }
+
+        if (targetMemberIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 3. 오늘 날짜의 DailyAttendance 조회
+        LocalDate today = LocalDate.now();
+        List<DailyAttendance> todayAttendances = dailyAttendanceRepository
+                .findAllByDateRangeAndCompany(companyId, today, today);
+
+        // 4. 대상 직원들의 DailyAttendance만 필터링
+        Map<UUID, DailyAttendance> attendanceMap = todayAttendances.stream()
+                .filter(da -> targetMemberIds.contains(da.getMemberId()))
+                .collect(Collectors.toMap(DailyAttendance::getMemberId, da -> da));
+
+        // 5. 직책 정보 조회 (member-service)
+        Map<UUID, MemberPositionListRes> positionMap = new HashMap<>();
+        if (!targetMemberIds.isEmpty()) {
+            IdListReq request = IdListReq.builder()
+                    .uuidList(targetMemberIds)
+                    .build();
+            try {
+                ApiResponse<List<MemberPositionListRes>> response = memberClient.getDefaultPositionList(memberPositionId, request);
+                if (response != null && response.getData() != null) {
+                    positionMap = response.getData().stream()
+                            .collect(Collectors.toMap(MemberPositionListRes::getMemberId, p -> p));
+                }
+            } catch (Exception e) {
+                log.error("Failed to fetch position info from member-service", e);
+            }
+        }
+
+        // 6. 응답 데이터 조립
+        final Map<UUID, MemberPositionListRes> finalPositionMap = positionMap;
+        return targetMemberIds.stream()
+                .map(targetMemberId -> {
+                    MemberPositionListRes position = finalPositionMap.get(targetMemberId);
+                    DailyAttendance attendance = attendanceMap.get(targetMemberId);
+
+                    String statusCode = null;
+                    Boolean isLate = false;
+                    String clockInTime = "-";
+                    String clockOutTime = "-";
+                    String workHours = "-";
+
+                    if (attendance != null) {
+                        // 근태 상태 코드 (원본 영문 코드 반환)
+                        if (attendance.getStatus() != null) {
+                            statusCode = attendance.getStatus().getCodeValue(); // 영문 코드 (예: NORMAL_WORK)
+                        }
+
+                        // 지각 여부
+                        isLate = attendance.getIsLate() != null && attendance.getIsLate();
+
+                        // 출근 시간 포맷팅
+                        if (attendance.getFirstClockIn() != null) {
+                            clockInTime = String.format("%02d:%02d",
+                                    attendance.getFirstClockIn().getHour(),
+                                    attendance.getFirstClockIn().getMinute());
+                        }
+
+                        // 퇴근 시간 포맷팅
+                        if (attendance.getLastClockOut() != null) {
+                            clockOutTime = String.format("%02d:%02d",
+                                    attendance.getLastClockOut().getHour(),
+                                    attendance.getLastClockOut().getMinute());
+                        }
+
+                        // 근무 시간 포맷팅
+                        if (attendance.getWorkedMinutes() != null && attendance.getWorkedMinutes() > 0) {
+                            int hours = attendance.getWorkedMinutes() / 60;
+                            int minutes = attendance.getWorkedMinutes() % 60;
+                            workHours = String.format("%d시간 %d분", hours, minutes);
+                        }
+                    }
+
+                    return TeamMemberAttendanceRes.builder()
+                            .memberId(targetMemberId)
+                            .name(position != null ? position.getMemberName() : "알 수 없음")
+                            .department(position != null ? position.getOrganizationName() : "-")
+                            .title(position != null ? position.getTitleName() : "-")
+                            .date(today.toString())
+                            .statusCode(statusCode)
+                            .isLate(isLate)
+                            .clockInTime(clockInTime)
+                            .clockOutTime(clockOutTime)
+                            .workHours(workHours)
+                            .effectivePolicy("[기본] 근무 정책") // TODO: 실제 정책명 조회 필요 시 추가
+                            .build();
+                })
+                .collect(Collectors.toList());
     }
 
     // --- Private Helper Methods ---
@@ -1021,4 +1392,86 @@ public class AttendanceService {
         return dailyAttendanceResList;
 
     }
+
+    /**
+     * 조직 트리에서 특정 멤버가 속한 조직 ID 찾기
+     * @param organizationTree 전체 조직 트리
+     * @param memberId 찾을 멤버 ID
+     * @return 멤버가 속한 조직 ID (없으면 null)
+     */
+    private UUID findMemberOrganization(List<OrganizationNodeDto> organizationTree, UUID memberId) {
+        for (OrganizationNodeDto node : organizationTree) {
+            // 현재 노드의 멤버들 확인
+            if (node.getMembers() != null) {
+                boolean found = node.getMembers().stream()
+                        .anyMatch(member -> member.getId().equals(memberId));
+                if (found) {
+                    return node.getId();
+                }
+            }
+            // 자식 노드들 재귀 탐색
+            if (node.getChildren() != null && !node.getChildren().isEmpty()) {
+                UUID result = findMemberOrganization(node.getChildren(), memberId);
+                if (result != null) {
+                    return result;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 조직 트리에서 특정 조직 ID에 속한 모든 멤버 ID를 재귀적으로 추출
+     * @param organizationTree 전체 조직 트리
+     * @param targetOrganizationId 조회할 조직 ID
+     * @return 해당 조직 및 하위 조직의 모든 멤버 ID 리스트
+     */
+    private List<UUID> extractMemberIdsFromOrganization(List<OrganizationNodeDto> organizationTree, UUID targetOrganizationId) {
+        List<UUID> memberIds = new ArrayList<>();
+
+        // 특정 조직 ID를 찾아서 해당 조직 및 하위 조직의 멤버 추출
+        OrganizationNodeDto targetNode = findOrganizationNode(organizationTree, targetOrganizationId);
+        if (targetNode != null) {
+            extractAllMemberIds(List.of(targetNode), memberIds);
+        }
+
+        return memberIds;
+    }
+
+    /**
+     * 조직 트리에서 특정 조직 ID를 가진 노드를 재귀적으로 찾기
+     */
+    private OrganizationNodeDto findOrganizationNode(List<OrganizationNodeDto> nodes, UUID targetId) {
+        for (OrganizationNodeDto node : nodes) {
+            if (node.getId().equals(targetId)) {
+                return node;
+            }
+            if (node.getChildren() != null && !node.getChildren().isEmpty()) {
+                OrganizationNodeDto found = findOrganizationNode(node.getChildren(), targetId);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 조직 트리에서 모든 멤버 ID를 재귀적으로 추출
+     */
+    private void extractAllMemberIds(List<OrganizationNodeDto> nodes, List<UUID> memberIds) {
+        for (OrganizationNodeDto node : nodes) {
+            // 현재 노드의 멤버들 추가
+            if (node.getMembers() != null) {
+                node.getMembers().stream()
+                        .map(MemberDto::getId)
+                        .forEach(memberIds::add);
+            }
+            // 자식 노드들 재귀 탐색
+            if (node.getChildren() != null && !node.getChildren().isEmpty()) {
+                extractAllMemberIds(node.getChildren(), memberIds);
+            }
+        }
+    }
+
 }
