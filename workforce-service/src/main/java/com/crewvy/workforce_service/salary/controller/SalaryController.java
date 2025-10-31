@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.salary.controller;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.salary.dto.request.SalaryCalculationReq;
+import com.crewvy.workforce_service.salary.dto.request.SalaryCreateReq;
 import com.crewvy.workforce_service.salary.dto.request.SalaryUpdateReq;
 import com.crewvy.workforce_service.salary.dto.response.SalaryCalculationRes;
 import com.crewvy.workforce_service.salary.service.SalaryService;
@@ -65,6 +66,17 @@ public class SalaryController {
         return new ResponseEntity<>(
             new ApiResponse<>(true, response, "급여 수정 성공"),
             HttpStatus.OK
+        );
+    }
+
+    @PostMapping("/save")
+    public ResponseEntity<?> saveSalary(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                       @RequestParam UUID companyId,
+                                       @RequestBody List<SalaryCreateReq> salaryCreateReqList) {
+        salaryService.saveSalary(memberPositionId, companyId, salaryCreateReqList);
+        return new ResponseEntity<>(
+                new ApiResponse<>(true, null, "급여 저장 성공"),
+                HttpStatus.OK
         );
     }
 }

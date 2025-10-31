@@ -10,10 +10,7 @@ import com.crewvy.workforce_service.salary.constant.PayType;
 import com.crewvy.workforce_service.salary.constant.SalaryStatus;
 import com.crewvy.workforce_service.salary.constant.SalaryType;
 import com.crewvy.common.dto.ApiResponse;
-import com.crewvy.workforce_service.salary.dto.request.SalaryCalculationReq;
-import com.crewvy.workforce_service.salary.dto.request.SalaryHistoryListReq;
-import com.crewvy.workforce_service.salary.dto.request.SalaryUpdateReq;
-import com.crewvy.workforce_service.salary.dto.request.SalaryDetailUpdateReq;
+import com.crewvy.workforce_service.salary.dto.request.*;
 import com.crewvy.workforce_service.salary.dto.response.*;
 import com.crewvy.workforce_service.salary.entity.*;
 import com.crewvy.workforce_service.salary.repository.*;
@@ -27,7 +24,6 @@ import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.time.Year;
 import java.time.YearMonth;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -53,10 +49,48 @@ public class SalaryService {
     private final SalaryRepository salaryRepository;
     private final SalaryDetailRepository salaryDetailRepository;
     private final AttendanceService attendanceService;
+    private final FixedAllowanceService fixedAllowanceService;
+
+    // 급여 저장 메서드
+    @Transactional
+    public void saveSalary(UUID memberPositionId, UUID companyId, List<SalaryCreateReq> salaryCreateReqList) {
+        // 권한 검증
+        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
+                "salary", "CREATE", "COMPANY");
+
+        if (Boolean.FALSE.equals(hasPermission.getData())) {
+            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
+        }
+
+        List<SalaryDetail> allDetailsToSave = new ArrayList<>();
+
+        for (SalaryCreateReq salaryCreateReq : salaryCreateReqList) {
+
+            Salary salaryToSave = salaryCreateReq.toEntity(companyId);
+            Salary savedSalary = salaryRepository.save(salaryToSave);
+
+            for (SalaryDetail salaryDetail : salaryCreateReq.getAllowanceList()) {
+                salaryDetail.setSalary(savedSalary);
+                salaryDetail.setSalaryType(SalaryType.ALLOWANCE);
+                allDetailsToSave.add(salaryDetail);
+            }
+
+            for (SalaryDetail salaryDetail : salaryCreateReq.getDeductionList()) {
+                salaryDetail.setSalary(savedSalary);
+                salaryDetail.setSalaryType(SalaryType.DEDUCTION);
+                allDetailsToSave.add(salaryDetail);
+            }
+        }
+
+        if (!allDetailsToSave.isEmpty()) {
+            salaryDetailRepository.saveAll(allDetailsToSave);
+        }
+
+    }
 
     // 급여 계산 메서드
     public List<SalaryCalculationRes> calculateSalary(UUID memberPositionId, SalaryCalculationReq request) {
-        
+
         // 권한 검증
         ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
                 "salary", "CREATE", "COMPANY");
@@ -94,25 +128,44 @@ public class SalaryService {
 
         Map<UUID, List<SalaryDetailRes>> allowanceMap = calculateAllowances(companyId, startDate, endDate);
 
+        List<FixedAllowanceRes> fixedAllowanceList =  fixedAllowanceService.getFixedAllowanceList(companyId);
+
+        Map<UUID, List<FixedAllowanceRes>> fixedAllowanceMap = fixedAllowanceList.stream()
+                .collect(Collectors.groupingBy(FixedAllowanceRes::getMemberId));
+
         for (SalaryHistory salaryHistory : salaryHistoryList) {
+
             BigInteger baseSalary = BigInteger.valueOf(salaryHistory.getBaseSalary());
 
             // 지급항목 계산
             List<SalaryDetailRes> allowanceList = allowanceMap.getOrDefault(salaryHistory.getMemberId(), new ArrayList<>());
 
+            // 고정항목 계산
+            List<FixedAllowanceRes> fixedList = fixedAllowanceMap.getOrDefault(salaryHistory.getMemberId(), new ArrayList<>());
             // 공제항목 계산
             List<SalaryDetailRes> deductionList = calculateDeductions(
                     companyId, salaryHistory.getMemberId(), baseSalary, workingDays
             );
 
             // 총액 계산
-            BigInteger totalAllowance = allowanceList.stream()
+            BigInteger totalAttendanceAllowance = allowanceList.stream()
                     .map(SalaryDetailRes::getAmount)
                     .reduce(BigInteger.ZERO, BigInteger::add);
+
+            BigInteger totalFixedAllowance = fixedList.stream()
+                    .map(allowance -> BigInteger.valueOf(allowance.getAmount()))
+                    .reduce(BigInteger.ZERO, BigInteger::add);
+
+            BigInteger totalAllowance = totalAttendanceAllowance.add(totalFixedAllowance);
 
             BigInteger totalDeduction = deductionList.stream()
                     .map(SalaryDetailRes::getAmount)
                     .reduce(BigInteger.ZERO, BigInteger::add);
+
+            // 지급액 없으면 pass
+            if (totalAllowance.equals(BigInteger.ZERO)) {
+                continue;
+            }
 
             BigInteger netPay = totalAllowance.subtract(totalDeduction);
 
@@ -121,12 +174,6 @@ public class SalaryService {
             String memberName = memberInfo != null ? memberInfo.getMemberName() : "";
             String department = memberInfo != null ? memberInfo.getOrganizationName() : "";
             String sabun = memberInfo != null ? memberInfo.getSabun() : "";
-
-            // DB에 저장
-//            saveSalaryToDatabase(companyId, salaryHistory.getMemberId(),
-//                    totalAllowance, netPay,allowanceList, deductionList,
-//                    startDate, endDate
-//            );
 
             SalaryCalculationRes res = SalaryCalculationRes.builder()
                     .salaryId(null)
@@ -140,6 +187,7 @@ public class SalaryService {
                     .paymentDate(endDate)
                     .allowanceList(allowanceList)
                     .deductionList(deductionList)
+                    .fixedList(fixedList)
                     .totalAllowance(totalAllowance)
                     .totalDeduction(totalDeduction)
                     .netPay(netPay)
@@ -149,53 +197,6 @@ public class SalaryService {
         }
 
         return result;
-    }
-
-    // 급여 정보를 DB에 저장
-    private void saveSalaryToDatabase(
-            UUID companyId, UUID memberId,
-            BigInteger totalAllowance, BigInteger netPay,
-            List<SalaryDetailRes> allowanceList, List<SalaryDetailRes> deductionList,
-            LocalDate startDate, LocalDate endDate) {
-
-        Salary salary = Salary.builder()
-                .companyId(companyId)
-                .memberId(memberId)
-                .amount(totalAllowance)
-                .netPay(netPay)
-                .paymentDate(endDate)
-                .salaryStatus(SalaryStatus.PENDING)
-                .build();
-
-        salary = salaryRepository.save(salary);
-
-        List<SalaryDetail> salaryDetailList = new ArrayList<>();
-
-        // 지급항목 추가
-        for (SalaryDetailRes allowance : allowanceList) {
-            SalaryDetail detail = SalaryDetail.builder()
-                    .salary(salary)
-                    .salaryType(SalaryType.ALLOWANCE)
-                    .salaryName(allowance.getSalaryName())
-                    .amount(allowance.getAmount())
-                    .build();
-            salaryDetailList.add(detail);
-        }
-
-        // 공제항목 추가
-        for (SalaryDetailRes deduction : deductionList) {
-            SalaryDetail detail = SalaryDetail.builder()
-                    .salary(salary)
-                    .salaryType(SalaryType.DEDUCTION)
-                    .salaryName(deduction.getSalaryName())
-                    .amount(deduction.getAmount())
-                    .build();
-            salaryDetailList.add(detail);
-        }
-
-        salary.getSalaryDetailList().addAll(salaryDetailList);
-
-        salaryRepository.save(salary);
     }
 
     // 지급항목 계산
@@ -222,8 +223,6 @@ public class SalaryService {
 
         for (DailyAttendanceRes dailyAttendanceRes : dailyAttendanceResList) {
             UUID memberId = dailyAttendanceRes.getMemberId();
-
-
 
             SalaryHistory salaryHistory = salaryHistoryMap.get(memberId);
 
@@ -364,59 +363,6 @@ public class SalaryService {
         return deductionList;
     }
 
-    // 기본급 기반 공제내역 계산 (기존 메서드)
-    public List<NetPayRes> calculationDeduction(SalaryHistoryListReq SalaryHistoryListReq) {
-
-        // TODO : baseSalary 부분 이후 근태 기반 수당까지 계산한
-        //  "총 지급액 - 비과세 소득" 으로 바꾸어야 함.
-
-        int dependentCount = 1;
-
-        List<NetPayRes> results = new ArrayList<>();
-
-        List<SalaryHistory> salaryHistoryList = salaryHistoryService.getSalaryHistories(SalaryHistoryListReq);
-        log.error("calculationDeduction 데이터 확인 : {}", salaryHistoryList);
-        for (SalaryHistory salaryHistory : salaryHistoryList) {
-            long baseSalary = salaryHistory.getBaseSalary();
-            log.error("baseSalary 데이터 확인 : {}", baseSalary);
-
-            // 국민 연금
-            long nationalPension = (long) (baseSalary * NATIONAL_PENSION_RATE);
-
-            // 건강 보험
-            long healthInsurance = (long) (baseSalary * HEALTH_INSURANCE_RATE);
-
-            // 장기 요양 보험
-            long longTermCareInsurance = (long) (healthInsurance * LONG_TERM_CARE_INSURANCE_RATE);
-
-            // 고용 보험
-            long employmentInsurance = (long) (baseSalary * EMPLOYMENT_INSURANCE_RATE);
-
-            long totalInsurance = nationalPension + healthInsurance + longTermCareInsurance + employmentInsurance;
-
-            // 근로 소득세
-            long incomeTax = (long) incomeTaxService.lookupTaxTable(baseSalary, dependentCount);
-            log.error("incomeTax 데이터 확인 : {}", incomeTax);
-
-            // 지방 소득세
-            long localIncomeTax = (long) (incomeTax *  LOCAL_INCOME_TAX_RATE);
-
-            long totalTax = incomeTax + localIncomeTax;
-
-            // 기타 공제액 (이후 추가)
-            long otherDeductions = 0;
-
-            // 총 공제액
-            long totalDeduction = totalInsurance + totalTax + otherDeductions;
-
-            long netPay = baseSalary - totalDeduction;
-
-            results.add(new NetPayRes(salaryHistory.getMemberId(), baseSalary, totalDeduction, netPay));
-        }
-        log.error("List<NetPayRes> 데이터 확인 : {}", results);
-        return results;
-    }
-
     // 소정 근로 일수 반환
     public int getScheduledWorkingDays(LocalDate startDate, LocalDate endDate) {
 
@@ -535,7 +481,10 @@ public class SalaryService {
                     .orElseThrow(() -> new IllegalArgumentException("급여를 찾을 수 없습니다. ID: " + request.getSalaryId()));
 
             // Salary 기본 정보 수정
-            salary.updateSalary(request.getAmount(), request.getNetPay(), request.getPaymentDate());
+            salary.updateSalary(request.getTotalAllowance(),
+                    request.getTotalDeduction(),
+                    request.getNetPay(),
+                    request.getPaymentDate());
 
             if (request.getDetailList() != null && !request.getDetailList().isEmpty()) {
                 for (SalaryDetailUpdateReq detailReq : request.getDetailList()) {
