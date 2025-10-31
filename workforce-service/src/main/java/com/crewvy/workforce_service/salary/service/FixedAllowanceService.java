@@ -66,8 +66,8 @@ public class FixedAllowanceService {
 
                 if (fixedAllowance.isPresent()) {
                     FixedAllowance update = fixedAllowance.get();
-                    req.setAmount(update.getAmount());
-                    req.setEffectiveDate(update.getEffectiveDate());
+                    update.setAmount(req.getAmount());
+                    update.setEffectiveDate(req.getEffectiveDate());
                 } else {
                     fixedAllowanceRepository.save(req.toEntity(memberId, companyId));
                 }

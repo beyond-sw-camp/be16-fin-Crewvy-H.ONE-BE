@@ -62,30 +62,80 @@ public class SalaryService {
             throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
         }
 
-        List<SalaryDetail> allDetailsToSave = new ArrayList<>();
+        List<UUID> memberIdList = salaryCreateReqList.stream()
+                .map(SalaryCreateReq::getMemberId)
+                .distinct().toList();
 
-        for (SalaryCreateReq salaryCreateReq : salaryCreateReqList) {
+        YearMonth yearMonth = YearMonth.from(salaryCreateReqList.get(0).getPaymentDate());
+        LocalDate startDate = yearMonth.atDay(1);
+        LocalDate endDate = yearMonth.atEndOfMonth();
 
-            Salary salaryToSave = salaryCreateReq.toEntity(companyId);
-            Salary savedSalary = salaryRepository.save(salaryToSave);
+        boolean isCompleted = salaryRepository.existsSalary(memberIdList, startDate,
+                endDate, SalaryStatus.PAID);
 
-            for (SalaryDetail salaryDetail : salaryCreateReq.getAllowanceList()) {
+        if (isCompleted) {
+            throw new IllegalStateException("이미 '지급 완료'된 급여 내역이 포함되어 있어 새로 저장할 수 없습니다.");
+        }
+        List<Salary> pendingSalaryList = salaryRepository.findAllActiveSalaries(
+                memberIdList, startDate, endDate, SalaryStatus.PENDING
+        );
+
+        Map<UUID, Salary> pendingSalaryMap = pendingSalaryList.stream()
+                .collect(Collectors.toMap(Salary::getMemberId, salary -> salary));
+
+        List<SalaryDetail> salaryDetailList = new ArrayList<>();
+        List<Salary> salaryListToInsert = new ArrayList<>();
+
+        for (SalaryCreateReq saveSalaryReq : salaryCreateReqList) {
+            UUID memberId = saveSalaryReq.getMemberId();
+
+            Salary saveSalary = saveSalaryReq.toEntity(companyId);
+
+            Salary existsSalary = pendingSalaryMap.get(memberId);
+
+            if (existsSalary != null) {
+                if (areSalariesEqual(existsSalary, saveSalary)) {
+                    continue;
+                } else {
+                    existsSalary.setSalaryStatus(SalaryStatus.CANCELED);
+                    salaryListToInsert.add(saveSalary);
+                }
+            } else {
+                salaryListToInsert.add(saveSalary);
+            }
+        }
+
+        List<Salary> savedSalaryList = salaryRepository.saveAll(salaryListToInsert);
+
+        Map<UUID, SalaryCreateReq> salaryCreateReqMapalaryCreateReq = salaryCreateReqList.stream()
+                .collect(Collectors.toMap(SalaryCreateReq::getMemberId, req -> req));
+
+        for (Salary savedSalary : savedSalaryList) {
+            SalaryCreateReq req = salaryCreateReqMapalaryCreateReq.get(savedSalary.getMemberId());
+
+            for (SalaryDetail salaryDetail : req.getAllowanceList()) {
                 salaryDetail.setSalary(savedSalary);
                 salaryDetail.setSalaryType(SalaryType.ALLOWANCE);
-                allDetailsToSave.add(salaryDetail);
+                salaryDetailList.add(salaryDetail);
             }
-
-            for (SalaryDetail salaryDetail : salaryCreateReq.getDeductionList()) {
+            for (SalaryDetail salaryDetail : req.getDeductionList()) {
                 salaryDetail.setSalary(savedSalary);
                 salaryDetail.setSalaryType(SalaryType.DEDUCTION);
-                allDetailsToSave.add(salaryDetail);
+                salaryDetailList.add(salaryDetail);
             }
         }
 
-        if (!allDetailsToSave.isEmpty()) {
-            salaryDetailRepository.saveAll(allDetailsToSave);
+        if (!salaryDetailList.isEmpty()) {
+            salaryDetailRepository.saveAll(salaryDetailList);
         }
 
+    }
+
+    // 저장 시 변경 확인 메서드
+    private boolean areSalariesEqual(Salary oldSalary, Salary newSalary) {
+        return oldSalary.getTotalAllowance().equals(newSalary.getTotalAllowance())
+                && oldSalary.getTotalDeduction().equals(newSalary.getTotalDeduction())
+                && oldSalary.getNetPay().equals(newSalary.getNetPay());
     }
 
     // 급여 계산 메서드
