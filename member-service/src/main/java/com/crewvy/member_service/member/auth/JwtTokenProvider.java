@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 
 import java.security.Key;
 import java.util.Date;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @Component
@@ -79,7 +80,8 @@ public class JwtTokenProvider {
     public String createRtToken(Member member) {
         String email = member.getEmail();
 
-        Claims claims = Jwts.claims().setSubject(email);
+        Claims claims = Jwts.claims().setSubject(member.getId().toString());
+        claims.put("email", email);
 
         Date now = new Date();
         String refreshToken = Jwts.builder()
@@ -94,21 +96,38 @@ public class JwtTokenProvider {
         return refreshToken;
     }
 
-    public Member validateRt(String refreshToken) {
-        Claims claims = Jwts.parserBuilder()
-                .setSigningKey(rtKey)
-                .build()
-                .parseClaimsJws(refreshToken)
-                .getBody();
+    public Member validateRt(String refreshToken, String atMemberId) {
+        Claims rtClaims = getClaims(refreshToken, rtKey);
 
-        String email = claims.getSubject();
-        Member member = memberRepository.findByEmail(email).orElseThrow(() -> new EntityNotFoundException("없는 사용자입니다."));
+        String rtMemberId = rtClaims.getSubject();
+
+        if (!rtMemberId.equals(atMemberId)) {
+            System.out.println("이거 실행 되니");
+            throw new IllegalArgumentException("사용자 정보가 일치하지 않습니다.");
+        }
+
+        try {
+            Jwts.parserBuilder().setSigningKey(rtKey).build().parseClaimsJws(refreshToken);
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            throw new IllegalArgumentException("토큰이 만료되었습니다.");
+        }
+
+        Member member = memberRepository.findById(UUID.fromString(rtMemberId))
+                .orElseThrow(() -> new EntityNotFoundException("없는 사용자입니다."));
 
         String redisRt = redisTemplate.opsForValue().get(member.getEmail());
-        if(!redisRt.equals(refreshToken)) {
+        if (redisRt == null || !redisRt.equals(refreshToken)) {
             throw new IllegalArgumentException("잘못된 토큰입니다.");
         }
 
         return member;
+    }
+
+    private Claims getClaims(String token, Key key) {
+        try {
+            return Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            return e.getClaims();
+        }
     }
 }

@@ -12,5 +12,4 @@ import java.util.UUID;
 public class GenerateNewAtReq {
     private String refreshToken;
     private UUID memberPositionId;
-
 }

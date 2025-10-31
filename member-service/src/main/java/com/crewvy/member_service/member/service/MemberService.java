@@ -123,7 +123,7 @@ public class MemberService {
     }
 
     // 사업자등록정보 조회
-    public Map<String, Object> getCompanyStatus(String bsnsLcns){
+    public Map<String, Object> getCompanyStatus(String bsnsLcns) {
         // bsnsLcns : 사업자 등록번호
         Map<String, Object> result = new HashMap<>();
         try {
@@ -138,7 +138,8 @@ public class MemberService {
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("b_no", Collections.singletonList(bsnsLcns.replace("-", "")));
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-            ParameterizedTypeReference<Map<String, Object>> responseType = new ParameterizedTypeReference<>() {};
+            ParameterizedTypeReference<Map<String, Object>> responseType = new ParameterizedTypeReference<>() {
+            };
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(url, HttpMethod.POST, entity, responseType);
             result = response.getBody();
             return result;
@@ -231,8 +232,8 @@ public class MemberService {
     }
 
     // AT 재발급
-    public LoginRes generateNewAt(GenerateNewAtReq generateNewAtReq) {
-        Member member = jwtTokenProvider.validateRt(generateNewAtReq.getRefreshToken());
+    public LoginRes generateNewAt(UUID memberId, GenerateNewAtReq generateNewAtReq) {
+        Member member = jwtTokenProvider.validateRt(generateNewAtReq.getRefreshToken(), memberId.toString());
         MemberPosition memberPosition = memberPositionRepository.findById(generateNewAtReq.getMemberPositionId())
                 .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 직원입니다."));
 
