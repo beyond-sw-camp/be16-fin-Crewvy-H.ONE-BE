@@ -16,18 +16,19 @@ public interface PayrollItemRepository extends JpaRepository<PayrollItem, UUID> 
 
     List<PayrollItem> findByCompanyIdAndSalaryTypeOrderByCreatedAtAsc(UUID companyId, SalaryType salaryType);
 
-    List<PayrollItem> findByCompanyIdAndSalaryTypeAndIsTaxable(UUID companyId, SalaryType salaryType, Bool isTaxable);
-
     long countByCalculationCodeIsNotNull();
-    
-    List<PayrollItem> findByCompanyIdIsNullAndSalaryTypeAndIsTaxableAndIsActive(SalaryType salaryType
-                                                                                , Bool isTaxable
-                                                                                , Bool isActive);
 
     // 수당 계산 항목 조회
     List<PayrollItem> findByCompanyIdIsNullAndSalaryTypeAndIsTaxableAndCalculationCodeNot(
             SalaryType salaryType,
             Bool isTaxable,
             String calculationCode
+    );
+
+    // 고정 지급 항목 조회
+    List<PayrollItem> findByCompanyIdAndSalaryTypeAndCalculationCodeIsNullAndIsTaxable(
+            UUID companyId,
+            SalaryType salaryType,
+            Bool isTaxable
     );
 }

@@ -1,8 +1,10 @@
 package com.crewvy.workforce_service.salary.service;
 
+import com.crewvy.common.entity.Bool;
 import com.crewvy.workforce_service.salary.constant.SalaryType;
 import com.crewvy.workforce_service.salary.dto.request.PayrollItemCreateReq;
 import com.crewvy.workforce_service.salary.dto.request.PayrollItemUpdateReq;
+import com.crewvy.workforce_service.salary.dto.response.PayrollItemFixedRes;
 import com.crewvy.workforce_service.salary.dto.response.PayrollItemRes;
 import com.crewvy.workforce_service.salary.entity.PayrollItem;
 import com.crewvy.workforce_service.salary.repository.PayrollItemRepository;
@@ -73,5 +75,19 @@ public class PayrollItemService {
             throw new IllegalArgumentException("일부 급여 항목을 찾을 수 없습니다.");
         }
         payrollItemRepository.deleteAll(items);
+    }
+    
+    // 고정 지급 수당 항목 조회
+    public List<PayrollItemFixedRes> getFixedAllowanceHistory(UUID companyId) {
+        List<PayrollItem> fixedItemResList = payrollItemRepository
+                .findByCompanyIdAndSalaryTypeAndCalculationCodeIsNullAndIsTaxable(
+                        companyId,
+                        SalaryType.ALLOWANCE,
+                        Bool.FALSE
+                );
+
+        return fixedItemResList.stream()
+                .map(PayrollItemFixedRes::fromEntity)
+                .toList();
     }
 }

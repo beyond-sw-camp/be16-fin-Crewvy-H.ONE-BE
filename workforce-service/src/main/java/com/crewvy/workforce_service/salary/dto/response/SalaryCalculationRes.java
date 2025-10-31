@@ -30,6 +30,7 @@ public class SalaryCalculationRes {
     private LocalDate paymentDate;
     private List<SalaryDetailRes> allowanceList;
     private List<SalaryDetailRes> deductionList;
+    private List<FixedAllowanceRes> fixedList;
     private BigInteger totalAllowance;
     private BigInteger totalDeduction;
     private BigInteger netPay;
@@ -38,6 +39,7 @@ public class SalaryCalculationRes {
                                                   int workingDays, LocalDate periodStartDate, LocalDate periodEndDate) {
         List<SalaryDetailRes> allowanceList = new ArrayList<>();
         List<SalaryDetailRes> deductionList = new ArrayList<>();
+        List<FixedAllowanceRes> fixedList = new ArrayList<>();
 
         BigInteger totalAllowance = BigInteger.ZERO;
         BigInteger totalDeduction = BigInteger.ZERO;
@@ -70,6 +72,7 @@ public class SalaryCalculationRes {
                 .paymentDate(salary.getPaymentDate())
                 .allowanceList(allowanceList)
                 .deductionList(deductionList)
+                .fixedList(fixedList)
                 .totalAllowance(totalAllowance)
                 .totalDeduction(totalDeduction)
                 .netPay(salary.getNetPay())

@@ -16,9 +16,10 @@ import java.util.UUID;
 @AllArgsConstructor
 public class SalaryUpdateReq {
     private UUID salaryId;
-    private BigInteger amount;  // 총 급여
-    private BigInteger netPay;  // 실수령액
-    private LocalDate paymentDate;  // 지급일
-    private List<SalaryDetailUpdateReq> detailList;  // 상세 내역
+    private BigInteger totalAllowance;
+    private BigInteger totalDeduction;
+    private BigInteger netPay;
+    private LocalDate paymentDate;
+    private List<SalaryDetailUpdateReq> detailList;
 }
 

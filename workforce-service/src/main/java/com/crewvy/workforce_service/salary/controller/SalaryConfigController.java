@@ -20,6 +20,7 @@ public class SalaryConfigController {
 
     private final SalaryConfigService salaryConfigService;
 
+    // 급여 계약 정보 조회
     @GetMapping("/list")
     public ResponseEntity<?> getSalaryConfigList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                                  @RequestParam UUID companyId) {
