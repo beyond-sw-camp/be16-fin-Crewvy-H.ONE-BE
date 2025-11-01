@@ -227,10 +227,7 @@ public class DailyAttendance extends BaseEntity {
         }
         Duration duration = Duration.between(this.currentBreakStartTime, breakEndTime);
         int breakMinutes = (int) duration.toMinutes();
-        if (this.totalBreakMinutes == null) {
-            this.totalBreakMinutes = 0;
-        }
-        this.totalBreakMinutes += breakMinutes;
+        addBreakMinutes(breakMinutes);
         this.currentBreakStartTime = null;
     }
 
@@ -309,5 +306,64 @@ public class DailyAttendance extends BaseEntity {
      */
     public void updateStatus(AttendanceStatus newStatus) {
         this.status = newStatus;
+    }
+
+    /**
+     * 연장 근무 시간 추가 (사후 신청 승인 시 사용)
+     */
+    public void addOvertimeMinutes(int minutes) {
+        if (this.overtimeMinutes == null) {
+            this.overtimeMinutes = 0;
+        }
+        this.overtimeMinutes += minutes;
+        
+        if (this.workedMinutes == null) {
+            this.workedMinutes = 0;
+        }
+        this.workedMinutes += minutes;
+    }
+
+    /**
+     * 야간 근무 시간 추가 (사후 신청 승인 시 사용)
+     */
+    public void addNightWorkMinutes(int minutes) {
+        if (this.nightWorkMinutes == null) {
+            this.nightWorkMinutes = 0;
+        }
+        this.nightWorkMinutes += minutes;
+        
+        if (this.workedMinutes == null) {
+            this.workedMinutes = 0;
+        }
+        this.workedMinutes += minutes;
+    }
+
+    /**
+     * 휴일 근무 시간 추가 (사후 신청 승인 시 사용)
+     */
+    public void addHolidayWorkMinutes(int minutes) {
+        if (this.holidayWorkMinutes == null) {
+            this.holidayWorkMinutes = 0;
+        }
+        this.holidayWorkMinutes += minutes;
+        
+        if (this.workedMinutes == null) {
+            this.workedMinutes = 0;
+        }
+        this.workedMinutes += minutes;
+    }
+
+    /**
+     * AUTO 모드에서 자동으로 휴게 시간 설정
+     */
+    public void setTotalBreakMinutes(Integer totalBreakMinutes) {
+        this.totalBreakMinutes = totalBreakMinutes;
+    }
+
+    /**
+     * 반차/시차 승인 후 실제 출근 시 firstClockIn 업데이트
+     */
+    public void updateFirstClockIn(LocalDateTime clockInTime) {
+        this.firstClockIn = clockInTime;
     }
 }
