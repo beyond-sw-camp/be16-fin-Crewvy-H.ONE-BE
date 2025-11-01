@@ -126,9 +126,15 @@ public class RequestService {
 
         // 자동 승인 처리
         if (Boolean.TRUE.equals(policy.getAutoApprove())) {
-            // 잔액 차감이 필요한 정책인 경우 차감 처리
+            // 잔액 차감이 필요한 정책인 경우 차감 처리 (휴가)
             if (policy.getPolicyType().isBalanceDeductible()) {
                 applyLeaveRequestBalance(savedRequest);
+            }
+            // 연장/야간/휴일근무인 경우 근무시간 처리
+            else if (policy.getPolicyType().getTypeCode() == PolicyTypeCode.OVERTIME
+                    || policy.getPolicyType().getTypeCode() == PolicyTypeCode.NIGHT_WORK
+                    || policy.getPolicyType().getTypeCode() == PolicyTypeCode.HOLIDAY_WORK) {
+                applyWorkRequestToDailyAttendance(savedRequest);
             }
             savedRequest.updateStatus(RequestStatus.APPROVED);
             log.info("자동 승인 처리 완료: memberId={}, policyId={}, requestId={}",
@@ -596,6 +602,70 @@ public class RequestService {
     }
 
     /**
+     * 연장/야간/휴일근무 신청 승인 시 처리
+     * - DailyAttendance 생성/조회
+     * - 근무시간 추가
+     */
+    private void applyWorkRequestToDailyAttendance(Request request) {
+        LocalDate today = LocalDate.now();
+        LocalDate startDate = request.getStartDateTime().toLocalDate();
+        LocalDate endDate = request.getEndDateTime().toLocalDate();
+        
+        // 사후 신청이 아니면 스킵
+        if (startDate.isAfter(today)) {
+            return;
+        }
+        
+        LocalDate effectiveEndDate = endDate.isAfter(today) ? today : endDate;
+        PolicyTypeCode typeCode = request.getPolicy().getPolicyType().getTypeCode();
+        
+        // 근무 시간 계산 (분 단위)
+        long workMinutes = java.time.Duration.between(
+                request.getStartDateTime(),
+                request.getEndDateTime()
+        ).toMinutes();
+        
+        // 기간 내 모든 날짜 처리
+        LocalDate currentDate = startDate;
+        while (!currentDate.isAfter(effectiveEndDate)) {
+            final LocalDate dateToProcess = currentDate;
+            final int dailyMinutes = (int) workMinutes;
+            
+            DailyAttendance dailyAttendance = dailyAttendanceRepository
+                    .findByMemberIdAndAttendanceDate(request.getMemberId(), dateToProcess)
+                    .orElse(null);
+            
+            if (dailyAttendance == null) {
+                // DailyAttendance가 없으면 새로 생성
+                dailyAttendance = DailyAttendance.builder()
+                        .memberId(request.getMemberId())
+                        .companyId(request.getPolicy().getCompanyId())
+                        .attendanceDate(dateToProcess)
+                        .status(AttendanceStatus.NORMAL_WORK)
+                        .build();
+            }
+            
+            // 정책 타입에 따라 근무 시간 추가
+            if (typeCode == PolicyTypeCode.OVERTIME) {
+                dailyAttendance.addOvertimeMinutes(dailyMinutes);
+                log.info("사후 연장근무 반영: memberId={}, date={}, minutes={}",
+                        request.getMemberId(), dateToProcess, dailyMinutes);
+            } else if (typeCode == PolicyTypeCode.NIGHT_WORK) {
+                dailyAttendance.addNightWorkMinutes(dailyMinutes);
+                log.info("사후 야간근무 반영: memberId={}, date={}, minutes={}",
+                        request.getMemberId(), dateToProcess, dailyMinutes);
+            } else if (typeCode == PolicyTypeCode.HOLIDAY_WORK) {
+                dailyAttendance.addHolidayWorkMinutes(dailyMinutes);
+                log.info("사후 휴일근무 반영: memberId={}, date={}, minutes={}",
+                        request.getMemberId(), dateToProcess, dailyMinutes);
+            }
+            
+            dailyAttendanceRepository.save(dailyAttendance);
+            currentDate = currentDate.plusDays(1);
+        }
+    }
+
+    /**
      * PolicyTypeCode를 AttendanceStatus로 매핑
      */
     private AttendanceStatus mapPolicyTypeToAttendanceStatus(PolicyTypeCode typeCode, RequestUnit requestUnit) {
@@ -614,7 +684,241 @@ public class RequestService {
             case CHILDCARE_LEAVE -> AttendanceStatus.CHILDCARE_LEAVE;
             case FAMILY_CARE_LEAVE -> AttendanceStatus.FAMILY_CARE_LEAVE;
             case MENSTRUAL_LEAVE -> AttendanceStatus.MENSTRUAL_LEAVE;
+            case BUSINESS_TRIP -> AttendanceStatus.BUSINESS_TRIP;
             default -> null; // 근무 시간 관련 정책은 휴가로 매핑하지 않음
         };
+    }
+
+    // === 승인 처리 메서드 (승인 서비스 연동 전 준비) ===
+
+    /**
+     * 신청 승인 처리 (휴가/연장/야간/휴일근무 모두 처리)
+     */
+    public void approveRequest(UUID requestId) {
+        Request request = requestRepository.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("신청 내역을 찾을 수 없습니다."));
+
+        validateApprovalStatus(request);
+
+        PolicyTypeCode typeCode = request.getPolicy().getPolicyType().getTypeCode();
+
+        // 휴가 신청 처리
+        if (request.getPolicy().getPolicyType().isBalanceDeductible()) {
+            // 잔액 차감 (자동승인이 아니었다면 아직 차감 안 된 상태)
+            if (request.getStatus() == RequestStatus.PENDING) {
+                applyLeaveRequestBalance(request);
+            }
+            // 미래 휴가 DailyAttendance 생성
+            createFutureLeaveDailyAttendance(request);
+        }
+        // 연장/야간/휴일근무 처리
+        else if (typeCode == PolicyTypeCode.OVERTIME
+                || typeCode == PolicyTypeCode.NIGHT_WORK
+                || typeCode == PolicyTypeCode.HOLIDAY_WORK) {
+            applyWorkRequestToDailyAttendance(request);
+        }
+        // 출장 처리
+        else if (typeCode == PolicyTypeCode.BUSINESS_TRIP) {
+            // 출장은 DailyAttendance 생성만
+            createFutureLeaveDailyAttendance(request);
+        }
+
+        request.updateStatus(RequestStatus.APPROVED);
+        log.info("신청 승인 완료: requestId={}, memberId={}, type={}", 
+                requestId, request.getMemberId(), typeCode);
+    }
+    
+    /**
+     * 휴가/연차 신청 승인 처리 (하위 호환성 유지)
+     * @deprecated approveRequest() 사용 권장
+     */
+    @Deprecated
+    public void approveLeaveRequest(UUID requestId) {
+        approveRequest(requestId);
+    }
+
+    /**
+     * 신청 거절 처리
+     */
+    public void rejectRequest(UUID requestId, String rejectReason) {
+        Request request = requestRepository.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("신청 내역을 찾을 수 없습니다."));
+
+        validateRejectionStatus(request);
+
+        // 자동승인으로 이미 차감된 경우 복구
+        if (request.getStatus() == RequestStatus.APPROVED) {
+            restoreBalanceAfterRejection(request);
+            restoreDailyAttendanceAfterRejection(request);
+        }
+
+        request.updateStatus(RequestStatus.REJECTED);
+        log.info("신청 거절 완료: requestId={}, memberId={}", requestId, request.getMemberId());
+    }
+
+    /**
+     * 미래 휴가 DailyAttendance 생성
+     */
+    private void createFutureLeaveDailyAttendance(Request request) {
+        LocalDate startDate = request.getStartDateTime().toLocalDate();
+        LocalDate endDate = request.getEndDateTime().toLocalDate();
+
+        AttendanceStatus leaveStatus = mapPolicyTypeToAttendanceStatus(
+                request.getPolicy().getPolicyType().getTypeCode(),
+                request.getRequestUnit()
+        );
+
+        if (leaveStatus == null) {
+            return;
+        }
+
+        LocalDate currentDate = startDate;
+        while (!currentDate.isAfter(endDate)) {
+            final LocalDate dateToProcess = currentDate;
+
+            DailyAttendance dailyAttendance = dailyAttendanceRepository
+                    .findByMemberIdAndAttendanceDate(request.getMemberId(), dateToProcess)
+                    .orElse(null);
+
+            if (dailyAttendance == null) {
+                dailyAttendanceRepository.save(DailyAttendance.builder()
+                        .memberId(request.getMemberId())
+                        .companyId(request.getPolicy().getCompanyId())
+                        .attendanceDate(dateToProcess)
+                        .status(leaveStatus)
+                        .build());
+            } else {
+                dailyAttendance.updateStatus(leaveStatus);
+                dailyAttendanceRepository.save(dailyAttendance);
+            }
+
+            currentDate = currentDate.plusDays(1);
+        }
+    }
+
+    /**
+     * 거절 시 잔액 복구
+     */
+    private void restoreBalanceAfterRejection(Request request) {
+        if (request.getPolicy() == null || !request.getPolicy().getPolicyType().isBalanceDeductible()) {
+            return;
+        }
+
+        int currentYear = LocalDate.now().getYear();
+        PolicyTypeCode typeCode = request.getPolicy().getPolicyType().getTypeCode();
+
+        MemberBalance balance = memberBalanceRepository
+                .findByMemberIdAndBalanceTypeCodeAndYear(request.getMemberId(), typeCode, currentYear)
+                .orElse(null);
+
+        if (balance == null) {
+            return;
+        }
+
+        double newUsed = Math.max(0, balance.getTotalUsed() - request.getDeductionDays());
+        double newRemaining = Math.min(balance.getTotalGranted(), balance.getRemaining() + request.getDeductionDays());
+
+        MemberBalance updatedBalance = MemberBalance.builder()
+                .id(balance.getId())
+                .memberId(balance.getMemberId())
+                .companyId(balance.getCompanyId())
+                .balanceTypeCode(balance.getBalanceTypeCode())
+                .year(balance.getYear())
+                .totalGranted(balance.getTotalGranted())
+                .totalUsed(newUsed)
+                .remaining(newRemaining)
+                .expirationDate(balance.getExpirationDate())
+                .isPaid(balance.getIsPaid())
+                .build();
+
+        memberBalanceRepository.save(updatedBalance);
+        log.info("잔액 복구 완료: memberId={}, restored={}", request.getMemberId(), request.getDeductionDays());
+    }
+
+    /**
+     * 거절 시 DailyAttendance 복원
+     */
+    private void restoreDailyAttendanceAfterRejection(Request request) {
+        LocalDate today = LocalDate.now();
+        LocalDate startDate = request.getStartDateTime().toLocalDate();
+        LocalDate endDate = request.getEndDateTime().toLocalDate();
+        LocalDate effectiveEndDate = endDate.isAfter(today) ? today : endDate;
+        
+        PolicyTypeCode typeCode = request.getPolicy().getPolicyType().getTypeCode();
+
+        LocalDate currentDate = startDate;
+        while (!currentDate.isAfter(effectiveEndDate)) {
+            final LocalDate dateToProcess = currentDate;
+            dailyAttendanceRepository.findByMemberIdAndAttendanceDate(request.getMemberId(), dateToProcess)
+                    .ifPresent(da -> {
+                        // 휴가 신청 복원: 휴가 상태 → 결근
+                        if (request.getPolicy().getPolicyType().isBalanceDeductible() 
+                            || typeCode == PolicyTypeCode.BUSINESS_TRIP) {
+                            AttendanceStatus status = da.getStatus();
+                            if (status == AttendanceStatus.ANNUAL_LEAVE 
+                                || status == AttendanceStatus.SICK_LEAVE
+                                || status == AttendanceStatus.MATERNITY_LEAVE
+                                || status == AttendanceStatus.PATERNITY_LEAVE
+                                || status == AttendanceStatus.CHILDCARE_LEAVE
+                                || status == AttendanceStatus.FAMILY_CARE_LEAVE
+                                || status == AttendanceStatus.MENSTRUAL_LEAVE
+                                || status == AttendanceStatus.HALF_DAY_AM
+                                || status == AttendanceStatus.HALF_DAY_PM
+                                || status == AttendanceStatus.UNPAID_LEAVE
+                                || status == AttendanceStatus.BUSINESS_TRIP) {
+                                da.updateStatus(AttendanceStatus.ABSENT);
+                                dailyAttendanceRepository.save(da);
+                            }
+                        }
+                        // 연장/야간/휴일근무 복원: 추가된 시간 차감
+                        else if (typeCode == PolicyTypeCode.OVERTIME
+                                || typeCode == PolicyTypeCode.NIGHT_WORK
+                                || typeCode == PolicyTypeCode.HOLIDAY_WORK) {
+                            long workMinutes = java.time.Duration.between(
+                                    request.getStartDateTime(),
+                                    request.getEndDateTime()
+                            ).toMinutes();
+                            int dailyMinutes = (int) workMinutes;
+                            
+                            // 음수 방지하면서 차감
+                            if (typeCode == PolicyTypeCode.OVERTIME && da.getOvertimeMinutes() != null) {
+                                int newOvertime = Math.max(0, da.getOvertimeMinutes() - dailyMinutes);
+                                // TODO: DailyAttendance에 setter 추가 필요
+                                log.warn("연장근무 복원 필요: memberId={}, date={}, minutes={}", 
+                                        request.getMemberId(), dateToProcess, dailyMinutes);
+                            } else if (typeCode == PolicyTypeCode.NIGHT_WORK && da.getNightWorkMinutes() != null) {
+                                log.warn("야간근무 복원 필요: memberId={}, date={}, minutes={}", 
+                                        request.getMemberId(), dateToProcess, dailyMinutes);
+                            } else if (typeCode == PolicyTypeCode.HOLIDAY_WORK && da.getHolidayWorkMinutes() != null) {
+                                log.warn("휴일근무 복원 필요: memberId={}, date={}, minutes={}", 
+                                        request.getMemberId(), dateToProcess, dailyMinutes);
+                            }
+                        }
+                    });
+            currentDate = currentDate.plusDays(1);
+        }
+    }
+    private void validateApprovalStatus(Request request) {
+        if (request.getStatus() == RequestStatus.APPROVED) {
+            throw new BusinessException("이미 승인된 신청입니다.");
+        }
+        if (request.getStatus() == RequestStatus.REJECTED) {
+            throw new BusinessException("거절된 신청은 승인할 수 없습니다.");
+        }
+        if (request.getStatus() == RequestStatus.CANCELED) {
+            throw new BusinessException("취소된 신청은 승인할 수 없습니다.");
+        }
+    }
+
+    /**
+     * 거절 가능 상태 검증
+     */
+    private void validateRejectionStatus(Request request) {
+        if (request.getStatus() == RequestStatus.REJECTED) {
+            throw new BusinessException("이미 거절된 신청입니다.");
+        }
+        if (request.getStatus() == RequestStatus.CANCELED) {
+            throw new BusinessException("취소된 신청은 거절할 수 없습니다.");
+        }
     }
 }
