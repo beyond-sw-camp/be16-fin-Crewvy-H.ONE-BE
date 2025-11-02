@@ -8,6 +8,7 @@ import com.crewvy.workforce_service.attendance.constant.RequestStatus;
 import com.crewvy.workforce_service.attendance.constant.RequestUnit;
 import com.crewvy.workforce_service.attendance.dto.request.DeviceRequestCreateDto;
 import com.crewvy.workforce_service.attendance.dto.request.LeaveRequestCreateDto;
+import com.crewvy.workforce_service.attendance.dto.request.TripRequestCreateDto;
 import com.crewvy.workforce_service.attendance.dto.response.DeviceRequestResponse;
 import com.crewvy.workforce_service.attendance.dto.response.LeaveRequestResponse;
 import com.crewvy.workforce_service.attendance.dto.rule.LeaveRuleDto;
@@ -90,8 +91,19 @@ public class RequestService {
                 startDateTime = createDto.getStartDateTime();
                 endDateTime = createDto.getEndDateTime();
                 long minutesBetween = ChronoUnit.MINUTES.between(startDateTime, endDateTime);
-                // 하루 근무를 8시간(480분)으로 가정하여 차감 일수 계산
-                deductionDays = Math.round((minutesBetween / 480.0) * 100) / 100.0;
+
+                // 정책에서 표준 근무 시간 조회 (fixedWorkMinutes)
+                Integer standardWorkMinutes = getStandardWorkMinutesFromPolicy(policy);
+
+                // 휴게 시간 조회 및 차감
+                Integer breakMinutes = getBreakMinutesFromPolicy(policy);
+                Integer actualWorkMinutes = standardWorkMinutes - (breakMinutes != null ? breakMinutes : 0);
+
+                // 실제 근무시간 기준으로 차감 일수 계산
+                deductionDays = Math.round((minutesBetween / (double) actualWorkMinutes) * 100) / 100.0;
+
+                log.info("시차 휴가 계산: 신청시간={}분, 표준근무={}분, 휴게={}분, 실제근무={}분, 차감일수={}일",
+                        minutesBetween, standardWorkMinutes, breakMinutes, actualWorkMinutes, deductionDays);
                 break;
             default:
                 throw new BusinessException("지원하지 않는 신청 단위입니다.");
@@ -103,11 +115,30 @@ public class RequestService {
             validateMemberBalance(memberId, companyId, policy.getPolicyType().getTypeCode(), deductionDays);
         }
 
+        // 4-1. 연장/야간/휴일근무 허용 여부 및 주간 한도 검증
+        PolicyTypeCode typeCode = policy.getPolicyType().getTypeCode();
+        if (typeCode == PolicyTypeCode.OVERTIME
+                || typeCode == PolicyTypeCode.NIGHT_WORK
+                || typeCode == PolicyTypeCode.HOLIDAY_WORK) {
+            // StandardWork 정책 조회 (OvertimeRule 확인용)
+            Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
+                    memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
+            validateOvertimeAllowed(standardWorkPolicy, typeCode); // 허용 여부 검증
+            validateWeeklyOvertimeLimit(memberId, startDateTime, endDateTime); // 주간 한도 검증
+        }
+
+        // 4-2. 중복 신청 확인 (동시성 제어)
+        boolean isDuplicate = requestRepository.existsDuplicateRequest(
+                memberId, policy.getId(), startDateTime, endDateTime);
+        if (isDuplicate) {
+            throw new BusinessException("동일한 기간에 이미 신청한 내역이 있습니다. 중복 신청은 불가능합니다.");
+        }
+
         // 5. Request 엔티티 생성
         Request request = Request.builder()
                 .policy(policy)
                 .memberId(memberId)
-                .documentId(null) // TODO: Phase 2 - Approval 생성 후 업데이트
+                .documentId(createDto.getDocumentId()) // 사용자가 선택한 결재 문서 ID
                 .requestUnit(createDto.getRequestUnit())
                 .startDateTime(startDateTime)
                 .endDateTime(endDateTime)
@@ -143,6 +174,77 @@ public class RequestService {
 
         log.info("휴가 신청 완료: memberId={}, policyId={}, deductionDays={}, autoApproved={}",
                 memberId, policy.getId(), deductionDays, Boolean.TRUE.equals(policy.getAutoApprove()));
+
+        return LeaveRequestResponse.from(savedRequest);
+    }
+
+    /**
+     * 출장 신청 생성
+     * Phase 1: Request 생성 및 자동 승인 처리
+     * Phase 2: Approval 생성 및 연동 추가 예정
+     */
+    public LeaveRequestResponse createTripRequest(
+            UUID memberId,
+            UUID memberPositionId,
+            UUID companyId,
+            UUID organizationId,
+            TripRequestCreateDto createDto) {
+
+        // 1. 정책 조회 및 검증
+        Policy policy = policyRepository.findById(createDto.getPolicyId())
+                .orElseThrow(() -> new ResourceNotFoundException("정책을 찾을 수 없습니다."));
+
+        // 2. 출장 정책 타입 검증
+        if (policy.getPolicyType().getTypeCode() != PolicyTypeCode.BUSINESS_TRIP) {
+            throw new BusinessException("출장 정책이 아닙니다.");
+        }
+
+        // 3. 출장 기간 검증
+        if (createDto.getStartAt().isAfter(createDto.getEndAt())) {
+            throw new BusinessException("시작일은 종료일보다 이후일 수 없습니다.");
+        }
+
+        // 4. DateTime 계산 (출장은 일자 단위로만 신청)
+        LocalDateTime startDateTime = createDto.getStartAt().atStartOfDay();
+        LocalDateTime endDateTime = createDto.getEndAt().atTime(23, 59, 59);
+
+        // 4-1. 중복 신청 확인 (동시성 제어)
+        boolean isDuplicate = requestRepository.existsDuplicateRequest(
+                memberId, policy.getId(), startDateTime, endDateTime);
+        if (isDuplicate) {
+            throw new BusinessException("동일한 기간에 이미 신청한 내역이 있습니다. 중복 신청은 불가능합니다.");
+        }
+
+        // 5. Request 엔티티 생성
+        Request request = Request.builder()
+                .policy(policy)
+                .memberId(memberId)
+                .documentId(createDto.getDocumentId()) // 사용자가 선택한 결재 문서 ID
+                .requestUnit(RequestUnit.DAY) // 출장은 일자 단위
+                .startDateTime(startDateTime)
+                .endDateTime(endDateTime)
+                .deductionDays(0.0) // 출장은 잔액 차감 없음
+                .reason(createDto.getReason())
+                .status(RequestStatus.PENDING)
+                .requesterComment(createDto.getRequesterComment())
+                .workLocation(createDto.getWorkLocation()) // 출장지
+                .build();
+
+        Request savedRequest = requestRepository.save(request);
+
+        // TODO: Phase 2 - Approval 생성 및 연동
+        // UUID approvalId = approvalService.createApproval(...);
+        // savedRequest.updateDocumentId(approvalId);
+
+        // 자동 승인 처리
+        if (Boolean.TRUE.equals(policy.getAutoApprove())) {
+            savedRequest.updateStatus(RequestStatus.APPROVED);
+            log.info("출장 자동 승인 처리 완료: memberId={}, policyId={}, requestId={}",
+                    memberId, policy.getId(), savedRequest.getId());
+        }
+
+        log.info("출장 신청 완료: memberId={}, policyId={}, workLocation={}, autoApproved={}",
+                memberId, policy.getId(), createDto.getWorkLocation(), Boolean.TRUE.equals(policy.getAutoApprove()));
 
         return LeaveRequestResponse.from(savedRequest);
     }
@@ -324,6 +426,17 @@ public class RequestService {
             throw new BusinessException(String.format("이 휴가는 최소 %d일 이상 연속으로 신청해야 합니다.", leaveRule.getMinConsecutiveDays()));
         }
 
+        // 5-1. [신규] 최대 분할 횟수 확인 (maxSplitCount)
+        if (leaveRule.getMaxSplitCount() != null) {
+            int currentSplitCount = countApprovedRequestsByPolicy(memberId, policy.getId());
+            if (currentSplitCount >= leaveRule.getMaxSplitCount()) {
+                throw new BusinessException(
+                    String.format("이 휴가는 최대 %d회까지 분할 사용 가능합니다. (현재 %d회 사용)",
+                        leaveRule.getMaxSplitCount(), currentSplitCount)
+                );
+            }
+        }
+
         // 6. 기간별 최대 사용일수 확인 (limitPeriod, maxDaysPerPeriod)
         if (leaveRule.getLimitPeriod() != null && leaveRule.getMaxDaysPerPeriod() != null) {
             double totalUsedDays = calculateTotalUsedDaysInPeriod(memberId, policy.getId(), leaveRule.getLimitPeriod());
@@ -404,7 +517,23 @@ public class RequestService {
         ).orElse(0.0);
     }
 
+    /**
+     * 해당 정책으로 승인된 신청 횟수 조회 (현재 연도 기준)
+     * 분할 사용 횟수 체크를 위해 사용됩니다.
+     */
+    private int countApprovedRequestsByPolicy(UUID memberId, UUID policyId) {
+        LocalDate now = LocalDate.now();
+        LocalDateTime yearStart = now.withDayOfYear(1).atStartOfDay();
+        LocalDateTime yearEnd = now.withDayOfYear(now.lengthOfYear()).atTime(23, 59, 59);
 
+        return requestRepository.countByMemberIdAndPolicyIdAndStatusAndStartDateTimeBetween(
+                memberId,
+                policyId,
+                RequestStatus.APPROVED,
+                yearStart,
+                yearEnd
+        );
+    }
 
     // TODO: Phase 2 - Approval 결재 완료 콜백
     // public void handleApprovalResult(UUID documentId, ApprovalState state) {
@@ -920,5 +1049,162 @@ public class RequestService {
         if (request.getStatus() == RequestStatus.CANCELED) {
             throw new BusinessException("취소된 신청은 거절할 수 없습니다.");
         }
+    }
+
+    /**
+     * 주간 연장근무 한도 검증 (근로기준법 제53조)
+     * - 연장근무는 1주일에 12시간(720분)을 초과할 수 없음
+     * - 위반 시 500만원 이하 과태료
+     */
+    private void validateWeeklyOvertimeLimit(UUID memberId, LocalDateTime requestStartTime, LocalDateTime requestEndTime) {
+        // 1. 신청하려는 연장근무 시간 계산 (분 단위)
+        long requestMinutes = java.time.Duration.between(requestStartTime, requestEndTime).toMinutes();
+
+        // 2. 이번 주 범위 계산 (월요일 00:00 ~ 일요일 23:59:59)
+        LocalDate requestDate = requestStartTime.toLocalDate();
+        LocalDate weekStart = requestDate.with(java.time.DayOfWeek.MONDAY);
+        LocalDate weekEnd = weekStart.plusDays(6);
+
+        LocalDateTime weekStartDateTime = weekStart.atStartOfDay();
+        LocalDateTime weekEndDateTime = weekEnd.atTime(23, 59, 59);
+
+        // 3. 이번 주에 이미 승인된/대기 중인 연장근무 신청 조회
+        java.util.List<Request> existingRequests = requestRepository.findApprovedOvertimeRequestsInWeek(
+                memberId,
+                weekStartDateTime,
+                weekEndDateTime
+        );
+
+        // 4. 기존 연장근무 총 시간 계산
+        long totalExistingMinutes = existingRequests.stream()
+                .mapToLong(r -> java.time.Duration.between(r.getStartDateTime(), r.getEndDateTime()).toMinutes())
+                .sum();
+
+        // 5. 신청하려는 시간 + 기존 시간이 720분(12시간)을 초과하는지 확인
+        long totalMinutes = totalExistingMinutes + requestMinutes;
+        final int WEEKLY_OVERTIME_LIMIT_MINUTES = 720; // 근로기준법 제53조: 주 12시간
+
+        if (totalMinutes > WEEKLY_OVERTIME_LIMIT_MINUTES) {
+            double totalHours = totalMinutes / 60.0;
+            double existingHours = totalExistingMinutes / 60.0;
+            double requestHours = requestMinutes / 60.0;
+
+            throw new BusinessException(
+                    String.format("근로기준법 제53조 위반: 주간 연장근무는 12시간을 초과할 수 없습니다.\n" +
+                            "- 이번 주 기존 연장근무: %.1f시간\n" +
+                            "- 신청하려는 시간: %.1f시간\n" +
+                            "- 총 합계: %.1f시간 (한도: 12시간)",
+                            existingHours, requestHours, totalHours)
+            );
+        }
+
+        log.info("주간 연장근무 한도 검증 통과: memberId={}, 기존={}분, 신청={}분, 총={}분 (한도: 720분)",
+                memberId, totalExistingMinutes, requestMinutes, totalMinutes);
+    }
+
+    /**
+     * 연장/야간/휴일근무 허용 여부 검증
+     * StandardWork 정책의 OvertimeRuleDto를 확인하여 허용되지 않으면 예외 발생
+     *
+     * @param standardWorkPolicy 사용자에게 할당된 StandardWork 정책
+     * @param typeCode 신청하려는 근무 타입 (OVERTIME, NIGHT_WORK, HOLIDAY_WORK)
+     */
+    private void validateOvertimeAllowed(Policy standardWorkPolicy, PolicyTypeCode typeCode) {
+        if (standardWorkPolicy == null) {
+            log.warn("StandardWork 정책이 없어 연장근무 허용 여부 검증 불가");
+            throw new BusinessException("기본 근무 정책이 할당되지 않았습니다. 관리자에게 문의하세요.");
+        }
+
+        if (standardWorkPolicy.getRuleDetails() == null || standardWorkPolicy.getRuleDetails().getOvertimeRule() == null) {
+            log.debug("OvertimeRule이 없어 연장근무 허용 여부 검증 스킵");
+            return;
+        }
+
+        com.crewvy.workforce_service.attendance.dto.rule.OvertimeRuleDto overtimeRule =
+                standardWorkPolicy.getRuleDetails().getOvertimeRule();
+
+        // 타입별 허용 여부 확인
+        switch (typeCode) {
+            case OVERTIME:
+                if (!overtimeRule.isAllowOvertime()) {
+                    throw new BusinessException("현재 할당된 근무 정책에서는 연장근무가 허용되지 않습니다.");
+                }
+                break;
+            case NIGHT_WORK:
+                if (!overtimeRule.isAllowNightWork()) {
+                    throw new BusinessException("현재 할당된 근무 정책에서는 야간근무가 허용되지 않습니다.");
+                }
+                break;
+            case HOLIDAY_WORK:
+                if (!overtimeRule.isAllowHolidayWork()) {
+                    throw new BusinessException("현재 할당된 근무 정책에서는 휴일근무가 허용되지 않습니다.");
+                }
+                break;
+            default:
+                // 다른 타입은 검증 안 함
+                break;
+        }
+
+        log.info("연장근무 허용 여부 검증 통과: typeCode={}", typeCode);
+    }
+
+    /**
+     * 정책에서 표준 근무 시간(분) 조회
+     */
+    private Integer getStandardWorkMinutesFromPolicy(Policy policy) {
+        if (policy == null || policy.getRuleDetails() == null || policy.getRuleDetails().getWorkTimeRule() == null) {
+            log.warn("정책에 WorkTimeRule이 없어 기본값 480분을 사용합니다.");
+            return 480; // 기본값: 8시간
+        }
+
+        Integer fixedWorkMinutes = policy.getRuleDetails().getWorkTimeRule().getFixedWorkMinutes();
+        if (fixedWorkMinutes == null || fixedWorkMinutes <= 0) {
+            log.warn("정책의 fixedWorkMinutes가 유효하지 않아 기본값 480분을 사용합니다.");
+            return 480;
+        }
+
+        return fixedWorkMinutes;
+    }
+
+    /**
+     * 정책에서 휴게 시간(분) 조회
+     * - FIXED 모드: fixedBreakStart ~ fixedBreakEnd 시간 차이
+     * - AUTO 모드: defaultBreakMinutesFor8Hours
+     * - MANUAL 모드: 0 (사용자가 직접 기록)
+     */
+    private Integer getBreakMinutesFromPolicy(Policy policy) {
+        if (policy == null || policy.getRuleDetails() == null || policy.getRuleDetails().getBreakRule() == null) {
+            log.debug("정책에 BreakRule이 없어 휴게시간 0으로 처리합니다.");
+            return 0;
+        }
+
+        com.crewvy.workforce_service.attendance.dto.rule.BreakRuleDto breakRule = policy.getRuleDetails().getBreakRule();
+        String breakType = breakRule.getType();
+
+        if ("FIXED".equals(breakType)) {
+            // FIXED: 고정 휴게 시간 계산
+            if (breakRule.getFixedBreakStart() != null && breakRule.getFixedBreakEnd() != null) {
+                try {
+                    String[] startParts = breakRule.getFixedBreakStart().split(":");
+                    String[] endParts = breakRule.getFixedBreakEnd().split(":");
+                    int startMinutes = Integer.parseInt(startParts[0]) * 60 + Integer.parseInt(startParts[1]);
+                    int endMinutes = Integer.parseInt(endParts[0]) * 60 + Integer.parseInt(endParts[1]);
+                    return endMinutes - startMinutes;
+                } catch (Exception e) {
+                    log.error("FIXED 휴게시간 파싱 실패", e);
+                    return 0;
+                }
+            }
+        } else if ("AUTO".equals(breakType)) {
+            // AUTO: 정책에 설정된 기본 휴게시간
+            Integer defaultBreakMinutes = breakRule.getDefaultBreakMinutesFor8Hours();
+            return defaultBreakMinutes != null ? defaultBreakMinutes : 60; // 기본 60분
+        } else if ("MANUAL".equals(breakType)) {
+            // MANUAL: 휴게시간은 사용자가 직접 기록하므로 0
+            return 0;
+        }
+
+        log.debug("알 수 없는 휴게 규칙 타입: {}", breakType);
+        return 0;
     }
 }

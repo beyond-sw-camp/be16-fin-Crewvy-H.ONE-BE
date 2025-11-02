@@ -84,4 +84,59 @@ public interface RequestRepository extends JpaRepository<Request, UUID> {
             @Param("periodStart") LocalDateTime periodStart,
             @Param("periodEnd") LocalDateTime periodEnd
     );
+
+    /**
+     * 주간 연장근무 신청 목록 조회 (근로기준법 제53조 - 주 12시간 한도 검증용)
+     * OVERTIME, NIGHT_WORK, HOLIDAY_WORK 타입의 승인된 신청 조회
+     */
+    @Query("SELECT r FROM Request r " +
+           "WHERE r.memberId = :memberId " +
+           "AND r.policy.policyType.typeCode IN ('OVERTIME', 'NIGHT_WORK', 'HOLIDAY_WORK') " +
+           "AND r.status IN ('APPROVED', 'PENDING') " +
+           "AND r.startDateTime >= :weekStart " +
+           "AND r.startDateTime < :weekEnd")
+    java.util.List<Request> findApprovedOvertimeRequestsInWeek(
+            @Param("memberId") UUID memberId,
+            @Param("weekStart") LocalDateTime weekStart,
+            @Param("weekEnd") LocalDateTime weekEnd
+    );
+
+    /**
+     * 특정 정책으로 승인된 신청 횟수 조회 (분할 사용 횟수 체크용)
+     */
+    @Query("SELECT COUNT(r) FROM Request r " +
+           "WHERE r.memberId = :memberId " +
+           "AND r.policy.id = :policyId " +
+           "AND r.status = :status " +
+           "AND r.startDateTime >= :yearStart " +
+           "AND r.startDateTime <= :yearEnd")
+    int countByMemberIdAndPolicyIdAndStatusAndStartDateTimeBetween(
+            @Param("memberId") UUID memberId,
+            @Param("policyId") UUID policyId,
+            @Param("status") RequestStatus status,
+            @Param("yearStart") LocalDateTime yearStart,
+            @Param("yearEnd") LocalDateTime yearEnd
+    );
+
+    /**
+     * 중복 신청 확인 (동시성 제어용)
+     * 같은 사용자가 같은 정책으로 날짜가 겹치는 PENDING 또는 APPROVED 신청이 있는지 확인
+     *
+     * @param memberId 사용자 ID
+     * @param policyId 정책 ID
+     * @param startDateTime 신청 시작 일시
+     * @param endDateTime 신청 종료 일시
+     * @return 중복 신청이 있으면 true, 없으면 false
+     */
+    @Query("SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END FROM Request r " +
+           "WHERE r.memberId = :memberId " +
+           "AND r.policy.id = :policyId " +
+           "AND r.status IN ('PENDING', 'APPROVED') " +
+           "AND ((r.startDateTime <= :endDateTime AND r.endDateTime >= :startDateTime))")
+    boolean existsDuplicateRequest(
+            @Param("memberId") UUID memberId,
+            @Param("policyId") UUID policyId,
+            @Param("startDateTime") LocalDateTime startDateTime,
+            @Param("endDateTime") LocalDateTime endDateTime
+    );
 }
