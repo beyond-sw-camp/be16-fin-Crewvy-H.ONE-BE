@@ -29,6 +29,9 @@ public class AttendanceBatchScheduler {
     @Qualifier("autoCompleteClockOutJob")
     private final Job autoCompleteClockOutJob;
 
+    @Qualifier("annualLeaveAccrualJob")
+    private final Job annualLeaveAccrualJob;
+
     /**
      * 매일 자정 5분에 실행 (결근 처리 + 휴가 DailyAttendance 생성)
      * - 00:05 실행 이유: 자정 직후 실행하면 데이터 정합성 문제 가능
@@ -157,6 +160,58 @@ public class AttendanceBatchScheduler {
             log.info("수동 실행 완료: 미완료 퇴근 자동 처리 배치");
         } catch (Exception e) {
             log.error("수동 실행 중 오류 발생: 미완료 퇴근 자동 처리 배치", e);
+        }
+    }
+
+    // ==================== Job 4: 연차 자동 발생 ====================
+
+    /**
+     * 매월 1일 새벽 3시에 실행 (연차 자동 발생)
+     * - 1년 미만 근로자: 매월 1일 추가 발생
+     * - 1년 이상 근로자: 매년 1월 1일 연차 발생
+     */
+    @Scheduled(cron = "0 0 3 1 * *")
+    @Async
+    public void runAnnualLeaveAccrualBatch() {
+        log.info("========================================");
+        log.info("연차 자동 발생 배치 시작: {}", LocalDateTime.now());
+        log.info("========================================");
+
+        String runTime = LocalDateTime.now().toString();
+
+        try {
+            JobParameters params = new JobParametersBuilder()
+                    .addString("runTime", runTime)
+                    .toJobParameters();
+
+            jobLauncher.run(annualLeaveAccrualJob, params);
+            log.info("========================================");
+            log.info("연차 자동 발생 배치 완료: {}", LocalDateTime.now());
+            log.info("========================================");
+
+        } catch (Exception e) {
+            log.error("========================================");
+            log.error("연차 자동 발생 배치 실행 중 오류 발생", e);
+            log.error("========================================");
+        }
+    }
+
+    /**
+     * 수동 실행용 - 테스트 목적
+     */
+    public void runAnnualLeaveAccrualJobManually() {
+        log.info("수동 실행: 연차 자동 발생 배치");
+        String runTime = LocalDateTime.now().toString();
+
+        try {
+            JobParameters params = new JobParametersBuilder()
+                    .addString("runTime", runTime)
+                    .toJobParameters();
+
+            jobLauncher.run(annualLeaveAccrualJob, params);
+            log.info("수동 실행 완료: 연차 자동 발생 배치");
+        } catch (Exception e) {
+            log.error("수동 실행 중 오류 발생: 연차 자동 발생 배치", e);
         }
     }
 }

@@ -104,4 +104,25 @@ public class AttendanceBatchController {
             );
         }
     }
+
+    /**
+     * 연차 자동 발생 배치 수동 실행
+     */
+    @PostMapping("/annual-leave-accrual")
+    public ResponseEntity<ApiResponse<Void>> runAnnualLeaveAccrualBatch() {
+        log.info("연차 자동 발생 배치 수동 실행 요청");
+        try {
+            batchScheduler.runAnnualLeaveAccrualJobManually();
+            return new ResponseEntity<>(
+                    ApiResponse.success(null, "연차 자동 발생 배치가 실행되었습니다."),
+                    HttpStatus.OK
+            );
+        } catch (Exception e) {
+            log.error("연차 자동 발생 배치 수동 실행 실패", e);
+            return new ResponseEntity<>(
+                    ApiResponse.error("배치 실행 중 오류가 발생했습니다: " + e.getMessage()),
+                    HttpStatus.INTERNAL_SERVER_ERROR
+            );
+        }
+    }
 }
