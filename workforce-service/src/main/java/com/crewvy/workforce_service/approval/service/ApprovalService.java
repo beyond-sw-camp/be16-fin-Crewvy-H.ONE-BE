@@ -10,15 +10,14 @@ import com.crewvy.workforce_service.approval.constant.RequirementType;
 import com.crewvy.workforce_service.approval.dto.request.*;
 import com.crewvy.workforce_service.approval.dto.response.*;
 import com.crewvy.workforce_service.approval.entity.*;
-import com.crewvy.workforce_service.approval.repository.ApprovalDocumentRepository;
-import com.crewvy.workforce_service.approval.repository.ApprovalLineRepository;
-import com.crewvy.workforce_service.approval.repository.ApprovalReplyRepository;
-import com.crewvy.workforce_service.approval.repository.ApprovalRepository;
+import com.crewvy.workforce_service.approval.event.ApprovalCompletedEvent;
+import com.crewvy.workforce_service.approval.repository.*;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberDto;
 import com.crewvy.workforce_service.feignClient.dto.response.OrganizationNodeDto;
 import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -26,7 +25,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
@@ -44,6 +46,8 @@ public class ApprovalService {
     private final S3Uploader s3Uploader;
     private final MemberClient memberClient;
     private final ApplicationEventPublisher eventPublisher;
+    private final SearchOutboxEventRepository searchOutboxEventRepository;
+    private final ObjectMapper objectMapper;
 
 //    문서 양식 생성
     public UUID uploadDocument(UploadDocumentDto dto) {
@@ -319,7 +323,7 @@ public class ApprovalService {
     }
 
 //    결재 승인
-    public void approveApproval(UUID approvalId, UUID memberPositionId) {
+    public void approveApproval(UUID approvalId, UUID memberPositionId, UUID companyId) {
         // 1. Fetch Join으로 Approval과 LineList를 한 번에 조회 (성능 최적화)
         Approval approval = approvalRepository.findByIdWithLines(approvalId)
                 .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 결재입니다."));
@@ -368,6 +372,19 @@ public class ApprovalService {
         } else {
             // 5-2. 현재 결재자가 마지막인 경우, 문서 전체 상태를 최종 승인으로 변경
             approval.updateState(ApprovalState.APPROVED);
+
+            // Elasticsearch 저장을 위한 이벤트 발행
+            List<PositionDto> requesterPositionInfo = memberClient.getPositionList(memberPositionId, new IdListReq(List.of(approval.getMemberPositionId()))).getData();
+            if (requesterPositionInfo != null && !requesterPositionInfo.isEmpty()) {
+                ApprovalCompletedEvent approvalEvent = new ApprovalCompletedEvent(
+                        approval.getId(),
+                        requesterPositionInfo.get(0).getMemberId(),
+                        companyId,
+                        approval.getTitle(),
+                        approval.getCreatedAt()
+                );
+                eventPublisher.publishEvent(approvalEvent);
+            }
 
             UUID nextApproverId = approval.getMemberPositionId();
 
@@ -920,6 +937,28 @@ public class ApprovalService {
                     .toList();
 
             document.getPolicyList().addAll(newPolicies);
+        }
+    }
+
+    // 결재 데이터 변경이 완료된 후 Elasticsearch 동기화를 위한 이벤트 저장
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void handleApprovalCompletedEvent(ApprovalCompletedEvent event) {
+        saveSearchOutboxEvent(event);
+    }
+
+    // elastic search에 저장
+    public void saveSearchOutboxEvent(ApprovalCompletedEvent event) {
+        try {
+            String payload = objectMapper.writeValueAsString(event);
+            SearchOutboxEvent outboxEvent = SearchOutboxEvent.builder()
+                    .topic("approval-completed-events")
+                    .aggregateId(event.getApprovalId())
+                    .payload(payload)
+                    .build();
+            searchOutboxEventRepository.save(outboxEvent);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new RuntimeException("Failed to serialize approval event", e);
         }
     }
 }

@@ -3,13 +3,18 @@ package com.crewvy.search_service.service;
 import com.crewvy.common.event.MemberDeletedEvent;
 import com.crewvy.common.event.MemberSavedEvent;
 import com.crewvy.common.event.OrganizationSavedEvent;
+import com.crewvy.search_service.dto.event.ApprovalCompletedEvent;
 import com.crewvy.search_service.dto.response.GlobalSearchRes;
+import com.crewvy.search_service.entity.ApprovalDocument;
 import com.crewvy.search_service.entity.MemberDocument;
 import com.crewvy.search_service.entity.OrganizationDocument;
+import com.crewvy.search_service.repository.ApprovalSearchRepository;
 import com.crewvy.search_service.repository.MemberSearchRepository;
 import com.crewvy.search_service.repository.OrganizationSearchRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.elasticsearch.client.elc.NativeQueryBuilder;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
@@ -28,6 +33,7 @@ import java.util.stream.Collectors;
 public class SearchService {
     private final MemberSearchRepository memberSearchRepository;
     private final OrganizationSearchRepository organizationSearchRepository;
+    private final ApprovalSearchRepository approvalSearchRepository;
     private final ElasticsearchOperations elasticsearchOperations;
 
     // 직원 추가
@@ -117,6 +123,19 @@ public class SearchService {
                 () -> new EntityNotFoundException("존재하지 않는 직원입니다.")));
     }
 
+    // 결재 완료
+    @KafkaListener(topics = "approval-completed-events", groupId = "search-service-group")
+    public void listenApprovalCompletedEvent(ApprovalCompletedEvent event) {
+        ApprovalDocument approvalDocument = ApprovalDocument.builder()
+                .approvalId(event.getApprovalId().toString())
+                .companyId(event.getCompanyId().toString())
+                .memberId(event.getMemberId().toString())
+                .title(event.getTitle())
+                .createDateTime(event.getCreateDateTime())
+                .build();
+        approvalSearchRepository.save(approvalDocument);
+    }
+
     // 직원 검색
     public List<MemberDocument> searchEmployees(String query, String companyId) {
         Query searchQuery = buildEmployeeSearchQuery(query, companyId);
@@ -142,6 +161,11 @@ public class SearchService {
         return searchHits.stream().map(SearchHit::getContent).collect(Collectors.toList());
     }
 
+    // 결재 문서 페이징 검색
+    public Page<ApprovalDocument> searchApprovals(String query, String companyId, Pageable pageable) {
+        return approvalSearchRepository.findByTitleContainingAndCompanyId(query, companyId, pageable);
+    }
+
     // 통합 검색
     public List<GlobalSearchRes> searchGlobal(String query, String companyId) {
         Query employeeSearchQuery = buildEmployeeSearchQuery(query, companyId);
@@ -150,6 +174,7 @@ public class SearchService {
 
         List<GlobalSearchRes> results = new ArrayList<>();
 
+        // 직원 검색
         employeeHits.forEach(hit -> {
             MemberDocument doc = hit.getContent();
             results.add(GlobalSearchRes.builder()
@@ -160,6 +185,24 @@ public class SearchService {
                     .position(String.join(", ", doc.getTitleName()))
                     .contact(doc.getPhoneNumber())
                     .status(doc.getMemberStatus())
+                    .build());
+        });
+
+        // 결재문서 검색
+        Query approvalSearchQuery = new NativeQueryBuilder()
+                .withQuery(q -> q.bool(b -> b
+                        .must(m -> m.match(t -> t.field("title").query(query)))
+                        .filter(f -> f.term(t -> t.field("companyId.keyword").value(companyId)))))
+                .build();
+
+        SearchHits<ApprovalDocument> approvalHits = elasticsearchOperations.search(approvalSearchQuery, ApprovalDocument.class);
+
+        approvalHits.forEach(hit -> {
+            ApprovalDocument doc = hit.getContent();
+            results.add(GlobalSearchRes.builder()
+                    .id(doc.getApprovalId())
+                    .category("approval")
+                    .title(doc.getTitle())
                     .build());
         });
 

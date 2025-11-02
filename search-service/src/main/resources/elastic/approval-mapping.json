@@ -3,6 +3,9 @@
     "approvalId": {
       "type": "keyword"
     },
+    "companyId": {
+      "type": "keyword"
+    },
     "memberId": {
       "type": "keyword"
     },
