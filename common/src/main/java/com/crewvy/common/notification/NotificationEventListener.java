@@ -1,7 +1,9 @@
 package com.crewvy.common.notification;
 
 import com.crewvy.common.dto.NotificationMessage;
+import com.crewvy.common.dto.ScheduleDto;
 import com.crewvy.common.kafka.KafkaMessagePublisher;
+import com.crewvy.common.kafka.SchedulePublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -16,6 +18,7 @@ public class NotificationEventListener {
 
     // (1) 실제 Kafka 전송기 주입
     private final KafkaMessagePublisher messagePublisher;
+    private final SchedulePublisher schedulePublisher;
 
     /**
      * NotificationMessage 타입의 이벤트를 수신하는 범용 리스너
@@ -40,6 +43,21 @@ public class NotificationEventListener {
             // (5) Kafka 전송이 실패하더라도, DB 트랜잭션은 이미 성공했으므로
             //     롤백되지 않습니다. 로그만 남깁니다.
             log.error("Kafka 메시지 발송 실패. (알림 누락 발생): {}", message, e);
+        }
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Async
+    public void scheduleSaved(ScheduleDto message) {
+
+        try {
+            schedulePublisher.publishScheduleSaved(message);
+            log.info("일정 Kafka 전송 성공: {}", message.getMemberId());
+
+        } catch (Exception e) {
+            // (5) Kafka 전송이 실패하더라도, DB 트랜잭션은 이미 성공했으므로
+            //     롤백되지 않습니다. 로그만 남깁니다.
+            log.error("Kafka 메시지 발송 실패. (일정 누락 발생): {}", message, e);
         }
     }
 }
