@@ -366,4 +366,63 @@ public class DailyAttendance extends BaseEntity {
     public void updateFirstClockIn(LocalDateTime clockInTime) {
         this.firstClockIn = clockInTime;
     }
+
+    /**
+     * 지각 여부 설정 (선택근무제 코어타임 검증용)
+     */
+    public void setIsLate(Boolean isLate) {
+        this.isLate = isLate;
+    }
+
+    /**
+     * 조퇴 여부 설정 (선택근무제 코어타임 검증용)
+     */
+    public void setIsEarlyLeave(Boolean isEarlyLeave) {
+        this.isEarlyLeave = isEarlyLeave;
+    }
+
+    /**
+     * 관리자가 근태 기록을 수정합니다.
+     * null이 아닌 필드만 업데이트됩니다.
+     */
+    public void updateByAdmin(LocalDateTime firstClockIn, LocalDateTime lastClockOut,
+                              Integer workedMinutes, Integer overtimeMinutes,
+                              Integer totalBreakMinutes, Integer totalGoOutMinutes,
+                              Boolean isLate, Integer lateMinutes,
+                              Boolean isEarlyLeave, Integer earlyLeaveMinutes,
+                              AttendanceStatus status) {
+        if (firstClockIn != null) {
+            this.firstClockIn = firstClockIn;
+        }
+        if (lastClockOut != null) {
+            this.lastClockOut = lastClockOut;
+        }
+        if (workedMinutes != null) {
+            this.workedMinutes = workedMinutes;
+        }
+        if (overtimeMinutes != null) {
+            this.overtimeMinutes = overtimeMinutes;
+        }
+        if (totalBreakMinutes != null) {
+            this.totalBreakMinutes = totalBreakMinutes;
+        }
+        if (totalGoOutMinutes != null) {
+            this.totalGoOutMinutes = totalGoOutMinutes;
+        }
+        if (isLate != null) {
+            this.isLate = isLate;
+        }
+        if (lateMinutes != null) {
+            this.lateMinutes = lateMinutes;
+        }
+        if (isEarlyLeave != null) {
+            this.isEarlyLeave = isEarlyLeave;
+        }
+        if (earlyLeaveMinutes != null) {
+            this.earlyLeaveMinutes = earlyLeaveMinutes;
+        }
+        if (status != null) {
+            this.status = status;
+        }
+    }
 }

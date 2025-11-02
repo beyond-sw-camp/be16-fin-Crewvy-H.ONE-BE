@@ -20,6 +20,10 @@ public class MyBalanceRes {
     private LocalDate expirationDate;
     private Boolean isPaid;
 
+    // 분할 사용 관련 정보
+    private Integer maxSplitCount;      // 최대 분할 사용 횟수 (정책에서)
+    private Integer currentSplitCount;  // 현재 연도 사용 횟수
+
     @Getter
     @Builder
     @NoArgsConstructor

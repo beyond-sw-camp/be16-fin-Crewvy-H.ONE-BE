@@ -85,9 +85,11 @@ public class AttendanceController {
      */
     @GetMapping("/my/balances")
     public ResponseEntity<ApiResponse<List<MyBalanceRes>>> getMyAllBalances(
-            @RequestHeader("X-User-UUID") UUID memberId) {
+            @RequestHeader("X-User-UUID") UUID memberId,
+            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+            @RequestHeader("X-User-CompanyId") UUID companyId) {
 
-        List<MyBalanceRes> response = attendanceService.getMyAllBalances(memberId);
+        List<MyBalanceRes> response = attendanceService.getMyAllBalances(memberId, memberPositionId, companyId);
         return new ResponseEntity<>(ApiResponse.success(response, "휴가 정책 잔액 조회 완료"), HttpStatus.OK);
     }
 
@@ -155,6 +157,19 @@ public class AttendanceController {
         }
         System.out.println("네트워크 정보 : " + ip);
         return ip;
+    }
+
+    /**
+     * 근태 기록 수정 (관리자 전용)
+     */
+    @PutMapping("/daily/{dailyAttendanceId}")
+    public ResponseEntity<ApiResponse<Void>> updateDailyAttendance(
+            @PathVariable UUID dailyAttendanceId,
+            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+            @RequestBody @Valid com.crewvy.workforce_service.attendance.dto.request.UpdateDailyAttendanceReq request) {
+
+        attendanceService.updateDailyAttendance(dailyAttendanceId, memberPositionId, request);
+        return new ResponseEntity<>(ApiResponse.success(null, "근태 기록이 수정되었습니다."), HttpStatus.OK);
     }
 
 }

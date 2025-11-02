@@ -71,7 +71,10 @@ public class AttendanceCalculator {
     }
 
     /**
-     * AUTO 모드일 경우 휴게 시간 자동 계산
+     * 휴게 시간 자동 계산 (AUTO/FIXED 모드)
+     * - AUTO: 근무시간에 따라 자동 차감
+     * - FIXED: 정책에 설정된 고정 시간 차감 (예: 12:00-13:00)
+     * - MANUAL: 수동 기록만 허용 (자동 계산 안 함)
      */
     public void autoCalculateBreakTime(DailyAttendance dailyAttendance, Policy policy, LocalDateTime clockOutTime) {
         if (policy == null || policy.getRuleDetails() == null) {
@@ -79,8 +82,13 @@ public class AttendanceCalculator {
         }
 
         BreakRuleDto breakRule = policy.getRuleDetails().getBreakRule();
-        if (breakRule == null || !"AUTO".equals(breakRule.getType())) {
-            return; // AUTO 모드가 아니면 자동 계산 안 함
+        if (breakRule == null || breakRule.getType() == null) {
+            return;
+        }
+
+        // MANUAL 모드는 자동 계산 안 함
+        if ("MANUAL".equals(breakRule.getType())) {
+            return;
         }
 
         // 출근 시각이 없으면 계산 불가
@@ -88,26 +96,88 @@ public class AttendanceCalculator {
             return;
         }
 
-        // 총 근무 시간(휴게 제외 전) 계산
-        long totalMinutes = Duration.between(dailyAttendance.getFirstClockIn(), clockOutTime).toMinutes();
+        int calculatedBreakMinutes = 0;
 
-        int autoBreakMinutes = 0;
-
-        // 8시간 이상 근무 시 정책의 기본 휴게시간
-        if (totalMinutes >= 480 && breakRule.getDefaultBreakMinutesFor8Hours() != null) {
-            autoBreakMinutes = breakRule.getDefaultBreakMinutesFor8Hours();
+        // FIXED 모드: 고정 휴게 시간 차감
+        if ("FIXED".equals(breakRule.getType())) {
+            calculatedBreakMinutes = calculateFixedBreakMinutes(breakRule, dailyAttendance);
+            if (calculatedBreakMinutes > 0) {
+                log.info("FIXED 모드 휴게시간 자동 적용: memberId={}, date={}, breakMinutes={}",
+                        dailyAttendance.getMemberId(), dailyAttendance.getAttendanceDate(), calculatedBreakMinutes);
+            }
         }
-        // 4시간 이상 근무 시 법정 최소 휴게시간
-        else if (totalMinutes >= 240 && breakRule.getMandatoryBreakMinutes() != null) {
-            autoBreakMinutes = breakRule.getMandatoryBreakMinutes();
+        // AUTO 모드: 근무시간에 따라 자동 계산
+        else if ("AUTO".equals(breakRule.getType())) {
+            calculatedBreakMinutes = calculateAutoBreakMinutes(breakRule, dailyAttendance, clockOutTime);
+            if (calculatedBreakMinutes > 0) {
+                log.info("AUTO 모드 휴게시간 자동 계산: memberId={}, date={}, breakMinutes={}",
+                        dailyAttendance.getMemberId(), dailyAttendance.getAttendanceDate(), calculatedBreakMinutes);
+            }
         }
 
         // 휴게시간이 이미 수동으로 기록되어 있으면 덮어쓰지 않음
         if (dailyAttendance.getTotalBreakMinutes() == null || dailyAttendance.getTotalBreakMinutes() == 0) {
-            dailyAttendance.setTotalBreakMinutes(autoBreakMinutes);
-            log.info("AUTO 모드 휴게시간 자동 계산: memberId={}, date={}, breakMinutes={}",
-                    dailyAttendance.getMemberId(), dailyAttendance.getAttendanceDate(), autoBreakMinutes);
+            dailyAttendance.setTotalBreakMinutes(calculatedBreakMinutes);
         }
+    }
+
+    /**
+     * FIXED 모드 휴게시간 계산
+     * 정책에 설정된 고정 휴게 시간대(예: 12:00-13:00)를 분 단위로 계산
+     */
+    private int calculateFixedBreakMinutes(BreakRuleDto breakRule, DailyAttendance dailyAttendance) {
+        if (breakRule.getFixedBreakStart() == null || breakRule.getFixedBreakEnd() == null) {
+            log.warn("FIXED 모드이지만 fixedBreakStart 또는 fixedBreakEnd가 설정되지 않음: memberId={}, date={}",
+                    dailyAttendance.getMemberId(), dailyAttendance.getAttendanceDate());
+            return 0;
+        }
+
+        try {
+            // "12:00" 형식 파싱
+            String[] startParts = breakRule.getFixedBreakStart().split(":");
+            String[] endParts = breakRule.getFixedBreakEnd().split(":");
+
+            LocalDateTime breakStart = dailyAttendance.getAttendanceDate()
+                    .atTime(Integer.parseInt(startParts[0]), Integer.parseInt(startParts[1]));
+            LocalDateTime breakEnd = dailyAttendance.getAttendanceDate()
+                    .atTime(Integer.parseInt(endParts[0]), Integer.parseInt(endParts[1]));
+
+            long breakMinutes = Duration.between(breakStart, breakEnd).toMinutes();
+
+            if (breakMinutes <= 0) {
+                log.warn("FIXED 휴게시간이 0 이하입니다: memberId={}, date={}, start={}, end={}",
+                        dailyAttendance.getMemberId(), dailyAttendance.getAttendanceDate(),
+                        breakRule.getFixedBreakStart(), breakRule.getFixedBreakEnd());
+                return 0;
+            }
+
+            return (int) breakMinutes;
+
+        } catch (Exception e) {
+            log.error("FIXED 휴게시간 계산 실패: memberId={}, date={}, error={}",
+                    dailyAttendance.getMemberId(), dailyAttendance.getAttendanceDate(), e.getMessage(), e);
+            return 0;
+        }
+    }
+
+    /**
+     * AUTO 모드 휴게시간 계산
+     * 근무시간에 따라 자동으로 휴게시간 결정
+     */
+    private int calculateAutoBreakMinutes(BreakRuleDto breakRule, DailyAttendance dailyAttendance, LocalDateTime clockOutTime) {
+        // 총 근무 시간(휴게 제외 전) 계산
+        long totalMinutes = Duration.between(dailyAttendance.getFirstClockIn(), clockOutTime).toMinutes();
+
+        // 8시간 이상 근무 시 정책의 기본 휴게시간
+        if (totalMinutes >= 480 && breakRule.getDefaultBreakMinutesFor8Hours() != null) {
+            return breakRule.getDefaultBreakMinutesFor8Hours();
+        }
+        // 4시간 이상 근무 시 법정 최소 휴게시간
+        else if (totalMinutes >= 240 && breakRule.getMandatoryBreakMinutes() != null) {
+            return breakRule.getMandatoryBreakMinutes();
+        }
+
+        return 0;
     }
 
     /**
