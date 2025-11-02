@@ -30,6 +30,15 @@ public class NotificationController {
         return new ResponseEntity<>(ApiResponse.success(id, "알림 읽음"), HttpStatus.OK);
     }
 
+    @PatchMapping("/read-all")
+    public ResponseEntity<?> readAll(@RequestHeader("X-User-UUID") UUID memberId) {
+        notificationService.readAll(memberId);
+        return new ResponseEntity<>(
+                ApiResponse.success(memberId, "전체 읽음"),
+                HttpStatus.OK
+        );
+    }
+
     @GetMapping("/find-my-setting")
     public ResponseEntity<?> findMySetting(@RequestHeader("X-User-UUID") UUID memberId) {
         return new ResponseEntity<>(
