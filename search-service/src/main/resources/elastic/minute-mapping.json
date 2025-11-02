@@ -3,9 +3,13 @@
     "minuteId": {
       "type": "keyword"
     },
+    "title": {
+      "type": "text",
+      "analyzer": "title_analyzer"
+    },
     "summary": {
       "type": "text",
-      "analyzer": "korean_analyzer"
+      "analyzer": "summary_analyzer"
     },
     "memberId": {
       "type": "keyword"

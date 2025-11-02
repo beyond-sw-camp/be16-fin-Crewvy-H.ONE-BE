@@ -4,12 +4,15 @@ import com.crewvy.common.event.MemberDeletedEvent;
 import com.crewvy.common.event.MemberSavedEvent;
 import com.crewvy.common.event.OrganizationSavedEvent;
 import com.crewvy.search_service.dto.event.ApprovalCompletedEvent;
+import com.crewvy.search_service.dto.event.MinuteSavedEvent;
 import com.crewvy.search_service.dto.response.GlobalSearchRes;
 import com.crewvy.search_service.entity.ApprovalDocument;
 import com.crewvy.search_service.entity.MemberDocument;
+import com.crewvy.search_service.entity.MinuteDocument;
 import com.crewvy.search_service.entity.OrganizationDocument;
 import com.crewvy.search_service.repository.ApprovalSearchRepository;
 import com.crewvy.search_service.repository.MemberSearchRepository;
+import com.crewvy.search_service.repository.MinuteRepository;
 import com.crewvy.search_service.repository.OrganizationSearchRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +37,7 @@ public class SearchService {
     private final MemberSearchRepository memberSearchRepository;
     private final OrganizationSearchRepository organizationSearchRepository;
     private final ApprovalSearchRepository approvalSearchRepository;
+    private final MinuteRepository minuteRepository;
     private final ElasticsearchOperations elasticsearchOperations;
 
     // 직원 추가
@@ -123,7 +127,7 @@ public class SearchService {
                 () -> new EntityNotFoundException("존재하지 않는 직원입니다.")));
     }
 
-    // 결재 완료
+    // 결재 문서 저장
     @KafkaListener(topics = "approval-completed-events", groupId = "search-service-group")
     public void listenApprovalCompletedEvent(ApprovalCompletedEvent event) {
         ApprovalDocument approvalDocument = ApprovalDocument.builder()
@@ -134,6 +138,19 @@ public class SearchService {
                 .createDateTime(event.getCreateDateTime())
                 .build();
         approvalSearchRepository.save(approvalDocument);
+    }
+
+    // 회의록 요약 저장
+    @KafkaListener(topics = "minute-saved-events", groupId = "search-service-group")
+    public void listenMinuteSavedEvent(MinuteSavedEvent event) {
+        MinuteDocument minuteDocument = MinuteDocument.builder()
+                .minuteId(event.getMinuteId())
+                .title(event.getTitle())
+                .summary(event.getSummary())
+                .memberId(event.getMemberId())
+                .createDateTime(event.getCreateDateTime())
+                .build();
+        minuteRepository.save(minuteDocument);
     }
 
     // 직원 검색

@@ -9,6 +9,7 @@ import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 import org.springframework.data.elasticsearch.annotations.Mapping;
+import org.springframework.data.elasticsearch.annotations.Setting;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -19,10 +20,14 @@ import java.util.List;
 @AllArgsConstructor
 @Document(indexName = "minute", createIndex = true)
 @Mapping(mappingPath = "elastic/minute-mapping.json")
+@Setting(settingPath = "elastic/minute-setting.json")
 public class MinuteDocument {
     @Id
     @Field(type = FieldType.Keyword)
     private String minuteId;
+
+    @Field(type = FieldType.Text)
+    private String title;
 
     @Field(type = FieldType.Text)
     private String summary;
