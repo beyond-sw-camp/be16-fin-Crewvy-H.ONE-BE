@@ -1,6 +1,7 @@
 package com.crewvy.common.notification;
 
 import com.crewvy.common.dto.NotificationMessage;
+import com.crewvy.common.dto.ScheduleDeleteDto;
 import com.crewvy.common.dto.ScheduleDto;
 import com.crewvy.common.kafka.KafkaMessagePublisher;
 import com.crewvy.common.kafka.SchedulePublisher;
@@ -46,17 +47,30 @@ public class NotificationEventListener {
         }
     }
 
+//    일정 전송 및 수정용
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Async
     public void scheduleSaved(ScheduleDto message) {
 
         try {
             schedulePublisher.publishScheduleSaved(message);
-            log.info("일정 Kafka 전송 성공: {}", message.getMemberId());
+            log.info("일정 추가 및 수정 Kafka 전송 성공: {}", message.getOriginId());
 
         } catch (Exception e) {
-            // (5) Kafka 전송이 실패하더라도, DB 트랜잭션은 이미 성공했으므로
-            //     롤백되지 않습니다. 로그만 남깁니다.
+            log.error("Kafka 메시지 발송 실패. (일정 누락 발생): {}", message, e);
+        }
+    }
+
+//    일정 삭제용
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Async
+    public void scheduleDeleted(ScheduleDeleteDto message) {
+
+        try {
+            schedulePublisher.publishScheduleDeleted(message);
+            log.info("일정 삭제 Kafka 전송 성공: {}", message.getOriginId());
+
+        } catch (Exception e) {
             log.error("Kafka 메시지 발송 실패. (일정 누락 발생): {}", message, e);
         }
     }
