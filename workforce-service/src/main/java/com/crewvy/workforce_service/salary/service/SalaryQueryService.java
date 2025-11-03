@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.salary.service;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.exception.PermissionDeniedException;
+import com.crewvy.workforce_service.aop.CheckPermission;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberSalaryListRes;
@@ -44,13 +45,16 @@ public class SalaryQueryService {
 
     // 회사 전체 급여 조회
     @Transactional(readOnly = true)
+    @CheckPermission(resource = "salary", action = "READ", scope = "COMPANY")
     public List<SalaryStatusRes> getSalaryListByCompany(UUID memberPositionId, UUID companyId, YearMonth yearMonth) {
-        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
-                "salary", "READ", "COMPANY");
-
-        if (Boolean.FALSE.equals(hasPermission.getData())) {
-            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
-        }
+        
+        // 권한 조회
+//        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
+//                "salary", "READ", "COMPANY");
+//
+//        if (Boolean.FALSE.equals(hasPermission.getData())) {
+//            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
+//        }
 
         // 급여 지급일 조회
         LocalDate paymentDate = salaryPolicyService.getPaymentDate(companyId, yearMonth);
@@ -90,15 +94,16 @@ public class SalaryQueryService {
     }
 
     @Transactional(readOnly = true)
+    @CheckPermission(resource = "salary", action = "READ", scope = "COMPANY")
     public List<SalaryOutputRes> getSalaryOutputByCompany(UUID memberPositionId, UUID companyId, YearMonth yearMonth) {
 
         // 권한 조회
-        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
-                "salary", "READ", "COMPANY");
-
-        if (Boolean.FALSE.equals(hasPermission.getData())) {
-            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
-        }
+//        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
+//                "salary", "READ", "COMPANY");
+//
+//        if (Boolean.FALSE.equals(hasPermission.getData())) {
+//            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
+//        }
 
         // 급여 지급일 조회
         LocalDate paymentDate = salaryPolicyService.getPaymentDate(companyId, yearMonth);
@@ -143,15 +148,16 @@ public class SalaryQueryService {
 
     // 회원별 급여 조회
     @Transactional(readOnly = true)
+    @CheckPermission(resource = "salary", action = "READ", scope = "COMPANY")
     public List<SalaryCalculationRes> getSalaryListByMember(UUID memberPositionId, UUID companyId, UUID memberId) {
 
         // 권한 조회
-        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
-                "salary", "READ", "INDIVIDUAL");
-
-        if (Boolean.FALSE.equals(hasPermission.getData())) {
-            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
-        }
+//        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
+//                "salary", "READ", "INDIVIDUAL");
+//
+//        if (Boolean.FALSE.equals(hasPermission.getData())) {
+//            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
+//        }
 
         IdListReq idListReq = new IdListReq();
         idListReq.setUuidList(List.of(memberId));
@@ -186,15 +192,16 @@ public class SalaryQueryService {
 
     // 월별 공제 내역
     @Transactional(readOnly = true)
+    @CheckPermission(resource = "salary", action = "READ", scope = "COMPANY")
     public List<PayrollDeductionRes> getDeductionList(UUID memberPositionId, UUID companyId, YearMonth yearMonth) {
 
         // 권한 조회
-        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
-                "salary", "READ", "COMPANY");
-
-        if (Boolean.FALSE.equals(hasPermission.getData())) {
-            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
-        }
+//        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
+//                "salary", "READ", "COMPANY");
+//
+//        if (Boolean.FALSE.equals(hasPermission.getData())) {
+//            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
+//        }
 
         // 급여 지급일 조회
         LocalDate paymentDate = salaryPolicyService.getPaymentDate(companyId, yearMonth);
@@ -287,15 +294,16 @@ public class SalaryQueryService {
 
     // 항목별 조회
     @Transactional(readOnly = true)
+    @CheckPermission(resource = "salary", action = "READ", scope = "COMPANY")
     public PayrollItemSummaryRes getPayrollItemSummary(UUID memberPositionId, UUID companyId, YearMonth yearMonth) {
 
         // 권한 조회
-        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
-                "salary", "READ", "COMPANY");
-
-        if (Boolean.FALSE.equals(hasPermission.getData())) {
-            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
-        }
+//        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
+//                "salary", "READ", "COMPANY");
+//
+//        if (Boolean.FALSE.equals(hasPermission.getData())) {
+//            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
+//        }
 
         // 회원 정보 조회
         ApiResponse<List<MemberSalaryListRes>> salaryListResponse = memberClient.getSalaryList(memberPositionId, companyId);
@@ -345,15 +353,16 @@ public class SalaryQueryService {
 
     // 항목별 조회 모달
     @Transactional(readOnly = true)
+    @CheckPermission(resource = "salary", action = "READ", scope = "COMPANY")
     public List<PayrollItemDetailRes> getPayrollItemDetails(UUID memberPositionId, UUID companyId, String name, YearMonth yearMonth) {
 
         // 권한 조회
-        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
-                "salary", "READ", "COMPANY");
-
-        if (Boolean.FALSE.equals(hasPermission.getData())) {
-            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
-        }
+//        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
+//                "salary", "READ", "COMPANY");
+//
+//        if (Boolean.FALSE.equals(hasPermission.getData())) {
+//            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
+//        }
 
         // 급여 지급일 조회
         LocalDate paymentDate = salaryPolicyService.getPaymentDate(companyId, yearMonth);
@@ -403,15 +412,16 @@ public class SalaryQueryService {
     }
 
     // 급여 명세서 출력
+    @CheckPermission(resource = "salary", action = "READ", scope = "COMPANY")
     public List<PayrollStatementRes> getSalaryStatement(UUID memberPositionId, UUID companyId, YearMonth yearMonth) {
 
         // 권한 조회
-        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
-                "salary", "READ", "COMPANY");
-
-        if (Boolean.FALSE.equals(hasPermission.getData())) {
-            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
-        }
+//        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
+//                "salary", "READ", "COMPANY");
+//
+//        if (Boolean.FALSE.equals(hasPermission.getData())) {
+//            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
+//        }
 
         // 급여 지급일 조회
         LocalDate paymentDate = salaryPolicyService.getPaymentDate(companyId, yearMonth);
@@ -488,7 +498,6 @@ public class SalaryQueryService {
 
             BigInteger totalPayment = salary.getTotalAllowance() != null ? salary.getTotalAllowance() : BigInteger.ZERO;
             BigInteger allowance = totalPayment.subtract(basePay);
-
 
             responseList.add(PayrollStatementRes.builder()
                     .memberId(member.getMemberId())

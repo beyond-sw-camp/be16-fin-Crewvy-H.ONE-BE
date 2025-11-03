@@ -3,6 +3,7 @@ package com.crewvy.workforce_service.salary.service;
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.entity.Bool;
 import com.crewvy.common.exception.PermissionDeniedException;
+import com.crewvy.workforce_service.aop.CheckPermission;
 import com.crewvy.workforce_service.attendance.dto.response.DailyAttendanceRes;
 import com.crewvy.workforce_service.attendance.service.AttendanceService;
 import com.crewvy.workforce_service.feignClient.MemberClient;
@@ -19,7 +20,6 @@ import com.crewvy.workforce_service.salary.dto.response.SalaryDetailRes;
 import com.crewvy.workforce_service.salary.entity.PayrollItem;
 import com.crewvy.workforce_service.salary.entity.SalaryHistory;
 import com.crewvy.workforce_service.salary.entity.SalaryPolicy;
-import com.crewvy.workforce_service.salary.repository.HolidayRepository;
 import com.crewvy.workforce_service.salary.repository.PayrollItemRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,12 +40,6 @@ import java.util.stream.Collectors;
 @Service
 public class SalaryCalculatorService {
 
-//    private final double NATIONAL_PENSION_RATE = 0.045;
-//    private final double HEALTH_INSURANCE_RATE = 0.03545;
-//    private final double LONG_TERM_CARE_INSURANCE_RATE = 0.1295;
-//    private final double EMPLOYMENT_INSURANCE_RATE = 0.009;
-//    private final double LOCAL_INCOME_TAX_RATE = 0.1;
-
     private final MemberClient memberClient;
     private final SalaryPolicyService salaryPolicyService;
     private final SalaryHistoryService salaryHistoryService;
@@ -58,15 +52,16 @@ public class SalaryCalculatorService {
     private final PayrollProperties payrollProperties;
 
     // 급여 계산 메서드
+    @CheckPermission(resource = "salary", action = "CREATE", scope = "COMPANY")
     public List<SalaryCalculationRes> calculateSalary(UUID memberPositionId, SalaryCalculationReq request) {
 
         // 권한 검증
-        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
-                "salary", "CREATE", "COMPANY");
-
-        if (Boolean.FALSE.equals(hasPermission.getData())) {
-            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
-        }
+//        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
+//                "salary", "CREATE", "COMPANY");
+//
+//        if (Boolean.FALSE.equals(hasPermission.getData())) {
+//            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
+//        }
 
         UUID companyId = request.getCompanyId();
         YearMonth yearMonth = request.getYearMonth();

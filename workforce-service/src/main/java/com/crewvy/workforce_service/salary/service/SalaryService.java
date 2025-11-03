@@ -1,27 +1,34 @@
 package com.crewvy.workforce_service.salary.service;
 
+import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.exception.PermissionDeniedException;
+import com.crewvy.workforce_service.aop.CheckPermission;
 import com.crewvy.workforce_service.feignClient.MemberClient;
-import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberSalaryListRes;
-import com.crewvy.workforce_service.feignClient.dto.response.NameDto;
 import com.crewvy.workforce_service.salary.constant.SalaryStatus;
 import com.crewvy.workforce_service.salary.constant.SalaryType;
-import com.crewvy.common.dto.ApiResponse;
-import com.crewvy.workforce_service.salary.dto.request.*;
-import com.crewvy.workforce_service.salary.dto.response.*;
-import com.crewvy.workforce_service.salary.entity.*;
-import com.crewvy.workforce_service.salary.repository.*;
+import com.crewvy.workforce_service.salary.dto.request.SalaryCreateReq;
+import com.crewvy.workforce_service.salary.dto.request.SalaryDetailUpdateReq;
+import com.crewvy.workforce_service.salary.dto.request.SalaryUpdateReq;
+import com.crewvy.workforce_service.salary.dto.response.PayPeriodRes;
+import com.crewvy.workforce_service.salary.dto.response.SalaryCalculationRes;
+import com.crewvy.workforce_service.salary.entity.Salary;
+import com.crewvy.workforce_service.salary.entity.SalaryDetail;
+import com.crewvy.workforce_service.salary.entity.SalaryPolicy;
+import com.crewvy.workforce_service.salary.repository.PayrollItemRepository;
+import com.crewvy.workforce_service.salary.repository.SalaryDetailRepository;
+import com.crewvy.workforce_service.salary.repository.SalaryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigInteger;
 import java.time.LocalDate;
 import java.time.YearMonth;
-import java.util.*;
-import java.util.function.Function;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -40,14 +47,15 @@ public class SalaryService {
 
     // 급여 저장 메서드
     @Transactional
+    @CheckPermission(resource = "salary", action = "CREATE", scope = "COMPANY")
     public void saveSalary(UUID memberPositionId, UUID companyId, List<SalaryCreateReq> salaryCreateReqList) {
         // 권한 검증
-        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
-                "salary", "CREATE", "COMPANY");
-
-        if (Boolean.FALSE.equals(hasPermission.getData())) {
-            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
-        }
+//        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
+//                "salary", "CREATE", "COMPANY");
+//
+//        if (Boolean.FALSE.equals(hasPermission.getData())) {
+//            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
+//        }
 
         List<UUID> memberIdList = salaryCreateReqList.stream()
                 .map(SalaryCreateReq::getMemberId)
@@ -127,6 +135,7 @@ public class SalaryService {
 
     // 급여 일괄 수정
     @Transactional
+    @CheckPermission(resource = "salary", action = "UPDATE", scope = "COMPANY")
     public List<SalaryCalculationRes> updateSalaries(UUID memberPositionId, List<SalaryUpdateReq> updateRequests) {
         List<SalaryCalculationRes> result = new ArrayList<>();
 
