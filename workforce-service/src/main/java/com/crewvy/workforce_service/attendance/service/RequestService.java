@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.attendance.service;
 
 import com.crewvy.common.exception.BusinessException;
 import com.crewvy.common.exception.ResourceNotFoundException;
+import com.crewvy.workforce_service.approval.entity.ApprovalDocument;
 import com.crewvy.workforce_service.attendance.constant.AttendanceStatus;
 import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
 import com.crewvy.workforce_service.attendance.constant.RequestStatus;
@@ -12,6 +13,7 @@ import com.crewvy.workforce_service.attendance.dto.request.TripRequestCreateDto;
 import com.crewvy.workforce_service.attendance.dto.response.DeviceRequestResponse;
 import com.crewvy.workforce_service.attendance.dto.response.LeaveRequestResponse;
 import com.crewvy.workforce_service.attendance.dto.rule.LeaveRuleDto;
+import com.crewvy.workforce_service.attendance.dto.rule.TripRuleDto;
 import com.crewvy.workforce_service.attendance.entity.DailyAttendance;
 import com.crewvy.workforce_service.attendance.entity.MemberBalance;
 import com.crewvy.workforce_service.attendance.entity.Policy;
@@ -43,7 +45,7 @@ public class RequestService {
     private final MemberBalanceRepository memberBalanceRepository;
     private final DailyAttendanceRepository dailyAttendanceRepository;
     private final PolicyAssignmentService policyAssignmentService;
-    // private final ApprovalService approvalService; // TODO: Phase 2 - Approval 연동
+    private final com.crewvy.workforce_service.approval.repository.ApprovalDocumentRepository approvalDocumentRepository;
 
     /**
      * 휴가 신청 생성
@@ -134,11 +136,14 @@ public class RequestService {
             throw new BusinessException("동일한 기간에 이미 신청한 내역이 있습니다. 중복 신청은 불가능합니다.");
         }
 
-        // 5. Request 엔티티 생성
+        // 5. 정책 타입에 따라 ApprovalDocument 자동 매핑
+        ApprovalDocument approvalDocument = getApprovalDocumentByPolicyType(policy.getPolicyType().getTypeCode());
+
+        // 6. Request 엔티티 생성
         Request request = Request.builder()
                 .policy(policy)
                 .memberId(memberId)
-                .documentId(createDto.getDocumentId()) // 사용자가 선택한 결재 문서 ID
+                .approvalDocument(approvalDocument)
                 .requestUnit(createDto.getRequestUnit())
                 .startDateTime(startDateTime)
                 .endDateTime(endDateTime)
@@ -215,11 +220,25 @@ public class RequestService {
             throw new BusinessException("동일한 기간에 이미 신청한 내역이 있습니다. 중복 신청은 불가능합니다.");
         }
 
-        // 5. Request 엔티티 생성
+        // 4-2. 출장지 검증 (정책에 허용된 출장지인지 확인)
+        if (policy.getRuleDetails() != null && policy.getRuleDetails().getTripRule() != null) {
+            TripRuleDto tripRule = policy.getRuleDetails().getTripRule();
+            if (tripRule.getAllowedWorkLocations() != null && !tripRule.getAllowedWorkLocations().isEmpty()) {
+                if (createDto.getWorkLocation() == null || !tripRule.getAllowedWorkLocations().contains(createDto.getWorkLocation())) {
+                    throw new BusinessException("이 정책에서 허용되지 않는 출장지입니다. 허용된 출장지: " +
+                            String.join(", ", tripRule.getAllowedWorkLocations()));
+                }
+            }
+        }
+
+        // 5. 정책 타입에 따라 ApprovalDocument 자동 매핑
+        ApprovalDocument approvalDocument = getApprovalDocumentByPolicyType(policy.getPolicyType().getTypeCode());
+
+        // 6. Request 엔티티 생성
         Request request = Request.builder()
                 .policy(policy)
                 .memberId(memberId)
-                .documentId(createDto.getDocumentId()) // 사용자가 선택한 결재 문서 ID
+                .approvalDocument(approvalDocument)
                 .requestUnit(RequestUnit.DAY) // 출장은 일자 단위
                 .startDateTime(startDateTime)
                 .endDateTime(endDateTime)
@@ -1206,5 +1225,22 @@ public class RequestService {
 
         log.debug("알 수 없는 휴게 규칙 타입: {}", breakType);
         return 0;
+    }
+
+    /**
+     * 정책 타입에 따라 ApprovalDocument를 자동으로 매핑합니다.
+     * @param policyTypeCode 정책 타입 코드
+     * @return 매핑된 ApprovalDocument
+     */
+    private com.crewvy.workforce_service.approval.entity.ApprovalDocument getApprovalDocumentByPolicyType(PolicyTypeCode policyTypeCode) {
+        String documentName = switch(policyTypeCode) {
+            case ANNUAL_LEAVE, MATERNITY_LEAVE, PATERNITY_LEAVE, MENSTRUAL_LEAVE -> "휴가 신청서";
+            case CHILDCARE_LEAVE, FAMILY_CARE_LEAVE -> "휴직 신청서";
+            case BUSINESS_TRIP -> "출장 신청서";
+            default -> throw new BusinessException("해당 정책 타입에 대한 결재 문서가 정의되지 않았습니다: " + policyTypeCode);
+        };
+
+        return approvalDocumentRepository.findByDocumentName(documentName)
+                .orElseThrow(() -> new ResourceNotFoundException("결재 문서를 찾을 수 없습니다: " + documentName));
     }
 }

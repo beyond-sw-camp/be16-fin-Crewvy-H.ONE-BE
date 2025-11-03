@@ -64,13 +64,15 @@ public class LeaveRequestResponse {
             policyTypeName = request.getPolicy().getPolicyType().getTypeName();
         }
 
+        UUID documentId = (request.getApprovalDocument() != null) ? request.getApprovalDocument().getId() : null;
+
         return LeaveRequestResponse.builder()
                 .requestId(request.getId())
                 .policyId(policyId)
                 .policyName(policyName)
                 .policyTypeName(policyTypeName)
                 .memberId(request.getMemberId())
-                .documentId(request.getDocumentId())
+                .documentId(documentId)
                 .requestUnit(request.getRequestUnit())
                 .startDateTime(request.getStartDateTime())
                 .endDateTime(request.getEndDateTime())
