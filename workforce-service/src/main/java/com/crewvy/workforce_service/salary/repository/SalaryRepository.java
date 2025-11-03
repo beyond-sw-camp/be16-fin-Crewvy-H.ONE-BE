@@ -14,13 +14,14 @@ import java.util.UUID;
 @Repository
 public interface SalaryRepository extends JpaRepository<Salary, UUID> {
 
-    List<Salary> findByCompanyIdAndPaymentDateBetween(UUID companyId, LocalDate startDate, LocalDate endDate);
-    
-    List<Salary> findByCompanyIdOrderByPaymentDateDesc(UUID companyId);
+    List<Salary> findByCompanyIdAndSalaryStatusNotAndPaymentDate(
+            UUID companyId,
+            SalaryStatus salaryStatus,
+            LocalDate paymentDate
+
+    );
     
     List<Salary> findByCompanyIdAndMemberIdOrderByPaymentDateDesc(UUID companyId, UUID memberId);
-
-    Salary findFirstByCompanyIdAndMemberIdOrderByPaymentDateDesc(UUID companyId, UUID memberId);
 
     @Query("SELECT CASE WHEN COUNT(s) > 0 THEN TRUE ELSE FALSE END " +
             "FROM Salary s " +
@@ -40,4 +41,6 @@ public interface SalaryRepository extends JpaRepository<Salary, UUID> {
                                        @Param("startDate") LocalDate startDate,
                                        @Param("endDate") LocalDate endDate,
                                        @Param("status") SalaryStatus status);
+
+    List<Salary> findByMemberIdInAndPaymentDate(List<UUID> memberIds, LocalDate paymentDate);
 }

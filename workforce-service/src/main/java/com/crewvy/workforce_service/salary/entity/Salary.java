@@ -30,6 +30,9 @@ public class Salary extends BaseEntity {
     private UUID memberId;
 
     @Column(nullable = false)
+    private BigInteger baseSalary;
+
+    @Column(nullable = false)
     private BigInteger totalAllowance;
 
     @Column(nullable = false)
