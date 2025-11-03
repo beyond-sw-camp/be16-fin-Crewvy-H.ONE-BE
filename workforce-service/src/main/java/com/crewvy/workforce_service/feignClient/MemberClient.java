@@ -49,7 +49,6 @@ public interface MemberClient {
     @GetMapping("/member/{companyId}/salary-list")
     ApiResponse<List<MemberSalaryListRes>> getSalaryList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                                          @PathVariable UUID companyId);
-                                                         @RequestParam UUID companyId);
 
     // 연차 발생 계산용 회원 고용 정보 조회 (companyId로 조회)
     // TODO: member-service에 해당 엔드포인트 구현 필요
