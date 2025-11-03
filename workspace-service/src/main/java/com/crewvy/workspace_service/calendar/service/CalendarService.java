@@ -30,7 +30,7 @@ public class CalendarService {
 
 //    내 일정 전체조회
     @Transactional(readOnly = true)
-    public List<CalendarResDto> findMySchedule(UUID memberId, String searchType, int year, int month) {
+    public List<CalendarResDto> findMySchedule(UUID memberId, String searchType, Integer year, Integer month) {
         List<Calendar> calendarList = null;
 
         if(searchType.equals("Day")) {
