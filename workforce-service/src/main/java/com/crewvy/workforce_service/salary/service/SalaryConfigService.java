@@ -56,7 +56,8 @@ public class SalaryConfigService {
 
 
         // 고정 수당 항목 조회
-        List<FixedAllowanceRes> fixedAllowanceResList =  fixedAllowanceService.getFixedAllowanceList(companyId);
+        List<FixedAllowanceRes> fixedAllowanceResList =  fixedAllowanceService.getFixedAllowanceList(memberPositionId,
+                companyId);
 
         Map<UUID, List<FixedAllowanceRes>> fixedAllowanceResMap = fixedAllowanceResList.stream()
                 .collect(Collectors.groupingBy(FixedAllowanceRes::getMemberId));

@@ -16,7 +16,6 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
-@Setter
 @Entity
 public class Salary extends BaseEntity {
 
@@ -60,5 +59,9 @@ public class Salary extends BaseEntity {
         if (paymentDate != null) {
             this.paymentDate = paymentDate;
         }
+    }
+
+    public void updateSalaryStatus(SalaryStatus salaryStatus) {
+        this.salaryStatus = salaryStatus;
     }
 }

@@ -11,7 +11,6 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
-@Setter
 @Entity
 public class FixedAllowance extends BaseEntity {
 
@@ -33,4 +32,12 @@ public class FixedAllowance extends BaseEntity {
 
     @Column(nullable = false)
     private LocalDate effectiveDate;
+
+    public void updateAmount(int amount) {
+        this.amount = amount;
+    }
+
+    public void updateEffectiveDate(LocalDate effectiveDate) {
+        this.effectiveDate = effectiveDate;
+    }
 }

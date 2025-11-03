@@ -97,7 +97,7 @@ public class SalaryService {
                 if (areSalariesEqual(existsSalary, saveSalary)) {
                     continue;
                 } else {
-                    existsSalary.setSalaryStatus(SalaryStatus.CANCELED);
+                    existsSalary.updateSalaryStatus(SalaryStatus.CANCELED);
                     salaryListToInsert.add(saveSalary);
                 }
             } else {
@@ -178,7 +178,8 @@ public class SalaryService {
 
         Map<UUID, List<SalaryDetailRes>> allowanceMap = calculateAllowances(companyId, startDate, endDate);
 
-        List<FixedAllowanceRes> fixedAllowanceList =  fixedAllowanceService.getFixedAllowanceList(companyId);
+        List<FixedAllowanceRes> fixedAllowanceList =  fixedAllowanceService.getFixedAllowanceList(memberPositionId,
+                companyId);
 
         Map<UUID, List<FixedAllowanceRes>> fixedAllowanceMap = fixedAllowanceList.stream()
                 .collect(Collectors.groupingBy(FixedAllowanceRes::getMemberId));

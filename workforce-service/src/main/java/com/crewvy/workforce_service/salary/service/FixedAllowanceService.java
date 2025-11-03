@@ -27,11 +27,31 @@ public class FixedAllowanceService {
     private final FixedAllowanceRepository fixedAllowanceRepository;
     private final MemberClient memberClient;
 
-    public Long saveFixedAllowance(FixedAllowanceCreateReq fixedAllowanceCreateReq) {
+    public Long saveFixedAllowance(UUID memberPositionId,
+                                   FixedAllowanceCreateReq fixedAllowanceCreateReq) {
+        
+        // 권한 조회
+        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
+                "salary", "CREATE", "COMPANY");
+
+        if (Boolean.FALSE.equals(hasPermission.getData())) {
+            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
+        }
+        
         return fixedAllowanceRepository.save(fixedAllowanceCreateReq.toEntity()).getId();
     }
 
-    public List<FixedAllowanceRes> getFixedAllowanceList(UUID companyId) {
+    public List<FixedAllowanceRes> getFixedAllowanceList(UUID memberPositionId,
+                                                         UUID companyId) {
+
+        // 권한 조회
+        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
+                "salary", "READ", "COMPANY");
+
+        if (Boolean.FALSE.equals(hasPermission.getData())) {
+            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
+        }
+
         List<FixedAllowance> fixedAllowanceList = fixedAllowanceRepository.findAllByCompanyId(companyId);
         return fixedAllowanceList.stream().map(FixedAllowanceRes::fromEntity).toList();
     }
@@ -66,8 +86,8 @@ public class FixedAllowanceService {
 
                 if (fixedAllowance.isPresent()) {
                     FixedAllowance update = fixedAllowance.get();
-                    update.setAmount(req.getAmount());
-                    update.setEffectiveDate(req.getEffectiveDate());
+                    update.updateAmount(req.getAmount());
+                    update.updateEffectiveDate(req.getEffectiveDate());
                 } else {
                     fixedAllowanceRepository.save(req.toEntity(memberId, companyId));
                 }
