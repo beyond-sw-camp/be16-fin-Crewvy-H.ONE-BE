@@ -2,10 +2,7 @@ package com.crewvy.workforce_service.attendance.service;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.exception.*;
-import com.crewvy.workforce_service.attendance.constant.AttendanceStatus;
-import com.crewvy.workforce_service.attendance.constant.DeviceType;
-import com.crewvy.workforce_service.attendance.constant.EventType;
-import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
+import com.crewvy.workforce_service.attendance.constant.*;
 import com.crewvy.workforce_service.attendance.dto.request.EventRequest;
 import com.crewvy.workforce_service.attendance.dto.response.*;
 import com.crewvy.workforce_service.attendance.dto.rule.*;
@@ -119,12 +116,24 @@ public class AttendanceService {
         LocalDate today = LocalDate.now();
         LocalDateTime clockInTime = LocalDateTime.now();
 
-        // 기존 DailyAttendance 조회 (반차/시차 승인되어 있을 수 있음)
+        // 1. 오늘 승인된 휴가/휴직이 있는지 확인 (종일 휴가만 차단, 반차/시차는 허용)
+        boolean hasFullDayLeave = requestRepository.hasApprovedFullDayLeaveOnDate(
+                memberId,
+                today.atStartOfDay(),
+                today.atTime(23, 59, 59),
+                RequestStatus.APPROVED
+        );
+
+        if (hasFullDayLeave) {
+            throw new BusinessException("오늘은 휴가/휴직으로 승인된 날짜입니다. 출근할 수 없습니다.");
+        }
+
+        // 2. 기존 DailyAttendance 조회 (반차/시차 승인되어 있을 수 있음)
         DailyAttendance existingAttendance = dailyAttendanceRepository
                 .findByMemberIdAndAttendanceDate(memberId, today)
                 .orElse(null);
 
-        // 기본근무 정책 조회 (WorkTimeRule, LatenessRule 포함)
+        // 3. 기본근무 정책 조회 (WorkTimeRule, LatenessRule 포함)
         Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
                 memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
 
@@ -1454,6 +1463,7 @@ public class AttendanceService {
                             .typeName(policy.getPolicyType().getTypeCode().getCodeName())
                             .isActive(policy.getIsActive())
                             .allowedRequestUnits(allowedRequestUnits)
+                            .ruleDetails(policy.getRuleDetails()) // 정책 규칙 상세 포함 (출장지 필터링 등에 사용)
                             .build();
                 })
                 .toList();
@@ -1471,17 +1481,23 @@ public class AttendanceService {
      */
     @Transactional(readOnly = true)
     public List<TeamMemberAttendanceRes> getTeamAttendanceStatus(UUID memberId, UUID memberPositionId, UUID companyId) {
+        log.info("getTeamAttendanceStatus called with memberId={}, memberPositionId={}, companyId={}", memberId, memberPositionId, companyId);
+
         // 1. member-service에서 조직 트리 가져오기
         List<OrganizationNodeDto> organizationTree;
         try {
+            log.info("Calling memberClient.getOrganization with memberId={}", memberId);
             ApiResponse<List<OrganizationNodeDto>> orgResponse = memberClient.getOrganization(memberId);
+            log.info("Organization tree response: success={}, dataSize={}",
+                    orgResponse != null && orgResponse.getData() != null,
+                    orgResponse != null && orgResponse.getData() != null ? orgResponse.getData().size() : 0);
             if (orgResponse == null || orgResponse.getData() == null) {
-                log.error("Failed to fetch organization tree from member-service");
+                log.error("Failed to fetch organization tree from member-service: response is null or data is null");
                 throw new BusinessException("조직 정보를 가져오는 데 실패했습니다.");
             }
             organizationTree = orgResponse.getData();
         } catch (Exception e) {
-            log.error("Error fetching organization tree", e);
+            log.error("Error fetching organization tree for memberId={}: {}", memberId, e.getMessage(), e);
             throw new BusinessException("조직 정보를 가져오는 데 실패했습니다.");
         }
 

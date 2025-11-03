@@ -139,4 +139,27 @@ public interface RequestRepository extends JpaRepository<Request, UUID> {
             @Param("startDateTime") LocalDateTime startDateTime,
             @Param("endDateTime") LocalDateTime endDateTime
     );
+
+    /**
+     * 특정 날짜에 승인된 종일 휴가/휴직이 있는지 확인 (출근 차단용)
+     *
+     * @param memberId 사용자 ID
+     * @param targetDate 확인할 날짜 (시작)
+     * @param targetDateEnd 확인할 날짜 (종료)
+     * @param status 상태 (APPROVED)
+     * @return 종일 휴가가 있으면 true, 없으면 false
+     */
+    @Query("SELECT CASE WHEN COUNT(r) > 0 THEN true ELSE false END FROM Request r " +
+           "WHERE r.memberId = :memberId " +
+           "AND r.status = :status " +
+           "AND r.requestUnit = 'RU001' " +
+           "AND r.policy.policyType.typeCode IN ('ANNUAL_LEAVE', 'MATERNITY_LEAVE', 'PATERNITY_LEAVE', 'CHILDCARE_LEAVE', 'FAMILY_CARE_LEAVE', 'MENSTRUAL_LEAVE', 'BUSINESS_TRIP') " +
+           "AND r.startDateTime <= :targetDateEnd " +
+           "AND r.endDateTime >= :targetDate")
+    boolean hasApprovedFullDayLeaveOnDate(
+            @Param("memberId") UUID memberId,
+            @Param("targetDate") LocalDateTime targetDate,
+            @Param("targetDateEnd") LocalDateTime targetDateEnd,
+            @Param("status") RequestStatus status
+    );
 }

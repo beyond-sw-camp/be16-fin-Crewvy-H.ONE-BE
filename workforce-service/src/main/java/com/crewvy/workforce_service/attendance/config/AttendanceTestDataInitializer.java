@@ -42,19 +42,19 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     private final DailyAttendanceRepository dailyAttendanceRepository;
 
     // H.ONE 컴퍼니 ID (member-service의 AutoCreateAdmin에서 생성됨)
-    private static final UUID COMPANY_ID = UUID.fromString("042c11f9-ec9b-49ba-a32e-41723bbdc3e5");
+    private static final UUID COMPANY_ID = UUID.fromString("7c030086-1bd6-4e17-b1db-02e7d83d4e77");
 
     // 테스트용 멤버 ID들 (AutoCreateAdmin에서 생성된 emp1~10@h.one)
-    private static final UUID HR_ADMIN_ID = UUID.fromString("f2deb0ff-d527-41fd-be25-d0f87eaa896e"); // emp1 - 김민준
-    private static final UUID HR_MEMBER1_ID = UUID.fromString("b869ec13-4406-46c9-9588-45bf9e9cdff3"); // emp2 - 이서준
-    private static final UUID HR_MEMBER2_ID = UUID.fromString("b2e42207-fa34-46b1-af3f-3846e723aee0"); // emp3 - 박도윤
-    private static final UUID HR_MEMBER3_ID = UUID.fromString("bbf598ff-6f69-44c7-aacf-41c253da302e"); // emp4 - 최시우
-    private static final UUID HR_MEMBER4_ID = UUID.fromString("f2c1b71b-c8a2-4bb0-97b2-7a40fe85e50c"); // emp5 - 정하준
-    private static final UUID DEV_MEMBER1_ID = UUID.fromString("4a07c318-b980-49f2-8514-0cc98c6e312a"); // emp6 - 강지호
-    private static final UUID DEV_MEMBER2_ID = UUID.fromString("c55c16c9-4551-4f63-a846-26e23fb49d3a"); // emp7 - 윤은우
-    private static final UUID DEV_MEMBER3_ID = UUID.fromString("06908a23-31fc-4355-a44d-82602c3f96ea"); // emp8 - 임선우
-    private static final UUID DEV_MEMBER4_ID = UUID.fromString("dfa12591-a3ea-4b92-8daf-a3d0ef315861"); // emp9 - 한유찬
-    private static final UUID DEV_MEMBER5_ID = UUID.fromString("be7cd1ed-4457-49d5-bcf1-e2e0b79d564d"); // emp10 - 오이안
+    private static final UUID HR_ADMIN_ID = UUID.fromString("ff39db0b-8f89-43b7-b921-5d75234cbe46"); // emp1 - 김민준 (관리자)
+    private static final UUID HR_MEMBER1_ID = UUID.fromString("317b10c5-54eb-4b16-9adb-7e51fea62bb7"); // emp2 - 이서준 (지각 잦음)
+    private static final UUID HR_MEMBER2_ID = UUID.fromString("6d77b308-ef59-40ea-85b4-db125bf3e315"); // emp3 - 박도윤 (출산휴가)
+    private static final UUID HR_MEMBER3_ID = UUID.fromString("c98d9365-62c9-4874-9860-0eec35b2f107"); // emp4 - 최시우 (육아휴직 분할 사용)
+    private static final UUID HR_MEMBER4_ID = UUID.fromString("0b88e0e9-0e6f-4cf9-87d0-972433e0d2bb"); // emp5 - 정하준 (생리휴가)
+    private static final UUID DEV_MEMBER1_ID = UUID.fromString("ecb5dd8a-8ae8-4e50-9339-aa8f775739c1"); // emp6 - 강지호 (초과근무 많음)
+    private static final UUID DEV_MEMBER2_ID = UUID.fromString("090c1cfc-e099-44bd-b2f6-06668d101b71"); // emp7 - 윤은우 (야간근무)
+    private static final UUID DEV_MEMBER3_ID = UUID.fromString("bf416691-5ed6-4301-bcf4-4bd447c96b3d"); // emp8 - 임선우 (배우자 출산휴가)
+    private static final UUID DEV_MEMBER4_ID = UUID.fromString("12bb872c-b142-4b2b-949f-24e06cfaaa2e"); // emp9 - 한유찬 (개인 정책)
+    private static final UUID DEV_MEMBER5_ID = UUID.fromString("f7d45d53-eee7-4e77-b329-1335e2f77b42"); // emp10 - 오이안 (가족돌봄)
 
     private static final List<UUID> ALL_MEMBERS = List.of(
             HR_ADMIN_ID, HR_MEMBER1_ID, HR_MEMBER2_ID, HR_MEMBER3_ID, HR_MEMBER4_ID,
@@ -92,6 +92,13 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
 
         log.info("🚀 시연용 대량 근태 데이터 초기화 시작...");
         log.info("📅 데이터 범위: {} ~ {}", LocalDate.now().minusDays(60), LocalDate.now().plusDays(30));
+        log.info("📝 핵심 테스트 케이스:");
+        log.info("   - 육아휴직 3회 분할 사용 (최시우)");
+        log.info("   - 출산휴가 2회 분할 사용 (박도윤)");
+        log.info("   - 배우자출산/가족돌봄/생리휴가 케이스");
+        log.info("   - 주간 초과근무 12시간 한도 테스트 (강지호)");
+        log.info("   - 계층적 정책 할당 (회사/개인 레벨)");
+        log.info("   - PENDING/APPROVED 상태 혼합");
 
         // 1. 근무지 생성
         List<WorkLocation> workLocations = createWorkLocations();
@@ -124,8 +131,15 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
 
         log.info("🎉 시연용 대량 데이터 초기화 완료!");
         log.info("📋 시연 계정: emp1@h.one ~ emp10@h.one (비밀번호: 12341234)");
-        log.info("📊 생성된 데이터: 근태기록 {}건, 신청 {}건",
-                dailyAttendanceRepository.count(), requestRepository.count());
+        log.info("📊 생성된 데이터: 근태기록 {}건, 신청 {}건 (PENDING {}건, APPROVED {}건)",
+                dailyAttendanceRepository.count(),
+                requestRepository.count(),
+                requestRepository.findAll().stream().filter(r -> r.getStatus() == RequestStatus.PENDING).count(),
+                requestRepository.findAll().stream().filter(r -> r.getStatus() == RequestStatus.APPROVED).count());
+        log.info("👥 계정별 특징:");
+        log.info("   emp3 (박도윤): 출산휴가 2회 분할 | emp4 (최시우): 육아휴직 3회 분할 중 2회 완료");
+        log.info("   emp5 (정하준): 생리휴가 사용 | emp6 (강지호): 주간 초과근무 11시간");
+        log.info("   emp8 (임선우): 배우자 출산휴가 | emp10 (오이안): 가족돌봄휴가");
     }
 
     /**
@@ -169,9 +183,13 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
      */
     private Map<PolicyTypeCode, PolicyType> createPolicyTypes() {
         List<PolicyType> types = List.of(
-                // 휴가
+                // 휴가/휴직 (잔액 관리)
                 PolicyType.builder().companyId(COMPANY_ID).typeCode(PolicyTypeCode.ANNUAL_LEAVE).typeName("연차유급휴가").balanceDeductible(true).categoryCode(PolicyCategory.ABSENCE).priority(1).build(),
+                PolicyType.builder().companyId(COMPANY_ID).typeCode(PolicyTypeCode.MATERNITY_LEAVE).typeName("출산휴가").balanceDeductible(false).categoryCode(PolicyCategory.ABSENCE).priority(1).build(),
+                PolicyType.builder().companyId(COMPANY_ID).typeCode(PolicyTypeCode.PATERNITY_LEAVE).typeName("배우자출산휴가").balanceDeductible(false).categoryCode(PolicyCategory.ABSENCE).priority(1).build(),
                 PolicyType.builder().companyId(COMPANY_ID).typeCode(PolicyTypeCode.CHILDCARE_LEAVE).typeName("육아휴직").balanceDeductible(false).categoryCode(PolicyCategory.ABSENCE).priority(1).build(),
+                PolicyType.builder().companyId(COMPANY_ID).typeCode(PolicyTypeCode.FAMILY_CARE_LEAVE).typeName("가족돌봄휴가").balanceDeductible(false).categoryCode(PolicyCategory.ABSENCE).priority(1).build(),
+                PolicyType.builder().companyId(COMPANY_ID).typeCode(PolicyTypeCode.MENSTRUAL_LEAVE).typeName("생리휴가").balanceDeductible(false).categoryCode(PolicyCategory.ABSENCE).priority(1).build(),
 
                 // 근무
                 PolicyType.builder().companyId(COMPANY_ID).typeCode(PolicyTypeCode.STANDARD_WORK).typeName("기본근무").balanceDeductible(false).categoryCode(PolicyCategory.WORK_SCHEDULE).priority(3).build(),
@@ -255,12 +273,104 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                 .isActive(true)
                 .build());
 
-        // ========== 육아휴직 정책 ==========
+        // ========== 출산휴가 정책 (90일, 분할 가능) ==========
+        LeaveRuleDto maternityLeaveRule = new LeaveRuleDto();
+        maternityLeaveRule.setDefaultDays(90.0);
+        maternityLeaveRule.setMaxSplitCount(2); // 2회 분할 가능
+        maternityLeaveRule.setAllowedRequestUnits(List.of("DAY"));
+        maternityLeaveRule.setRequestDeadlineDays(1);
+        maternityLeaveRule.setAllowRetrospectiveRequest(true);
+
+        PolicyRuleDetails maternityRuleDetails = new PolicyRuleDetails();
+        maternityRuleDetails.setLeaveRule(maternityLeaveRule);
+
+        policies.add(Policy.builder()
+                .policyType(policyTypes.get(PolicyTypeCode.MATERNITY_LEAVE))
+                .companyId(COMPANY_ID)
+                .name("출산휴가 정책 (90일, 2회 분할)")
+                .ruleDetails(maternityRuleDetails)
+                .isPaid(true)
+                .autoApprove(false)
+                .effectiveFrom(LocalDate.of(2025, 1, 1))
+                .isActive(true)
+                .build());
+
+        // ========== 배우자 출산휴가 정책 (10일) ==========
+        LeaveRuleDto paternityLeaveRule = new LeaveRuleDto();
+        paternityLeaveRule.setDefaultDays(10.0);
+        paternityLeaveRule.setAllowedRequestUnits(List.of("DAY"));
+        paternityLeaveRule.setRequestDeadlineDays(1);
+
+        PolicyRuleDetails paternityRuleDetails = new PolicyRuleDetails();
+        paternityRuleDetails.setLeaveRule(paternityLeaveRule);
+
+        policies.add(Policy.builder()
+                .policyType(policyTypes.get(PolicyTypeCode.PATERNITY_LEAVE))
+                .companyId(COMPANY_ID)
+                .name("배우자 출산휴가 정책 (10일)")
+                .ruleDetails(paternityRuleDetails)
+                .isPaid(true)
+                .autoApprove(false)
+                .effectiveFrom(LocalDate.of(2025, 1, 1))
+                .isActive(true)
+                .build());
+
+        // ========== 육아휴직 정책 (365일, 3회 분할 가능) ==========
+        LeaveRuleDto childcareLeaveRule = new LeaveRuleDto();
+        childcareLeaveRule.setDefaultDays(365.0);
+        childcareLeaveRule.setMaxSplitCount(3); // 3회 분할 가능
+        childcareLeaveRule.setAllowedRequestUnits(List.of("DAY"));
+        childcareLeaveRule.setRequestDeadlineDays(7);
+        childcareLeaveRule.setAllowRetrospectiveRequest(false);
+
+        PolicyRuleDetails childcareRuleDetails = new PolicyRuleDetails();
+        childcareRuleDetails.setLeaveRule(childcareLeaveRule);
+
         policies.add(Policy.builder()
                 .policyType(policyTypes.get(PolicyTypeCode.CHILDCARE_LEAVE))
                 .companyId(COMPANY_ID)
-                .name("육아휴직 정책")
-                .ruleDetails(new PolicyRuleDetails())
+                .name("육아휴직 정책 (365일, 3회 분할)")
+                .ruleDetails(childcareRuleDetails)
+                .isPaid(false)
+                .autoApprove(false)
+                .effectiveFrom(LocalDate.of(2025, 1, 1))
+                .isActive(true)
+                .build());
+
+        // ========== 가족돌봄휴가 정책 (10일) ==========
+        LeaveRuleDto familyCareLeaveRule = new LeaveRuleDto();
+        familyCareLeaveRule.setDefaultDays(10.0);
+        familyCareLeaveRule.setAllowedRequestUnits(List.of("DAY", "HALF_DAY_AM", "HALF_DAY_PM"));
+        familyCareLeaveRule.setRequestDeadlineDays(1);
+
+        PolicyRuleDetails familyCareRuleDetails = new PolicyRuleDetails();
+        familyCareRuleDetails.setLeaveRule(familyCareLeaveRule);
+
+        policies.add(Policy.builder()
+                .policyType(policyTypes.get(PolicyTypeCode.FAMILY_CARE_LEAVE))
+                .companyId(COMPANY_ID)
+                .name("가족돌봄휴가 정책 (10일)")
+                .ruleDetails(familyCareRuleDetails)
+                .isPaid(true)
+                .autoApprove(false)
+                .effectiveFrom(LocalDate.of(2025, 1, 1))
+                .isActive(true)
+                .build());
+
+        // ========== 생리휴가 정책 (월 1일) ==========
+        LeaveRuleDto menstrualLeaveRule = new LeaveRuleDto();
+        menstrualLeaveRule.setDefaultDays(12.0); // 연 12일 (월 1일)
+        menstrualLeaveRule.setAllowedRequestUnits(List.of("DAY"));
+        menstrualLeaveRule.setRequestDeadlineDays(0); // 당일 신청 가능
+
+        PolicyRuleDetails menstrualRuleDetails = new PolicyRuleDetails();
+        menstrualRuleDetails.setLeaveRule(menstrualLeaveRule);
+
+        policies.add(Policy.builder()
+                .policyType(policyTypes.get(PolicyTypeCode.MENSTRUAL_LEAVE))
+                .companyId(COMPANY_ID)
+                .name("생리휴가 정책 (월 1일)")
+                .ruleDetails(menstrualRuleDetails)
                 .isPaid(false)
                 .autoApprove(false)
                 .effectiveFrom(LocalDate.of(2025, 1, 1))
@@ -325,13 +435,21 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     }
 
     /**
-     * 전 직원에게 정책 할당 (회사 레벨)
+     * 정책 할당 (계층 구조 테스트: 회사/조직/개인)
      */
     private void assignPoliciesToAllMembers(Map<PolicyTypeCode, Policy> policies) {
         List<PolicyAssignment> assignments = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
 
+        // 1. 회사 레벨 할당 (모든 직원에게 적용)
         for (Policy policy : policies.values()) {
+            // 특정 개인만 사용하는 정책은 회사 레벨에서 제외
+            if (policy.getPolicyType().getTypeCode() == PolicyTypeCode.MATERNITY_LEAVE ||
+                policy.getPolicyType().getTypeCode() == PolicyTypeCode.PATERNITY_LEAVE ||
+                policy.getPolicyType().getTypeCode() == PolicyTypeCode.MENSTRUAL_LEAVE) {
+                continue;
+            }
+
             assignments.add(PolicyAssignment.builder()
                     .policy(policy)
                     .scopeType(PolicyScopeType.COMPANY)
@@ -342,7 +460,40 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                     .build());
         }
 
+        // 2. 개인 레벨 할당 (특정 직원에게만)
+        // 박도윤(HR_MEMBER2)에게 출산휴가 정책 할당
+        assignments.add(PolicyAssignment.builder()
+                .policy(policies.get(PolicyTypeCode.MATERNITY_LEAVE))
+                .scopeType(PolicyScopeType.MEMBER)
+                .targetId(HR_MEMBER2_ID)
+                .assignedBy(HR_ADMIN_ID)
+                .assignedAt(now)
+                .isActive(true)
+                .build());
+
+        // 임선우(DEV_MEMBER3)에게 배우자 출산휴가 정책 할당
+        assignments.add(PolicyAssignment.builder()
+                .policy(policies.get(PolicyTypeCode.PATERNITY_LEAVE))
+                .scopeType(PolicyScopeType.MEMBER)
+                .targetId(DEV_MEMBER3_ID)
+                .assignedBy(HR_ADMIN_ID)
+                .assignedAt(now)
+                .isActive(true)
+                .build());
+
+        // 정하준(HR_MEMBER4)에게 생리휴가 정책 할당
+        assignments.add(PolicyAssignment.builder()
+                .policy(policies.get(PolicyTypeCode.MENSTRUAL_LEAVE))
+                .scopeType(PolicyScopeType.MEMBER)
+                .targetId(HR_MEMBER4_ID)
+                .assignedBy(HR_ADMIN_ID)
+                .assignedAt(now)
+                .isActive(true)
+                .build());
+
         policyAssignmentRepository.saveAll(assignments);
+        log.info("✅ 정책 할당 완료: 회사 레벨 {}건, 개인 레벨 3건 (출산/배우자출산/생리휴가)",
+                assignments.size() - 3);
     }
 
     /**
@@ -483,21 +634,233 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
             }
         }
 
-        // 5. 육아휴직 (HR_MEMBER3만, 1개월간)
-        LocalDate childcareStart = LocalDate.now().minusDays(45);
-        LocalDate childcareEnd = LocalDate.now().minusDays(15);
+        // ========== 5. 분할 사용 케이스 (핵심 테스트!) ==========
+        Policy maternityPolicy = policies.get(PolicyTypeCode.MATERNITY_LEAVE);
+        Policy paternityPolicy = policies.get(PolicyTypeCode.PATERNITY_LEAVE);
+        Policy familyCarePolicy = policies.get(PolicyTypeCode.FAMILY_CARE_LEAVE);
+        Policy menstrualPolicy = policies.get(PolicyTypeCode.MENSTRUAL_LEAVE);
+
+        // 5-1. 육아휴직 3회 분할 사용 (HR_MEMBER3 - 최시우)
+        // 1차: 2024년 9월 (30일) - APPROVED
+        LocalDate childcare1Start = LocalDate.now().minusMonths(3);
+        LocalDate childcare1End = childcare1Start.plusDays(29);
         requests.add(Request.builder()
                 .memberId(HR_MEMBER3_ID)
                 .policy(childcarePolicy)
                 .requestUnit(RequestUnit.DAY)
-                .startDateTime(childcareStart.atStartOfDay())
-                .endDateTime(childcareEnd.atTime(23, 59))
-                .deductionDays(0.0)
-                .reason("육아휴직")
+                .startDateTime(childcare1Start.atStartOfDay())
+                .endDateTime(childcare1End.atTime(23, 59))
+                .deductionDays(30.0)
+                .reason("육아휴직 1차 (3회 분할 중 1회차)")
                 .status(RequestStatus.APPROVED)
                 .build());
 
-        // 6. 미래 일정 (공유 캘린더용)
+        // 2차: 2024년 12월 (45일) - APPROVED
+        LocalDate childcare2Start = LocalDate.now().minusDays(50);
+        LocalDate childcare2End = LocalDate.now().minusDays(5);
+        requests.add(Request.builder()
+                .memberId(HR_MEMBER3_ID)
+                .policy(childcarePolicy)
+                .requestUnit(RequestUnit.DAY)
+                .startDateTime(childcare2Start.atStartOfDay())
+                .endDateTime(childcare2End.atTime(23, 59))
+                .deductionDays(45.0)
+                .reason("육아휴직 2차 (3회 분할 중 2회차)")
+                .status(RequestStatus.APPROVED)
+                .build());
+
+        // 3차: 미래 예정 (290일 남음) - PENDING
+        LocalDate childcare3Start = LocalDate.now().plusDays(30);
+        LocalDate childcare3End = childcare3Start.plusDays(289);
+        requests.add(Request.builder()
+                .memberId(HR_MEMBER3_ID)
+                .policy(childcarePolicy)
+                .requestUnit(RequestUnit.DAY)
+                .startDateTime(childcare3Start.atStartOfDay())
+                .endDateTime(childcare3End.atTime(23, 59))
+                .deductionDays(290.0)
+                .reason("육아휴직 3차 (3회 분할 중 3회차 - 최종)")
+                .status(RequestStatus.PENDING)
+                .build());
+
+        // 5-2. 출산휴가 2회 분할 사용 (HR_MEMBER2 - 박도윤)
+        // 1차: 60일 (APPROVED)
+        LocalDate maternity1Start = LocalDate.now().minusDays(90);
+        LocalDate maternity1End = maternity1Start.plusDays(59);
+        requests.add(Request.builder()
+                .memberId(HR_MEMBER2_ID)
+                .policy(maternityPolicy)
+                .requestUnit(RequestUnit.DAY)
+                .startDateTime(maternity1Start.atStartOfDay())
+                .endDateTime(maternity1End.atTime(23, 59))
+                .deductionDays(60.0)
+                .reason("출산휴가 1차 (2회 분할 중 1회차)")
+                .status(RequestStatus.APPROVED)
+                .build());
+
+        // 2차: 30일 (APPROVED)
+        LocalDate maternity2Start = LocalDate.now().minusDays(25);
+        LocalDate maternity2End = LocalDate.now().plusDays(4);
+        requests.add(Request.builder()
+                .memberId(HR_MEMBER2_ID)
+                .policy(maternityPolicy)
+                .requestUnit(RequestUnit.DAY)
+                .startDateTime(maternity2Start.atStartOfDay())
+                .endDateTime(maternity2End.atTime(23, 59))
+                .deductionDays(30.0)
+                .reason("출산휴가 2차 (2회 분할 중 2회차 - 최종)")
+                .status(RequestStatus.APPROVED)
+                .build());
+
+        // 5-3. 배우자 출산휴가 (DEV_MEMBER3 - 임선우)
+        LocalDate paternityStart = LocalDate.now().minusDays(7);
+        LocalDate paternityEnd = paternityStart.plusDays(4); // 5일 사용
+        requests.add(Request.builder()
+                .memberId(DEV_MEMBER3_ID)
+                .policy(paternityPolicy)
+                .requestUnit(RequestUnit.DAY)
+                .startDateTime(paternityStart.atStartOfDay())
+                .endDateTime(paternityEnd.atTime(23, 59))
+                .deductionDays(5.0)
+                .reason("첫째 자녀 출생")
+                .status(RequestStatus.APPROVED)
+                .build());
+
+        // 5-4. 가족돌봄휴가 (DEV_MEMBER5 - 오이안)
+        // 1월 - 반차 2회 (APPROVED)
+        requests.add(Request.builder()
+                .memberId(DEV_MEMBER5_ID)
+                .policy(familyCarePolicy)
+                .requestUnit(RequestUnit.HALF_DAY_AM)
+                .startDateTime(LocalDate.now().minusDays(20).atStartOfDay())
+                .endDateTime(LocalDate.now().minusDays(20).atTime(12, 0))
+                .deductionDays(0.5)
+                .reason("부모님 병원 동행")
+                .status(RequestStatus.APPROVED)
+                .build());
+
+        requests.add(Request.builder()
+                .memberId(DEV_MEMBER5_ID)
+                .policy(familyCarePolicy)
+                .requestUnit(RequestUnit.HALF_DAY_PM)
+                .startDateTime(LocalDate.now().minusDays(10).atTime(13, 0))
+                .endDateTime(LocalDate.now().minusDays(10).atTime(23, 59))
+                .deductionDays(0.5)
+                .reason("부모님 병원 동행")
+                .status(RequestStatus.APPROVED)
+                .build());
+
+        // 5-5. 생리휴가 (HR_MEMBER4 - 정하준)
+        // 지난 2개월 사용 (월 1일씩)
+        for (int i = 1; i <= 2; i++) {
+            LocalDate menstrualDate = LocalDate.now().minusMonths(i).withDayOfMonth(15);
+            requests.add(Request.builder()
+                    .memberId(HR_MEMBER4_ID)
+                    .policy(menstrualPolicy)
+                    .requestUnit(RequestUnit.DAY)
+                    .startDateTime(menstrualDate.atStartOfDay())
+                    .endDateTime(menstrualDate.atTime(23, 59))
+                    .deductionDays(1.0)
+                    .reason("생리휴가")
+                    .status(RequestStatus.APPROVED)
+                    .build());
+        }
+
+        // ========== 6. 주간 초과근무 한도 테스트 케이스 (DEV_MEMBER1 - 강지호) ==========
+        // 이번 주 월~목: 11시간 초과근무 (APPROVED) -> 금요일에 1시간만 더 가능
+        LocalDate thisMonday = LocalDate.now().with(DayOfWeek.MONDAY);
+
+        // 월요일: 3시간
+        requests.add(Request.builder()
+                .memberId(DEV_MEMBER1_ID)
+                .policy(overtimePolicy)
+                .requestUnit(RequestUnit.DAY)
+                .startDateTime(thisMonday.atTime(18, 0))
+                .endDateTime(thisMonday.atTime(21, 0))
+                .deductionDays(0.0)
+                .reason("프로젝트 긴급 대응")
+                .status(RequestStatus.APPROVED)
+                .build());
+
+        // 화요일: 4시간
+        requests.add(Request.builder()
+                .memberId(DEV_MEMBER1_ID)
+                .policy(overtimePolicy)
+                .requestUnit(RequestUnit.DAY)
+                .startDateTime(thisMonday.plusDays(1).atTime(18, 0))
+                .endDateTime(thisMonday.plusDays(1).atTime(22, 0))
+                .deductionDays(0.0)
+                .reason("프로젝트 긴급 대응")
+                .status(RequestStatus.APPROVED)
+                .build());
+
+        // 수요일: 2시간
+        requests.add(Request.builder()
+                .memberId(DEV_MEMBER1_ID)
+                .policy(overtimePolicy)
+                .requestUnit(RequestUnit.DAY)
+                .startDateTime(thisMonday.plusDays(2).atTime(18, 0))
+                .endDateTime(thisMonday.plusDays(2).atTime(20, 0))
+                .deductionDays(0.0)
+                .reason("프로젝트 긴급 대응")
+                .status(RequestStatus.APPROVED)
+                .build());
+
+        // 목요일: 2시간 (총 11시간)
+        requests.add(Request.builder()
+                .memberId(DEV_MEMBER1_ID)
+                .policy(overtimePolicy)
+                .requestUnit(RequestUnit.DAY)
+                .startDateTime(thisMonday.plusDays(3).atTime(18, 0))
+                .endDateTime(thisMonday.plusDays(3).atTime(20, 0))
+                .deductionDays(0.0)
+                .reason("프로젝트 긴급 대응")
+                .status(RequestStatus.APPROVED)
+                .build());
+
+        // 금요일: 1시간 PENDING (한도 내)
+        requests.add(Request.builder()
+                .memberId(DEV_MEMBER1_ID)
+                .policy(overtimePolicy)
+                .requestUnit(RequestUnit.DAY)
+                .startDateTime(thisMonday.plusDays(4).atTime(18, 0))
+                .endDateTime(thisMonday.plusDays(4).atTime(19, 0))
+                .deductionDays(0.0)
+                .reason("프로젝트 마무리")
+                .status(RequestStatus.PENDING)
+                .build());
+
+        // ========== 7. 최근 신청 내역 (PENDING 상태) ==========
+        // 다음 주 연차 신청들 (PENDING)
+        for (int i = 0; i < 3; i++) {
+            UUID randomMember = ALL_MEMBERS.get(random.nextInt(ALL_MEMBERS.size()));
+            LocalDate futureLeaveDate = LocalDate.now().plusDays(7 + i * 3);
+
+            requests.add(Request.builder()
+                    .memberId(randomMember)
+                    .policy(annualPolicy)
+                    .requestUnit(RequestUnit.DAY)
+                    .startDateTime(futureLeaveDate.atStartOfDay())
+                    .endDateTime(futureLeaveDate.atTime(23, 59))
+                    .deductionDays(1.0)
+                    .reason("개인 일정")
+                    .status(RequestStatus.PENDING)
+                    .build());
+        }
+
+        // 이번 주 반차 신청 (PENDING)
+        requests.add(Request.builder()
+                .memberId(HR_ADMIN_ID)
+                .policy(annualPolicy)
+                .requestUnit(RequestUnit.HALF_DAY_PM)
+                .startDateTime(LocalDate.now().plusDays(2).atTime(13, 0))
+                .endDateTime(LocalDate.now().plusDays(2).atTime(23, 59))
+                .deductionDays(0.5)
+                .reason("병원 진료")
+                .status(RequestStatus.PENDING)
+                .build());
+
+        // ========== 8. 미래 일정 (공유 캘린더용) ==========
         LocalDate futureDate1 = LocalDate.now().plusDays(7);
         requests.add(Request.builder()
                 .memberId(HR_ADMIN_ID)
@@ -533,14 +896,28 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         Set<LocalDate> leaveDates = new HashSet<>();
         List<Request> approvedLeaves = requestRepository.findAll().stream()
                 .filter(r -> r.getStatus() == RequestStatus.APPROVED)
-                .filter(r -> r.getPolicy().getPolicyType().getTypeCode() == PolicyTypeCode.ANNUAL_LEAVE ||
-                             r.getPolicy().getPolicyType().getTypeCode() == PolicyTypeCode.CHILDCARE_LEAVE ||
-                             r.getPolicy().getPolicyType().getTypeCode() == PolicyTypeCode.BUSINESS_TRIP)
+                .filter(r -> {
+                    PolicyTypeCode typeCode = r.getPolicy().getPolicyType().getTypeCode();
+                    return typeCode == PolicyTypeCode.ANNUAL_LEAVE ||
+                           typeCode == PolicyTypeCode.MATERNITY_LEAVE ||
+                           typeCode == PolicyTypeCode.PATERNITY_LEAVE ||
+                           typeCode == PolicyTypeCode.CHILDCARE_LEAVE ||
+                           typeCode == PolicyTypeCode.FAMILY_CARE_LEAVE ||
+                           typeCode == PolicyTypeCode.MENSTRUAL_LEAVE ||
+                           typeCode == PolicyTypeCode.BUSINESS_TRIP;
+                })
                 .collect(Collectors.toList());
 
         for (Request req : approvedLeaves) {
             LocalDate start = req.getStartDateTime().toLocalDate();
             LocalDate end = req.getEndDateTime().toLocalDate();
+
+            // 반차는 근태 기록이 있으므로 제외하지 않음
+            if (req.getRequestUnit() == RequestUnit.HALF_DAY_AM ||
+                req.getRequestUnit() == RequestUnit.HALF_DAY_PM ||
+                req.getRequestUnit() == RequestUnit.TIME_OFF) {
+                continue;
+            }
 
             for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
                 leaveDates.add(date);
