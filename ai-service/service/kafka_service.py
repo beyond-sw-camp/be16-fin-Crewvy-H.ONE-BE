@@ -6,6 +6,7 @@ from schemas.transcribe import TranscribeReq
 from service.minute_service import get_minute
 import json
 import time
+import asyncio
 
 logger = logging.getLogger(__name__)
 load_dotenv()
@@ -84,3 +85,12 @@ def run_transcribe_pipeline():
         consumer.close()
         producer.close()
         print("전사문 컨슈머, 프로듀서 종료")
+
+
+# asyncio.to_thread를 사용하여 위 동기 함수를 별도 스레드에서 실행하는 비동기 래퍼
+async def run_pipeline_in_background():
+    """
+    동기 함수인 run_transcribe_pipeline을 별도의 스레드에서 실행하여
+    메인 이벤트 루프를 차단하지 않도록 합니다.
+    """
+    await asyncio.to_thread(run_transcribe_pipeline)

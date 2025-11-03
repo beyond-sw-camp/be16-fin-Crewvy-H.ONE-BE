@@ -20,6 +20,15 @@ device = os.getenv("WHISPERX_DEVICE")
 compute_type = os.getenv("WHISPERX_COMPUTE_TYPE")
 use_auth_token = os.getenv("HUGGINGFACE_TOKEN")
 
+bucket_name = os.getenv("AWS_S3_BUCKET_NAME")
+access_key = os.getenv("AWS_S3_ACCESS_KEY")
+secret_key = os.getenv("AWS_S3_SECRET_KEY")
+
+s3 = boto3.client(
+    "s3",
+    aws_access_key_id=access_key,
+    aws_secret_access_key=secret_key,
+)
 
 # 영상 -> 회의록 생성
 def transcribe(audio_file, batch_size=16):
@@ -102,15 +111,6 @@ def clean_hallucination_segments(segments, vad_threshold=0.1):
 # 회의록 생성 요청 처리
 def get_minute(recording: TranscribeReq):
     start_time = datetime.now()
-    bucket_name = os.getenv("AWS_S3_BUCKET_NAME")
-    access_key = os.getenv("AWS_S3_ACCESS_KEY")
-    secret_key = os.getenv("AWS_S3_SECRET_KEY")
-
-    s3 = boto3.client(
-        "s3",
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key,
-    )
 
     if not os.path.exists(f"./tmp/recordings/{recording.videoConferenceId}"):
         os.makedirs(f"./tmp/recordings/{recording.videoConferenceId}")

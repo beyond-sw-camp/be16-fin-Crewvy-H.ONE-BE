@@ -9,7 +9,7 @@ from py_eureka_client import eureka_client
 import socket
 import os
 import asyncio
-from service.kafka_service import run_transcribe_pipeline
+from service.kafka_service import run_transcribe_pipeline, run_pipeline_in_background
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,19 +23,26 @@ async def lifespan(app_: FastAPI):
     # Startup
     host_ip = "localhost"
     port = int(os.getenv("INSTANCE_PORT", 8000))
-    # logger.info(f"유레카 클라이언트 등록 시작 - host: {host_ip}, port: {port}")
-    # await eureka_client.init_async(
-    #     eureka_server="http://localhost:8761/eureka/",
-    #     app_name="ai-service",
-    #     instance_port=port,
-    #     instance_host=host_ip,
-    #     instance_ip=host_ip,
-    # )
-    run_transcribe_pipeline()
+    logger.info(f"유레카 클라이언트 등록 시작 - host: {host_ip}, port: {port}")
+    await eureka_client.init_async(
+        eureka_server="http://localhost:8761/eureka/",
+        app_name="ai-service",
+        instance_port=port,
+        instance_host=host_ip,
+        instance_ip=host_ip,
+    )
+    # run_transcribe_pipeline()
+
+    kafka_task = asyncio.create_task(run_pipeline_in_background())
 
     logger.info("Eureka client initialization skipped for testing")
     yield
     # Shutdown
+    kafka_task.cancel()
+    try:
+        await kafka_task
+    except asyncio.CancelledError:
+        logger.info("Kafka pipeline task cancelled successfully")
     logger.info("Stopping Eureka client")
     # await eureka_client.stop_async()
 
