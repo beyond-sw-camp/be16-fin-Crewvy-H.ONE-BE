@@ -17,6 +17,7 @@ public class SalaryCreateReq {
 
     private UUID memberId;
     private String salaryName;
+    private BigInteger baseSalary;
     private BigInteger totalAllowance;
     private BigInteger totalDeduction;
     private BigInteger netPay;
@@ -29,6 +30,7 @@ public class SalaryCreateReq {
                 .companyId(companyId)
                 .memberId(memberId)
                 .salaryStatus(SalaryStatus.PENDING)
+                .baseSalary(baseSalary)
                 .totalAllowance(totalAllowance)
                 .totalDeduction(totalDeduction)
                 .netPay(netPay)
