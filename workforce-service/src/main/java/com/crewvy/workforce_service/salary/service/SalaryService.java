@@ -55,8 +55,6 @@ public class SalaryService {
     private final FixedAllowanceService fixedAllowanceService;
     private final PayrollItemService payrollItemService;
 
-    // 급여 명세서 출력
-
     // 급여 저장 메서드
     @Transactional
     public void saveSalary(UUID memberPositionId, UUID companyId, List<SalaryCreateReq> salaryCreateReqList) {
@@ -908,7 +906,7 @@ public class SalaryService {
 
         final Set<String> INSURANCE_NAMES = Set.of("국민연금", "건강보험", "장기요양보험", "고용보험");
         final String BASE_PAY_NAME = "기본급";
-        final String INCOME_TAX_NAME = "근로소득세"; // '소득세' 대신 '근로소득세' 사용
+        final String INCOME_TAX_NAME = "근로소득세";
 
         Set<String> detailItemNames = new HashSet<>(INSURANCE_NAMES);
         detailItemNames.add(BASE_PAY_NAME);
