@@ -1,5 +1,6 @@
 package com.crewvy.workforce_service.performance.dto.response;
 
+import com.crewvy.workforce_service.performance.constant.TeamGoalStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,6 +20,7 @@ public class TeamGoalDetailResponseDto {
     private String contents;
     private LocalDate startDate;
     private LocalDate endDate;
+    private String status;
     private UUID memberPositionId;
     @Builder.Default
     private List<GoalResponseDto> goalList = new ArrayList<>();
