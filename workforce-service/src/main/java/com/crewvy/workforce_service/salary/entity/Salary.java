@@ -4,10 +4,7 @@ import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.workforce_service.salary.constant.SalaryStatus;
 import com.crewvy.workforce_service.salary.converter.SalaryStatusConverter;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.math.BigInteger;
 import java.time.LocalDate;
@@ -32,8 +29,16 @@ public class Salary extends BaseEntity {
     @Column(nullable = false)
     private UUID memberId;
 
-    private BigInteger amount;
+    @Column(nullable = false)
+    private BigInteger baseSalary;
 
+    @Column(nullable = false)
+    private BigInteger totalAllowance;
+
+    @Column(nullable = false)
+    private BigInteger totalDeduction;
+
+    @Column(nullable = false)
     private BigInteger netPay;
 
     private LocalDate paymentDate;
@@ -42,6 +47,24 @@ public class Salary extends BaseEntity {
     @Convert(converter = SalaryStatusConverter.class)
     private SalaryStatus salaryStatus;
 
+    @Builder.Default
     @OneToMany(mappedBy = "salary", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SalaryDetail> salaryDetailList = new ArrayList<>();
+
+    // 급여 정보 수정 메서드
+    public void updateSalary(BigInteger totalAllowance,
+                             BigInteger totalDeduction,
+                             BigInteger netPay,
+                             LocalDate paymentDate) {
+        this.totalAllowance = totalAllowance;
+        this.totalDeduction = totalDeduction;
+        this.netPay = netPay;
+        if (paymentDate != null) {
+            this.paymentDate = paymentDate;
+        }
+    }
+
+    public void updateSalaryStatus(SalaryStatus salaryStatus) {
+        this.salaryStatus = salaryStatus;
+    }
 }

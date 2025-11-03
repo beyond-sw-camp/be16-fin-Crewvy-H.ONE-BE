@@ -31,4 +31,8 @@ public class NotificationSetting extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "is_active", nullable = false)
     private Bool isActive = Bool.TRUE;
+
+    public void updateIsActive(Bool bool) {
+        this.isActive = bool;
+    }
 }

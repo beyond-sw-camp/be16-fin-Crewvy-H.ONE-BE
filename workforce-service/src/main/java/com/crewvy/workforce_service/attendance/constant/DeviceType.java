@@ -9,7 +9,7 @@ import java.util.Arrays;
 @Getter
 @AllArgsConstructor
 public enum DeviceType {
-    LAPTOP("DT001", "노트북"),
+    LAPTOP("DT001", "노트북/데스크톱"),
     MOBILE("DT002", "모바일 기기");
 
     private final String codeValue;

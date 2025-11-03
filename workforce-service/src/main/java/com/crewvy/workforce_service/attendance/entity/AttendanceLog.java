@@ -39,8 +39,9 @@ public class AttendanceLog extends BaseEntity {
     @Column(name = "longitude")
     private Double longitude;
 
+    @Builder.Default
     @Column(name = "is_corrected", nullable = false)
-    private Boolean isCorrected;
+    private Boolean isCorrected = false;
 
     @Column(name = "correction_reason")
     private String correctionReason;

@@ -1,33 +1,57 @@
 package com.crewvy.member_service.member.service;
 
 import com.crewvy.common.entity.Bool;
+import com.crewvy.common.event.MemberDeletedEvent;
+import com.crewvy.common.event.MemberSavedEvent;
+import com.crewvy.common.event.OrganizationSavedEvent;
 import com.crewvy.common.exception.PermissionDeniedException;
+import com.crewvy.common.exception.SerializationException;
+import com.crewvy.common.passwordgenerater.PasswordGenerator;
+import com.crewvy.member_service.member.auth.EmailForm;
 import com.crewvy.member_service.member.auth.JwtTokenProvider;
 import com.crewvy.member_service.member.constant.Action;
 import com.crewvy.member_service.member.constant.PermissionRange;
 import com.crewvy.member_service.member.dto.request.*;
 import com.crewvy.member_service.member.dto.response.*;
 import com.crewvy.member_service.member.entity.*;
+import com.crewvy.member_service.member.event.MemberChangedEvent;
 import com.crewvy.member_service.member.repository.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.mail.internet.MimeMessage;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.*;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestTemplate;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.lang.Boolean.FALSE;
 import static java.lang.Boolean.TRUE;
 
 @Service
 @Transactional
+@Slf4j
 public class MemberService {
-
     private final CompanyRepository companyRepository;
     private final OrganizationRepository organizationRepository;
     private final MemberRepository memberRepository;
@@ -40,13 +64,22 @@ public class MemberService {
     private final PermissionRepository permissionRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final OutboxRepository outboxRepository;
+    private final SearchOutboxEventRepository searchOutboxEventRepository;
+    private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
+    private final JavaMailSender javaMailSender;
+    private final String serviceKey;
 
     public MemberService(CompanyRepository companyRepository, OrganizationRepository organizationRepository
             , MemberRepository memberRepository, MemberPositionRepository memberPositionRepository
             , RoleRepository roleRepository, RolePermissionRepository rolePermissionRepository
             , GradeRepository gradeRepository, GradeHistoryRepository gradeHistoryRepository
             , TitleRepository titleRepository, PermissionRepository permissionRepository
-            , PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider) {
+            , PasswordEncoder passwordEncoder, JwtTokenProvider jwtTokenProvider, OutboxRepository outboxRepository
+            , SearchOutboxEventRepository searchOutboxEventRepository, ObjectMapper objectMapper
+            , ApplicationEventPublisher eventPublisher, JavaMailSender javaMailSender
+            , @Value("${spring.business.registration.number}") String serviceKey) {
         this.companyRepository = companyRepository;
         this.organizationRepository = organizationRepository;
         this.memberRepository = memberRepository;
@@ -59,6 +92,12 @@ public class MemberService {
         this.permissionRepository = permissionRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.outboxRepository = outboxRepository;
+        this.searchOutboxEventRepository = searchOutboxEventRepository;
+        this.objectMapper = objectMapper;
+        this.eventPublisher = eventPublisher;
+        this.javaMailSender = javaMailSender;
+        this.serviceKey = serviceKey;
     }
 
     // 회원가입
@@ -71,7 +110,44 @@ public class MemberService {
         }
         String encodePassword = passwordEncoder.encode(createAdminReq.getPassword());
         Member adminMember = createAdminReq.toEntity(encodePassword, company);
-        return memberRepository.save(adminMember);
+        Member savedMember = memberRepository.save(adminMember);
+
+        // 알림 kafka
+        NotificationOutboxEvent notificationOutbox = NotificationOutboxEvent.builder()
+                .topic("member-create")
+                .memberId(savedMember.getId())
+                .build();
+        outboxRepository.save(notificationOutbox);
+        eventPublisher.publishEvent(new MemberChangedEvent(savedMember.getId()));
+
+        return savedMember;
+    }
+
+    // 사업자등록정보 조회
+    public Map<String, Object> getCompanyStatus(String bsnsLcns){
+        // bsnsLcns : 사업자 등록번호
+        Map<String, Object> result = new HashMap<>();
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            // 디코딩한 이유 restTemplate의 url로 들어갈때 한번때 인코딩 되어 총 두번 인코딩된 값이 되어 에러남
+            String decodedServicekey = URLDecoder.decode(serviceKey, StandardCharsets.UTF_8);
+            String url = "https://api.odcloud.kr/api/nts-businessman/v1/status?serviceKey=" + decodedServicekey;
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("b_no", Collections.singletonList(bsnsLcns.replace("-", "")));
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+            ParameterizedTypeReference<Map<String, Object>> responseType = new ParameterizedTypeReference<>() {};
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(url, HttpMethod.POST, entity, responseType);
+            result = response.getBody();
+            return result;
+        } catch (HttpClientErrorException e) {
+            log.info("HTTP 오류:" + e.getStatusCode());
+            log.info("HTTP 오류 응답:" + e.getResponseBodyAsString());
+            throw new IllegalStateException("사업자 등록 정보 조회 실패");
+        }
     }
 
     // 계정 생성
@@ -109,8 +185,18 @@ public class MemberService {
         Role role = roleRepository.findById(createMemberReq.getRoleId()).orElseThrow(()
                 -> new IllegalArgumentException("존재하지 않는 역할입니다."));
 
-        MemberPosition memberPosition = createMemberPosition(createMemberReq.getMemberPositionName(), savedMember, organization, title, role, LocalDate.now(), null);
+        MemberPosition memberPosition = createMemberPosition(createMemberReq.getMemberPositionName(), savedMember, organization, title, role, LocalDate.now());
         savedMember.updateDefaultMemberPosition(memberPosition);
+
+        NotificationOutboxEvent outbox = NotificationOutboxEvent.builder()
+                .topic("member-create")
+                .memberId(savedMember.getId())
+                .processed(Bool.FALSE)
+                .build();
+        outboxRepository.save(outbox);
+
+        eventPublisher.publishEvent(new MemberChangedEvent(savedMember.getId()));
+
         return savedMember.getId();
     }
 
@@ -145,10 +231,43 @@ public class MemberService {
                 .build();
     }
 
+    // AT 재발급
+    public LoginRes generateNewAt(GenerateNewAtReq generateNewAtReq) {
+        Member member = jwtTokenProvider.validateRt(generateNewAtReq.getRefreshToken());
+        MemberPosition memberPosition = memberPositionRepository.findById(generateNewAtReq.getMemberPositionId())
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 직원입니다."));
+
+        String accessToken = jwtTokenProvider.createAtToken(member, memberPosition);
+        return LoginRes.builder()
+                .accessToken(accessToken)
+                .build();
+    }
+
+    // memberPosition 선택
+    @Transactional(readOnly = true)
+    public LoginRes selectMemberPosition(UUID memberId, UUID memberPositionId) {
+        List<MemberPosition> memberPositionList = memberPositionRepository.findAllByMemberId(memberId);
+        if (memberPositionList.stream().noneMatch(mp -> mp.getId().equals(memberPositionId))) {
+            throw new PermissionDeniedException("자신의 직책으로만 변경할 수 있습니다.");
+        } else {
+            Member member = memberRepository.findById(memberId).orElseThrow(()
+                    -> new EntityNotFoundException("존재하지 않는 직원입니다."));
+            MemberPosition memberPosition = memberPositionRepository.findById(memberPositionId).orElseThrow(()
+                    -> new EntityNotFoundException("존재하지 않는 직원입니다."));
+
+            String accessToken = jwtTokenProvider.createAtToken(member, memberPosition);
+            return LoginRes.builder()
+                    .accessToken(accessToken)
+                    .memberPositionId(memberPositionId)
+                    .build();
+        }
+    }
+
     // 직원 목록 조회
     @Transactional(readOnly = true)
     public List<MemberListRes> getMemberList(UUID memberId, UUID memberPositionId) {
-        if (checkPermission(memberPositionId, "member", Action.READ, PermissionRange.COMPANY) == FALSE &&
+        if (checkPermission(memberPositionId, "member", Action.READ, PermissionRange.DEPARTMENT) == FALSE &&
+                checkPermission(memberPositionId, "member", Action.READ, PermissionRange.COMPANY) == FALSE &&
                 checkPermission(memberPositionId, "member", Action.READ, PermissionRange.SYSTEM) == FALSE) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
@@ -282,7 +401,7 @@ public class MemberService {
         currentGradeHistorySet.stream()
                 .filter(gh -> !newGradeHistoryIdSet.contains(gh.getId()))
                 .forEach(gh -> {
-                    gh.updateYnDel(Bool.FALSE);
+                    gh.updateYnDel(Bool.TRUE);
                     gradeHistoryRepository.save(gh);
                 });
 
@@ -300,7 +419,7 @@ public class MemberService {
                 });
 
         Set<MemberPosition> currentPositionSet = new LinkedHashSet<>(member.getMemberPositionList());
-        Set<UUID> updatedMemberPositionIds = new LinkedHashSet<>();
+        Set<UUID> updatedMemberPositionIdSet = new LinkedHashSet<>();
 
         if (updateMemberReq.getPositionUpdateReqList() != null) {
             for (PositionUpdateReq req : updateMemberReq.getPositionUpdateReqList()) {
@@ -312,7 +431,7 @@ public class MemberService {
                             .findFirst()
                             .orElse(null);
                     if (memberPosition != null) {
-                        updatedMemberPositionIds.add(memberPosition.getId());
+                        updatedMemberPositionIdSet.add(memberPosition.getId());
                     }
                 }
 
@@ -346,19 +465,59 @@ public class MemberService {
                 }
 
                 memberPosition.update(organization, title, role, req.getStartDate(), req.getEndDate());
-                memberPosition.delete();
                 memberPositionRepository.save(memberPosition);
             }
         }
 
         // 삭제 처리: 프론트엔드에서 넘어오지 않은 기존 memberPosition은 ynDel = TRUE
         currentPositionSet.stream()
-                .filter(mp -> !updatedMemberPositionIds.contains(mp.getId()))
+                .filter(mp -> !updatedMemberPositionIdSet.contains(mp.getId()))
                 .forEach(mp -> {
                     mp.delete(); // ynDel = TRUE
                     memberPositionRepository.save(mp);
                 });
+
+        eventPublisher.publishEvent(new MemberChangedEvent(member.getId()));
+
         return member.getId();
+    }
+
+    // 메일 발송
+    public void resetPassword(String email) {
+        Optional<Member> memberOptional = memberRepository.findByEmail(email);
+
+        // 이메일이 존재하지 않아도 항상 성공 응답을 반환하여 사용자 열거를 방지
+        if (memberOptional.isEmpty()) {
+            log.info("비밀번호 재설정 요청: 존재하지 않는 이메일입니다. 이메일: {}", email);
+            return;
+        }
+
+        Member member = memberOptional.get();
+
+        MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+        String newPassword = PasswordGenerator.generateRandomPassword();
+        member.resetPassword(passwordEncoder.encode(newPassword));
+        memberRepository.save(member); // 비밀번호 변경사항 저장
+
+        try {
+            MimeMessageHelper mimeMessageHelper = new MimeMessageHelper(mimeMessage, false, "UTF-8");
+
+            // 메일을 받을 수신자 설정
+            mimeMessageHelper.setTo(email);
+
+            // 메일의 제목 설정
+            mimeMessageHelper.setSubject("[H.ONE] 비밀번호 재설정");
+
+            // 메일의 내용 설정
+            mimeMessageHelper.setText(EmailForm.generateForm(newPassword), true);
+
+            javaMailSender.send(mimeMessage);
+
+            log.info("메일 발송 성공!");
+        } catch (Exception e) {
+            log.info("메일 발송 실패!");
+            throw new RuntimeException(e);
+        }
     }
 
     // 직원 삭제
@@ -367,7 +526,25 @@ public class MemberService {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
-        memberRepository.findById(memberId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 계정입니다.")).delete();
+        Member member = memberRepository.findById(memberId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 계정입니다."));
+        member.delete();
+        memberRepository.save(member);
+
+        try {
+            MemberDeletedEvent event = MemberDeletedEvent.builder()
+                    .memberId(member.getId())
+                    .build();
+            String payload = objectMapper.writeValueAsString(event);
+
+            SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
+                    .topic("member-deleted-events")
+                    .aggregateId(member.getId())
+                    .payload(payload)
+                    .build();
+            searchOutboxEventRepository.save(searchOutbox);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("데이터 직렬화 실패");
+        }
     }
 
     // 직원 복원
@@ -376,12 +553,23 @@ public class MemberService {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
-        memberRepository.findById(memberId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 계정입니다.")).restore();
+        Member member = memberRepository.findById(memberId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 계정입니다."));
+        member.restore();
+        memberRepository.save(member);
+
+        eventPublisher.publishEvent(new MemberChangedEvent(member.getId()));
     }
 
     // 직원 상세 조회
     @Transactional(readOnly = true)
     public MemberDetailRes getMemberDetail(UUID uuid, UUID memberPositionId, UUID memberId) {
+        // 자신의 정보를 조회하는 경우, 권한 검사를 통과
+        if (uuid.equals(memberId)) {
+            Member self = memberRepository.findByIdWithDetail(memberId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 계정입니다."));
+            return MemberDetailRes.fromEntity(self);
+        }
+
         if (checkPermission(memberPositionId, "member", Action.READ, PermissionRange.DEPARTMENT) == FALSE
                 && checkPermission(memberPositionId, "member", Action.READ, PermissionRange.COMPANY) == FALSE
                 && checkPermission(memberPositionId, "member", Action.READ, PermissionRange.SYSTEM) == FALSE) {
@@ -485,6 +673,22 @@ public class MemberService {
 
         titleRepository.findById(titleId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 직책입니다.")).delete();
     }
+
+    // 직책 영구 삭제
+    public void hardDeleteMemberPosition(UUID adminMemberPositionId, UUID memberPositionId) {
+        if (checkPermission(adminMemberPositionId, "member", Action.DELETE, PermissionRange.COMPANY) == FALSE) {
+            throw new PermissionDeniedException("권한이 없습니다.");
+        }
+
+        // 기본 직책으로 사용 중인지 확인
+        List<Member> membersWithThisAsDefault = memberRepository.findByDefaultMemberPosition_Id(memberPositionId);
+        if (!membersWithThisAsDefault.isEmpty()) {
+            throw new IllegalStateException("기본 직책으로 설정된 직무는 영구 삭제할 수 없습니다. 먼저 다른 직무를 기본으로 설정해주세요.");
+        }
+
+        memberPositionRepository.deleteById(memberPositionId);
+    }
+
 
     // 직책 복원
     public void restoreTitle(UUID memberPositionId, UUID titleId) {
@@ -841,6 +1045,8 @@ public class MemberService {
 
             member.updateDefaultMemberPosition(newDefaultMemberPosition);
         }
+
+        eventPublisher.publishEvent(new MemberChangedEvent(member.getId()));
     }
 
     // 권한 확인
@@ -875,6 +1081,13 @@ public class MemberService {
                 .collect(Collectors.toList());
     }
 
+    // memberId -> memberPositionId List
+    @Transactional(readOnly = true)
+    public List<MemberPositionInfo> getMyPositionList(UUID memberId) {
+        List<MemberPosition> memberPositionList = memberPositionRepository.findAllByMemberId(memberId);
+        return memberPositionList.stream().map(MemberPositionInfo::fromEntity).collect(Collectors.toList());
+    }
+
     // 권한 확인 (캐시 없음)
     @Transactional(readOnly = true)
     public Boolean checkPermissionWithoutCache(UUID memberPositionId, String resource, Action action, PermissionRange range) {
@@ -897,7 +1110,7 @@ public class MemberService {
 
     // member_position 생성
     private MemberPosition createMemberPosition(String memberPositionName, Member member, Organization organization,
-                                                Title title, Role role, LocalDate startDate, LocalDate endDate) {
+                                                Title title, Role role, LocalDate startDate) {
         MemberPosition memberPosition = MemberPosition.builder()
                 .name(memberPositionName)
                 .member(member)
@@ -905,14 +1118,14 @@ public class MemberService {
                 .title(title)
                 .role(role)
                 .startDate(startDate)
-                .endDate(endDate)
+                .endDate(null)
                 .build();
         return memberPositionRepository.save(memberPosition);
     }
 
     // member_position 생성
     public void createAndAssignDefaultPosition(String memberPositionName, Member member, Organization organization, Title title, Role role) {
-        MemberPosition memberPosition = createMemberPosition(memberPositionName, member, organization, title, role, LocalDate.now(), null);
+        MemberPosition memberPosition = createMemberPosition(memberPositionName, member, organization, title, role, LocalDate.now());
         member.updateDefaultMemberPosition(memberPosition);
         memberRepository.save(member);
     }
@@ -925,7 +1138,7 @@ public class MemberService {
                 .build();
         roleRepository.save(adminRole);
 
-        List<String> resources = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "salary");
+        List<String> resources = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "attendance-policy", "salary");
         List<Action> actions = Arrays.asList(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE);
 
         List<RolePermission> permissions = resources.stream()
@@ -984,8 +1197,9 @@ public class MemberService {
         if (checkPermission(memberPositionId, "salary", Action.READ, PermissionRange.COMPANY) == FALSE) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
-        if (!memberRepository.findById(memberPositionId).orElseThrow(() ->
-                new EntityNotFoundException("존재하지 않는 계정입니다.")).getCompany().getId().equals(companyId)) {
+
+        if (!memberPositionRepository.findById(memberPositionId).orElseThrow(() ->
+                new EntityNotFoundException("존재하지 않는 계정입니다.")).getMember().getCompany().getId().equals(companyId)) {
             throw new PermissionDeniedException("다른 회사의 정보는 조회할 수 없습니다.");
         }
         return memberRepository.findByCompanyWithDetail(companyRepository.findById(companyId).orElseThrow(() ->
@@ -998,5 +1212,117 @@ public class MemberService {
     public List<MemberPositionListRes> getDefaultPositionList(UUID memberIdList, IdListReq idListReq) {
         return memberRepository.findAllById(idListReq.getUuidList()).stream()
                 .map(m -> MemberPositionListRes.fromEntity(m.getDefaultMemberPosition())).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrganizationRes> getOrganizationList(UUID memberPositionId) {
+        return memberPositionRepository.findById(memberPositionId).map(mp -> {
+            List<OrganizationRes> organizationResList = new ArrayList<>();
+            Organization organization = mp.getOrganization();
+
+            while (organization.getParent() != null) {
+                organizationResList.add(OrganizationRes.fromEntity(organization));
+                organization = organization.getParent();
+            }
+            organizationResList.add(OrganizationRes.fromEntity(organization));
+
+            return organizationResList;
+        }).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 직원입니다."));
+    }
+
+    // 내 권한 목록 조회
+    @Transactional(readOnly = true)
+    public List<String> getMyPermissions(UUID memberPositionId) {
+        MemberPosition memberPosition = memberPositionRepository.findById(memberPositionId)
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 직책입니다."));
+
+        Role role = memberPosition.getRole();
+        List<RolePermission> rolePermissions = role.getRolePermissionList();
+
+        return rolePermissions.stream()
+                .map(rolePermission -> {
+                    Permission permission = rolePermission.getPermission();
+                    return permission.getResource() + ":" + permission.getAction() + ":" + rolePermission.getPermissionRange();
+                })
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+    // 회원 데이터 변경이 완료된 후 Elasticsearch 동기화를 위한 이벤트 저장
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void handleMemberSaveEvent(MemberChangedEvent memberChangedEvent) {
+        saveSearchOutboxEvent(memberChangedEvent.getMemberId());
+    }
+
+    // elastic search에 저장
+    public void saveSearchOutboxEvent(UUID memberId) {
+        Member member = memberRepository.findByIdWithDetail(memberId)
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 직원입니다."));
+
+        try {
+            List<MemberPosition> positionList = member.getMemberPositionList().stream().toList();
+            if (positionList == null || positionList.isEmpty()) {
+                MemberPosition defaultPosition = member.getDefaultMemberPosition();
+                if (defaultPosition != null) {
+                    positionList = List.of(defaultPosition);
+                } else {
+                    positionList = Collections.emptyList();
+                }
+            }
+
+            List<MemberPosition> finalPositionList = positionList.stream()
+                    .filter(position -> position.getYnDel() == Bool.FALSE).toList();
+
+            List<String> titleNameList = finalPositionList.stream()
+                    .map(MemberPosition::getTitle)
+                    .map(Title::getName)
+                    .collect(Collectors.toList());
+            if (titleNameList.isEmpty()) {
+                titleNameList.add("미정");
+            }
+
+            Map<String, String> organizationParentId = new HashMap<>();
+            finalPositionList.stream()
+                    .map(MemberPosition::getOrganization)
+                    .forEach(org -> {
+                        if (org.getParent() != null) {
+                            organizationParentId.put(org.getId().toString(), org.getParent().getId().toString());
+                        } else {
+                            organizationParentId.put(org.getId().toString(), null);
+                        }
+                    });
+
+            List<OrganizationSavedEvent> organizationSavedEventList = finalPositionList.stream()
+                    .map(MemberPosition::getOrganization)
+                    .map(org -> OrganizationSavedEvent.builder()
+                            .organizationId(org.getId())
+                            .name(org.getName())
+                            .parentId(org.getParent() != null ? org.getParent().getId() : null)
+                            .build())
+                    .collect(Collectors.toList());
+
+            MemberSavedEvent event = MemberSavedEvent.builder()
+                    .memberId(member.getId())
+                    .companyId(member.getCompany().getId())
+                    .name(member.getName())
+                    .organizationList(organizationSavedEventList)
+                    .titleName(titleNameList)
+                    .phoneNumber(member.getIsPhoneNumberPublic() == Bool.TRUE ? member.getPhoneNumber() : null)
+                    .memberStatus(member.getMemberStatus().getCodeName())
+                    .position(member.getDefaultMemberPosition().getTitle().getName())
+                    .email(member.getEmail())
+                    .build();
+            String payload = objectMapper.writeValueAsString(event);
+
+            SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
+                    .topic("member-saved-events")
+                    .aggregateId(member.getId())
+                    .payload(payload)
+                    .build();
+            searchOutboxEventRepository.save(searchOutbox);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("데이터 직렬화 실패");
+        }
     }
 }

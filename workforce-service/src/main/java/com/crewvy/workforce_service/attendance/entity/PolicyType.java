@@ -42,4 +42,7 @@ public class PolicyType extends BaseEntity {
     @Column(name = "category_code", nullable = false)
     @Convert(converter = PolicyCategoryConverter.class)
     private PolicyCategory categoryCode;
+
+    @Column(name = "priority", nullable = false)
+    private int priority;
 }

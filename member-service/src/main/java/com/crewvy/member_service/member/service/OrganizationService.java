@@ -1,23 +1,27 @@
 package com.crewvy.member_service.member.service;
 
+import com.crewvy.common.event.OrganizationSavedEvent;
 import com.crewvy.common.exception.PermissionDeniedException;
+import com.crewvy.common.exception.SerializationException;
 import com.crewvy.member_service.member.constant.Action;
 import com.crewvy.member_service.member.constant.PermissionRange;
 import com.crewvy.member_service.member.dto.request.CreateOrganizationReq;
 import com.crewvy.member_service.member.dto.request.UpdateOrganizationReq;
 import com.crewvy.member_service.member.dto.response.OrganizationTreeRes;
 import com.crewvy.member_service.member.dto.response.OrganizationTreeWithMembersRes;
-import com.crewvy.member_service.member.entity.Company;
-import com.crewvy.member_service.member.entity.Member;
-import com.crewvy.member_service.member.entity.MemberPosition;
-import com.crewvy.member_service.member.entity.Organization;
-import com.crewvy.member_service.member.repository.CompanyRepository;
-import com.crewvy.member_service.member.repository.MemberPositionRepository;
-import com.crewvy.member_service.member.repository.MemberRepository;
-import com.crewvy.member_service.member.repository.OrganizationRepository;
+import com.crewvy.member_service.member.entity.*;
+import com.crewvy.member_service.member.event.OrganizationChangedEvent;
+import com.crewvy.member_service.member.repository.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,15 +40,21 @@ public class OrganizationService {
     private final MemberRepository memberRepository;
     private final MemberService memberService;
     private final MemberPositionRepository memberPositionRepository;
+    private final SearchOutboxEventRepository searchOutboxEventRepository;
+    private final ApplicationEventPublisher eventPublisher;
+    private final ObjectMapper objectMapper;
 
-    public OrganizationService(OrganizationRepository organizationRepository,
-                               CompanyRepository companyRepository, MemberRepository memberRepository,
-                               MemberService memberService, MemberPositionRepository memberPositionRepository) {
+    public OrganizationService(OrganizationRepository organizationRepository, CompanyRepository companyRepository
+            , MemberRepository memberRepository, MemberService memberService, MemberPositionRepository memberPositionRepository
+            , SearchOutboxEventRepository searchOutboxEventRepository, ApplicationEventPublisher eventPublisher, ObjectMapper objectMapper) {
         this.organizationRepository = organizationRepository;
         this.companyRepository = companyRepository;
         this.memberRepository = memberRepository;
         this.memberService = memberService;
         this.memberPositionRepository = memberPositionRepository;
+        this.searchOutboxEventRepository = searchOutboxEventRepository;
+        this.eventPublisher = eventPublisher;
+        this.objectMapper = objectMapper;
     }
 
     // 회사 생성
@@ -75,7 +85,10 @@ public class OrganizationService {
         Organization newOrganization = createOrganizationReq.toEntity(parent, member.getCompany());
         newOrganization.updateDisplayOrder(displayOrder);
 
-        return organizationRepository.save(newOrganization).getId();
+        Organization savedOrganization = organizationRepository.save(newOrganization);
+        eventPublisher.publishEvent(new OrganizationChangedEvent(savedOrganization.getId()));
+
+        return savedOrganization.getId();
     }
 
     // 회원가입 시 사용되는 기본 조직 생성
@@ -130,21 +143,44 @@ public class OrganizationService {
                 -> new IllegalArgumentException("존재하지 않는 조직입니다."));
 
         organization.updateName(updateOrganizationReq.getName());
-        return organizationRepository.save(organization).getId();
+        UUID savedOrganizationId = organizationRepository.save(organization).getId();
+        eventPublisher.publishEvent(new OrganizationChangedEvent(savedOrganizationId));
+        return savedOrganizationId;
     }
 
     // 조직 순서 변경
-    public void reorderOrganization(List<UUID> organizationIds) {
+    public void reorderOrganization(List<UUID> organizationIdList) {
+        if (organizationIdList == null || organizationIdList.isEmpty()) {
+            return; // 아무것도 하지 않음
+        }
+
+        List<Organization> organizations = organizationRepository.findAllById(organizationIdList);
+        if (organizations.size() != organizationIdList.size()) {
+            throw new EntityNotFoundException("일부 조직을 찾을 수 없습니다.");
+        }
+
+        // 모든 조직이 동일한 부모를 갖는지 확인
+        UUID firstParentId = organizations.get(0).getParent() != null ? organizations.get(0).getParent().getId() : null;
+        for (Organization org : organizations) {
+            UUID currentParentId = org.getParent() != null ? org.getParent().getId() : null;
+            if (!java.util.Objects.equals(firstParentId, currentParentId)) {
+                throw new IllegalArgumentException("다른 레벨의 조직을 함께 변경할 수 없습니다.");
+            }
+        }
+
         List<Organization> organizationsToUpdate = new ArrayList<>();
-        for (int i = 0; i < organizationIds.size(); i++) {
+        for (int i = 0; i < organizationIdList.size(); i++) {
             int displayOrder = i;
-            UUID id = organizationIds.get(i);
-            organizationRepository.findById(id).ifPresent(organization -> {
+            UUID id = organizationIdList.get(i);
+            organizations.stream().filter(o -> o.getId().equals(id)).findFirst().ifPresent(organization -> {
                 organization.updateDisplayOrder(displayOrder);
                 organizationsToUpdate.add(organization);
             });
         }
-        organizationRepository.saveAll(organizationsToUpdate);
+
+        List<Organization> savedOrganizations = organizationRepository.saveAll(organizationsToUpdate);
+        savedOrganizations.forEach(org ->
+                eventPublisher.publishEvent(new OrganizationChangedEvent(org.getId())));
     }
 
     // 조직 삭제
@@ -167,5 +203,38 @@ public class OrganizationService {
         }
 
         organizationRepository.delete(organization);
+        eventPublisher.publishEvent(new OrganizationChangedEvent(organizationId));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void handleOrganizationSaveEvent(OrganizationChangedEvent organizationChangedEvent) {
+        saveSearchOutboxEvent(organizationChangedEvent.getOrganizationId());
+    }
+
+    public void saveSearchOutboxEvent(UUID organizationId) {
+        Organization organization = organizationRepository.findById(organizationId).orElseThrow(()
+                -> new EntityNotFoundException("존재하지 않는 조직입니다."));
+
+        try {
+            OrganizationSavedEvent event = OrganizationSavedEvent.builder()
+                    .organizationId(organization.getId())
+                    .name(organization.getName())
+                    .parentId(organization.getParent() != null ? organization.getParent().getId() : null)
+                    .companyId(organization.getCompany().getId())
+                    .displayOrder(organization.getDisplayOrder())
+                    .build();
+            String payload = objectMapper.writeValueAsString(event);
+
+            SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
+                    .topic("organization-saved-events")
+                    .aggregateId(organization.getId())
+                    .payload(payload)
+                    .build();
+            searchOutboxEventRepository.save(searchOutbox);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("데이터 직렬화 실패");
+        }
+
     }
 }

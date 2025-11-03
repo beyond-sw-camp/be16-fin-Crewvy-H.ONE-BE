@@ -1,0 +1,36 @@
+{
+  "properties": {
+    "memberId": {
+      "type": "keyword"
+    },
+    "name": {
+      "type": "text",
+      "analyzer": "korean_analyzer"
+    },
+    "titleName": {
+      "type": "text",
+      "analyzer": "korean_analyzer"
+    },
+    "phoneNumber": {
+      "type": "keyword"
+    },
+    "memberStatus": {
+      "type": "text",
+      "analyzer": "korean_analyzer"
+    },
+    "organizationList": {
+      "type": "nested",
+      "properties": {
+        "organizationId": { "type": "keyword" },
+        "name": {
+          "type": "text",
+          "analyzer": "korean_analyzer"
+        },
+        "parentId": { "type": "keyword" }
+      }
+    },
+    "suggest": {
+      "type": "completion"
+    }
+  }
+}

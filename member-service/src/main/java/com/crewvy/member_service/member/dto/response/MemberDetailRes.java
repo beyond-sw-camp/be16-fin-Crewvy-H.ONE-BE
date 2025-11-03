@@ -2,8 +2,6 @@ package com.crewvy.member_service.member.dto.response;
 
 import com.crewvy.common.entity.Bool;
 import com.crewvy.member_service.member.constant.AccountStatus;
-import com.crewvy.member_service.member.constant.EmploymentType;
-import com.crewvy.member_service.member.constant.MemberStatus;
 import com.crewvy.member_service.member.entity.Member;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,8 +11,8 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.time.Period;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Getter
 @NoArgsConstructor
@@ -35,6 +33,7 @@ public class MemberDetailRes {
     private String extensionNumber;
     private String telNumber;
     private String address;
+    private String detailAddress;
     private String bank;
     private String bankAccount;
     private LocalDate joinDate;
@@ -81,6 +80,7 @@ public class MemberDetailRes {
                 .extensionNumber(member.getExtensionNumber())
                 .telNumber(member.getTelNumber())
                 .address(member.getAddress())
+                .detailAddress(member.getDetailAddress())
                 .bank(member.getBank())
                 .bankAccount(member.getBankAccount())
                 .joinDate(member.getJoinDate())

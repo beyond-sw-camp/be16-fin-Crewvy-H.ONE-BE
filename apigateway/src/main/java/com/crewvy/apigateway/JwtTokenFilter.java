@@ -34,9 +34,12 @@ public class JwtTokenFilter implements GlobalFilter {
     }
 
     private static final List<String> ALLOWED_PATH = List.of(
-            "/member/create-admin",
             "/member/login",
+            "/member/generate-at",
+            "/member/create-admin",
             "/member/check-email",
+            "/member/reset-password",
+            "/member/check-business-number",
             "/actuator/health",
             "/transcribe",
             "/livekit/webhook"
@@ -73,16 +76,17 @@ public class JwtTokenFilter implements GlobalFilter {
 
             String memberId = claims.getSubject();
             String memberPositionId = claims.get("MemberPositionId", String.class);
-            String role = claims.get("role", String.class);
+            String organizationId = claims.get("organizationId", String.class);
+            String companyId = claims.get("companyId", String.class);
             String name = claims.get("name", String.class);
 
             ServerWebExchange serverWebExchange = exchange.mutate()
                     .request(r -> r
                             .header("X-User-UUID", memberId)
                             .header("X-User-MemberPositionId", memberPositionId)
-                            .header("X-User-Role", role)
                             .header("X-User-Name", URLEncoder.encode(name, StandardCharsets.UTF_8))
-                    )
+                            .header("X-User-OrganizationId", organizationId)
+                            .header("X-User-CompanyId", companyId))
                     .build();
 
             return chain.filter(serverWebExchange);

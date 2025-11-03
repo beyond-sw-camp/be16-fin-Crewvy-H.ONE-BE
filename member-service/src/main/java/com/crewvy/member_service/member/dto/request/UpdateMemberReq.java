@@ -22,6 +22,8 @@ public class UpdateMemberReq {
     private String sabun;
     private String extensionNumber;
     private String telNumber;
+    private String address;
+    private String detailAddress;
     private LocalDate joinDate;
     private List<GradeHistoryReq> gradeHistoryReqList;
     private List<PositionUpdateReq> positionUpdateReqList;

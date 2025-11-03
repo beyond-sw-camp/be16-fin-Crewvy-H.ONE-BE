@@ -26,6 +26,7 @@ public class CreateMemberReq {
     private String phoneNumber;
     private String emergencyContact;
     private String address;
+    private String detailAddress;
     private String bank;
     private String bankAccount;
     private String profileUrl;
@@ -52,6 +53,7 @@ public class CreateMemberReq {
                 .name(this.name)
                 .phoneNumber(this.phoneNumber)
                 .address(this.address)
+                .detailAddress(this.detailAddress)
                 .bank(this.bank)
                 .bankAccount(this.bankAccount)
                 .profileUrl(this.profileUrl)
