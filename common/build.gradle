@@ -2,8 +2,8 @@ plugins {
 //	id 'java'
 //	id 'org.springframework.boot' version '3.5.6'
 //	id 'io.spring.dependency-management' version '1.1.7'
-	id 'java-library'
-	id 'io.spring.dependency-management' version '1.1.7'
+    id 'java-library'
+    id 'io.spring.dependency-management' version '1.1.7'
 }
 
 group = 'crewvy'
@@ -11,78 +11,80 @@ version = '0.0.1-SNAPSHOT'
 description = 'common'
 
 java {
-	toolchain {
-		languageVersion = JavaLanguageVersion.of(17)
-	}
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
 }
 
 repositories {
-	mavenCentral()
+    mavenCentral()
 }
 
 dependencyManagement {
-	imports {
-		// 스프링 부트의 버전 관리를 위한 BOM(Bill of Materials)을 가져옵니다.
-		mavenBom "org.springframework.boot:spring-boot-dependencies:3.3.4" // 사용하는 스프링 부트 버전
-	}
+    imports {
+        // 스프링 부트의 버전 관리를 위한 BOM(Bill of Materials)을 가져옵니다.
+        mavenBom "org.springframework.boot:spring-boot-dependencies:3.3.4" // 사용하는 스프링 부트 버전
+    }
 }
 
 dependencies {
-	// Spring Security 관련 클래스를 사용하기 위한 의존성
+    // Spring Security 관련 클래스를 사용하기 위한 의존성
 //	implementation 'org.springframework.boot:spring-boot-starter-security'
-	// HttpServletRequest, FilterChain 등을 사용하기 위해 필요
+    // HttpServletRequest, FilterChain 등을 사용하기 위해 필요
 //	implementation 'org.springframework.boot:spring-boot-starter-web'
 
-	// 2. 'spring-boot-starter-security' -> 더 가벼운 의존성으로 분리
-	// Spring Security의 핵심 기능
+    // 2. 'spring-boot-starter-security' -> 더 가벼운 의존성으로 분리
+    // Spring Security의 핵심 기능
 //	implementation 'org.springframework.security:spring-security-core'
-	// Filter 등을 사용하기 위한 웹 관련 기능
+    // Filter 등을 사용하기 위한 웹 관련 기능
 //	implementation 'org.springframework.security:spring-security-web'
 //	implementation 'org.springframework.security:spring-security-config'
 
-	// 3. 'spring-boot-starter-web' -> 'servlet-api'로 변경
-	// HttpServletRequest 등을 사용하기 위한 최소한의 의존성
-	compileOnly 'jakarta.servlet:jakarta.servlet-api:6.0.0'
+    // 3. 'spring-boot-starter-web' -> 'servlet-api'로 변경
+    // HttpServletRequest 등을 사용하기 위한 최소한의 의존성
+    compileOnly 'jakarta.servlet:jakarta.servlet-api:6.0.0'
 
-	//    파일처리를 위한 aws 의존성 추가
-	implementation 'software.amazon.awssdk:s3:2.17.58'
+    //    파일처리를 위한 aws 의존성 추가
+    implementation 'software.amazon.awssdk:s3:2.17.58'
 
-	// MultipartFile 클래스를 사용하기 위해 필요합니다.
-	implementation 'org.springframework:spring-web'
+    // MultipartFile 클래스를 사용하기 위해 필요합니다.
+    implementation 'org.springframework:spring-web'
 
-	// @Value, @Configuration, @Bean 등을 사용하기 위해 필요합니다.
-	implementation 'org.springframework:spring-context'
+    // @Value, @Configuration, @Bean 등을 사용하기 위해 필요합니다.
+    implementation 'org.springframework:spring-context'
 
-	// @ConditionalOnProperty 등 자동 설정 관련 기능을 사용하기 위해 필요합니다.
-	implementation 'org.springframework.boot:spring-boot-autoconfigure'
+    // @ConditionalOnProperty 등 자동 설정 관련 기능을 사용하기 위해 필요합니다.
+    implementation 'org.springframework.boot:spring-boot-autoconfigure'
 
-	// JSON 변환 지원을 위한 jackson 의존성 추가
-	implementation 'org.springframework.boot:spring-boot-starter-json'
+    // JSON 변환 지원을 위한 jackson 의존성 추가
+    implementation 'org.springframework.boot:spring-boot-starter-json'
 
-	// Redis
-	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    // Redis
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
-	// Cache
-	implementation 'org.springframework.boot:spring-boot-starter-cache'
+    // Cache
+    implementation 'org.springframework.boot:spring-boot-starter-cache'
 
 	// Kafka
 	implementation 'org.springframework.kafka:spring-kafka'
 
 //	이 아래는 수정X
-	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	testImplementation 'org.springframework.security:spring-security-test'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
-	// Lombok
-	compileOnly 'org.projectlombok:lombok'
-	annotationProcessor 'org.projectlombok:lombok'
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
 
-	// JWT
-	 implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
-	 runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
-	 runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
+    // JWT
+    implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
 
-	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 }
 
 // 공통 모듈은 실행 가능한 JAR 파일이 아니므로 bootJar 빌드를 비활성화
@@ -95,5 +97,5 @@ dependencies {
 //}
 
 tasks.named('test') {
-	useJUnitPlatform()
+    useJUnitPlatform()
 }

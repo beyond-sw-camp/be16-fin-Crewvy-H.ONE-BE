@@ -13,5 +13,6 @@ public class StatsResponseDto {
     private int pendingCount;
     private int requestCount;
     private int completeCount;
+    private int approveCompleteCount;
     private int draftCount;
 }

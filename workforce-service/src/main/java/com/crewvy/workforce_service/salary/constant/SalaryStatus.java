@@ -9,7 +9,8 @@ import java.util.Arrays;
 @AllArgsConstructor
 public enum SalaryStatus {
     PAID("SS001", "지급 완료"),
-    PENDING("SS002", "지급 예정");
+    PENDING("SS002", "지급 예정"),
+    CANCELED("SS003", "취소");
 
     private final String codeValue;
     private final String codeName;

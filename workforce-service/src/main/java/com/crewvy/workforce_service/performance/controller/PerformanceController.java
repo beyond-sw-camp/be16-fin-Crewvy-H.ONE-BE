@@ -1,9 +1,16 @@
 package com.crewvy.workforce_service.performance.controller;
 
 import com.crewvy.common.dto.ApiResponse;
-import com.crewvy.workforce_service.performance.dto.*;
+import com.crewvy.workforce_service.performance.dto.request.*;
+import com.crewvy.workforce_service.performance.dto.response.EvaluationResponseDto;
+import com.crewvy.workforce_service.performance.dto.response.GoalResponseDto;
+import com.crewvy.workforce_service.performance.dto.response.TeamGoalDetailResponseDto;
+import com.crewvy.workforce_service.performance.dto.response.TeamGoalResponseDto;
 import com.crewvy.workforce_service.performance.service.PerformanceService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,8 +26,20 @@ public class PerformanceController {
     private final PerformanceService performanceService;
 
     @GetMapping("/team-goal")
-    public ResponseEntity<?> getTeamGoal(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
-        List<TeamGoalResponseDto> teamGoalResponseDtoList = performanceService.getTeamGoal(memberPositionId);
+    public ResponseEntity<?> getTeamGoal(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                         @RequestParam String type,
+                                         @PageableDefault(size = 4, sort = "createdAt", direction = Sort.Direction.DESC)
+                                         Pageable pageable
+    ) {
+        return new ResponseEntity<>(
+                ApiResponse.success(performanceService.getTeamGoal(memberPositionId, type, pageable), "팀 목표 조회"),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/team-goal-processing")
+    public ResponseEntity<?> getTeamGoalProcessing(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+        List<TeamGoalResponseDto> teamGoalResponseDtoList = performanceService.getTeamGoalProcessing(memberPositionId);
         return new ResponseEntity<>(
                 ApiResponse.success(teamGoalResponseDtoList, "팀 목표 조회"),
                 HttpStatus.OK
@@ -47,6 +66,29 @@ public class PerformanceController {
         );
     }
 
+    @PatchMapping("/update-team-goal/{id}")
+    public ResponseEntity<?> updateTeamGoal(@PathVariable UUID id,
+                                            @RequestBody CreateTeamGoalDto dto,
+                                            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId
+    ) {
+        performanceService.updateTeamGoal(id, dto, memberPositionId);
+        return new ResponseEntity<>(
+                ApiResponse.success(id, "팀 목표 업데이트"),
+                HttpStatus.OK
+        );
+    }
+
+    @DeleteMapping("/delete-team-goal/{id}")
+    public ResponseEntity<?> deleteTeamGoal(@PathVariable UUID id,
+                                            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId
+    ) {
+        performanceService.deleteTeamGoal(id, memberPositionId);
+        return new ResponseEntity<>(
+                ApiResponse.success(id, "팀 목표 삭제"),
+                HttpStatus.OK
+        );
+    }
+
     @GetMapping("/get-goal-detail/{id}")
     public ResponseEntity<?> getGoalDetail(@PathVariable UUID id) {
         GoalResponseDto dto = performanceService.getGoalDetail(id);
@@ -57,10 +99,13 @@ public class PerformanceController {
     }
 
     @GetMapping("/get-my-goal")
-    public ResponseEntity<?> getMyGoal(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
-        List<GoalResponseDto> dtoList = performanceService.getMyGoal(memberPositionId);
+    public ResponseEntity<?> getMyGoal(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                       @RequestParam String type,
+                                       @PageableDefault(size = 4, sort = "createdAt", direction = Sort.Direction.DESC)
+                                       Pageable pageable
+    ) {
         return new ResponseEntity<>(
-                ApiResponse.success(dtoList, "내 목표 조회"),
+                ApiResponse.success(performanceService.getMyGoal(memberPositionId, type, pageable), "내 목표 조회"),
                 HttpStatus.OK
         );
     }
@@ -86,7 +131,7 @@ public class PerformanceController {
     }
 
     @PostMapping("/create-evaluation")
-    public ResponseEntity<?> createEvaluation(CreateEvaluationDto dto,
+    public ResponseEntity<?> createEvaluation(@RequestBody CreateEvaluationDto dto,
                                               @RequestHeader("X-User-MemberPositionId") UUID memberPositionId
     ) {
         UUID evaluationId = performanceService.createEvaluation(dto, memberPositionId);
@@ -96,11 +141,10 @@ public class PerformanceController {
         );
     }
 
-    @GetMapping("/find-evaluation")
-    public ResponseEntity<?> findEvaluation(FindEvaluationDto dto) {
-        EvaluationResponseDto responseDto = performanceService.findEvaluation(dto);
+    @GetMapping("/find-evaluation/{goalId}")
+    public ResponseEntity<?> findEvaluation(@PathVariable UUID goalId) {
         return new ResponseEntity<>(
-                ApiResponse.success(responseDto, "평가 조회"),
+                ApiResponse.success(performanceService.findEvaluation(goalId), "평가 조회"),
                 HttpStatus.OK
         );
     }
@@ -122,6 +166,58 @@ public class PerformanceController {
         performanceService.patchEvidence(id, dto, newFiles);
         return new ResponseEntity<>(
                 ApiResponse.success(id,"증적 제출 및 수정"),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/find-teamgoal-evaluation")
+    public ResponseEntity<?> findMyTeamGoalToEvaluation(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                                        @PageableDefault(size = 4, sort = "createdAt", direction = Sort.Direction.DESC)
+                                                        Pageable pageable
+    ) {
+        return new ResponseEntity<>(
+                ApiResponse.success(performanceService.findMyTeamGoalsToEvaluate(memberPositionId, pageable), "평가대상 팀 목표 조회"),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/find-goal-evaluation")
+    public ResponseEntity<?> findMyGoalToEvaluation(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                                    @PageableDefault(size = 4, sort = "createdAt", direction = Sort.Direction.DESC)
+                                                    Pageable pageable
+    ) {
+        return new ResponseEntity<>(
+                ApiResponse.success(performanceService.findMyGoalToEvaluate(memberPositionId, pageable), "평가대상 개인 목표 조회"),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/find-complete-teamgoal")
+    public ResponseEntity<?> findTeamGoalComplete(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                                  @PageableDefault(size = 4, sort = "createdAt", direction = Sort.Direction.DESC)
+                                                  Pageable pageable
+    ) {
+        return new ResponseEntity<>(
+                ApiResponse.success(performanceService.findMyTeamGoalsComplete(memberPositionId, pageable), "평가완료상태 팀목표 조회"),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/find-complete-goal")
+    public ResponseEntity<?> findMyGoalComplete(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                                @PageableDefault(size = 4, sort = "createdAt", direction = Sort.Direction.DESC)
+                                                Pageable pageable
+    ) {
+        return new ResponseEntity<>(
+                ApiResponse.success(performanceService.findMyGoalComplete(memberPositionId, pageable), "평가완료상태 팀목표 조회"),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/get-stat")
+    public ResponseEntity<?> getStat(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
+        return new ResponseEntity<>(
+                ApiResponse.success(performanceService.getStat(memberPositionId), "평가 통계 조회"),
                 HttpStatus.OK
         );
     }

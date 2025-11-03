@@ -3,7 +3,9 @@ package com.crewvy.member_service.member.service;
 import com.crewvy.common.entity.Bool;
 import com.crewvy.member_service.member.dto.request.CreateAdminReq;
 import com.crewvy.member_service.member.entity.*;
+import com.crewvy.member_service.member.event.MemberChangedEvent;
 import com.crewvy.member_service.member.repository.GradeHistoryRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,16 +18,18 @@ public class OnboardingService {
     private final MemberService memberService;
     private final OrganizationService organizationService;
     private final GradeHistoryRepository gradeHistoryRepository;
-
+    private final ApplicationEventPublisher eventPublisher;
 
     public OnboardingService(MemberService memberService, OrganizationService organizationService
-            , GradeHistoryRepository gradeHistoryRepository) {
+            , GradeHistoryRepository gradeHistoryRepository, ApplicationEventPublisher eventPublisher) {
         this.memberService = memberService;
         this.organizationService = organizationService;
         this.gradeHistoryRepository = gradeHistoryRepository;
+        this.eventPublisher = eventPublisher;
     }
 
-     // 관리자 계정 생성과 회사, 조직, 역할 등 초기 설정
+
+    // 관리자 계정 생성과 회사, 조직, 역할 등 초기 설정
     public UUID createAdminAndInitialSetup(CreateAdminReq createAdminReq) {
         Company company = organizationService.createCompany(createAdminReq.getCompanyName(), createAdminReq.getBusinessNumber());
 
@@ -45,6 +49,9 @@ public class OnboardingService {
         gradeHistoryRepository.save(gradeHistory);
 
         memberService.createAndAssignDefaultPosition(null, adminMember, organization, adminTitle, adminRole);
+
+        // 통합검색 kafka
+        eventPublisher.publishEvent(new MemberChangedEvent(adminMember.getId()));
 
         return adminMember.getId();
     }
