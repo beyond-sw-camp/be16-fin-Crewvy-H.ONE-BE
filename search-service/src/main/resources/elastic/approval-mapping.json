@@ -13,8 +13,9 @@
       "type": "text",
       "analyzer": "korean_analyzer"
     },
-    "createDateTime": {
-      "type": "date"
+    "createdAt": {
+      "type": "date",
+      "format": "yyyy-MM-dd'T'HH:mm:ss.SSSSSS||epoch_millis"
     }
   }
 }

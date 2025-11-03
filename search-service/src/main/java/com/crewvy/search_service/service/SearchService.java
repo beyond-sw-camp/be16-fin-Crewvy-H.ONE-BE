@@ -1,9 +1,9 @@
 package com.crewvy.search_service.service;
 
+import com.crewvy.common.event.ApprovalCompletedEvent;
 import com.crewvy.common.event.MemberDeletedEvent;
 import com.crewvy.common.event.MemberSavedEvent;
 import com.crewvy.common.event.OrganizationSavedEvent;
-import com.crewvy.search_service.dto.event.ApprovalCompletedEvent;
 import com.crewvy.search_service.dto.event.MinuteSavedEvent;
 import com.crewvy.search_service.dto.response.GlobalSearchRes;
 import com.crewvy.search_service.entity.ApprovalDocument;
@@ -16,6 +16,7 @@ import com.crewvy.search_service.repository.MinuteRepository;
 import com.crewvy.search_service.repository.OrganizationSearchRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.elasticsearch.client.elc.NativeQueryBuilder;
@@ -31,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SearchService {
@@ -135,7 +137,9 @@ public class SearchService {
                 .companyId(event.getCompanyId().toString())
                 .memberId(event.getMemberId().toString())
                 .title(event.getTitle())
-                .createDateTime(event.getCreateDateTime())
+                .memberName(event.getMemberName())
+                .titleName(event.getTitleName())
+                .createAt(event.getCreatedAt())
                 .build();
         approvalSearchRepository.save(approvalDocument);
     }

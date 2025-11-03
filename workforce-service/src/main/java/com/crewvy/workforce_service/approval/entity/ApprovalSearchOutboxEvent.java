@@ -14,7 +14,7 @@ import java.util.UUID;
 @Getter
 @Builder
 @Entity
-public class SearchOutboxEvent {
+public class ApprovalSearchOutboxEvent {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;

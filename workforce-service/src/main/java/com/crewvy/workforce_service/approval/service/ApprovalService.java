@@ -20,6 +20,7 @@ import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -35,6 +36,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -381,6 +383,8 @@ public class ApprovalService {
                         requesterPositionInfo.get(0).getMemberId(),
                         companyId,
                         approval.getTitle(),
+                        requesterPositionInfo.get(0).getMemberName(),
+                        requesterPositionInfo.get(0).getTitleName(),
                         approval.getCreatedAt()
                 );
                 eventPublisher.publishEvent(approvalEvent);
@@ -951,7 +955,7 @@ public class ApprovalService {
     public void saveSearchOutboxEvent(ApprovalCompletedEvent event) {
         try {
             String payload = objectMapper.writeValueAsString(event);
-            SearchOutboxEvent outboxEvent = SearchOutboxEvent.builder()
+            ApprovalSearchOutboxEvent outboxEvent = ApprovalSearchOutboxEvent.builder()
                     .topic("approval-completed-events")
                     .aggregateId(event.getApprovalId())
                     .payload(payload)

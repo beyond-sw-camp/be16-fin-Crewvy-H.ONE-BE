@@ -13,5 +13,7 @@ public class ApprovalCompletedEvent {
     private final UUID memberId;
     private final UUID companyId;
     private final String title;
+    private final String memberName;
+    private final String titleName;
     private final LocalDateTime createDateTime;
 }
