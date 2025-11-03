@@ -2,10 +2,7 @@ package com.crewvy.workforce_service.salary.entity;
 
 import com.crewvy.common.entity.BaseEntity;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDate;
 import java.util.UUID;
@@ -35,4 +32,12 @@ public class FixedAllowance extends BaseEntity {
 
     @Column(nullable = false)
     private LocalDate effectiveDate;
+
+    public void updateAmount(int amount) {
+        this.amount = amount;
+    }
+
+    public void updateEffectiveDate(LocalDate effectiveDate) {
+        this.effectiveDate = effectiveDate;
+    }
 }

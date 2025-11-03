@@ -17,7 +17,7 @@ import java.util.List;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class DataSeeder implements ApplicationRunner {
+public class PayrollItemDataSeeder implements ApplicationRunner {
 
     private final PayrollItemRepository payrollItemRepository;
 

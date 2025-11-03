@@ -1197,8 +1197,9 @@ public class MemberService {
         if (checkPermission(memberPositionId, "salary", Action.READ, PermissionRange.COMPANY) == FALSE) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
-        if (!memberRepository.findById(memberPositionId).orElseThrow(() ->
-                new EntityNotFoundException("존재하지 않는 계정입니다.")).getCompany().getId().equals(companyId)) {
+
+        if (!memberPositionRepository.findById(memberPositionId).orElseThrow(() ->
+                new EntityNotFoundException("존재하지 않는 계정입니다.")).getMember().getCompany().getId().equals(companyId)) {
             throw new PermissionDeniedException("다른 회사의 정보는 조회할 수 없습니다.");
         }
         return memberRepository.findByCompanyWithDetail(companyRepository.findById(companyId).orElseThrow(() ->
