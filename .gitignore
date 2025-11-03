@@ -218,3 +218,5 @@ build/
 
 # Log files
 *.log
+
+.env

@@ -1,37 +1,63 @@
 package com.crewvy.workspace_service.meeting.service;
 
-import com.crewvy.common.entity.Bool;
-import com.crewvy.common.exception.*;
-import com.crewvy.workspace_service.meeting.constant.VideoConferenceStatus;
-import com.crewvy.workspace_service.meeting.dto.*;
-import com.crewvy.workspace_service.meeting.entity.Message;
-import com.crewvy.workspace_service.meeting.entity.VideoConference;
-import com.crewvy.workspace_service.meeting.entity.VideoConferenceInvitee;
-import com.crewvy.workspace_service.meeting.repository.MessageRepository;
-import com.crewvy.workspace_service.meeting.repository.VideoConferenceRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.livekit.server.*;
-import jakarta.persistence.EntityNotFoundException;
-import livekit.LivekitEgress;
-import livekit.LivekitModels.*;
-import livekit.LivekitModels.DataPacket.*;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
-import retrofit2.internal.EverythingIsNonNull;
-
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.crewvy.common.entity.Bool;
+import com.crewvy.common.exception.InvalidSenderException;
+import com.crewvy.common.exception.LiveKitClientException;
+import com.crewvy.common.exception.UserAlreadyJoinedException;
+import com.crewvy.common.exception.UserNotHostException;
+import com.crewvy.common.exception.UserNotInvitedException;
+import com.crewvy.common.exception.VideoConferenceNotInProgressException;
+import com.crewvy.common.exception.VideoConferenceNotWaitingException;
+import com.crewvy.workspace_service.meeting.constant.MinuteStatus;
+import com.crewvy.workspace_service.meeting.constant.VideoConferenceStatus;
+import com.crewvy.workspace_service.meeting.dto.ChatMessageReq;
+import com.crewvy.workspace_service.meeting.dto.ChatMessageRes;
+import com.crewvy.workspace_service.meeting.dto.LiveKitSessionRes;
+import com.crewvy.workspace_service.meeting.dto.MinuteRes;
+import com.crewvy.workspace_service.meeting.dto.VideoConferenceBookRes;
+import com.crewvy.workspace_service.meeting.dto.VideoConferenceCreateReq;
+import com.crewvy.workspace_service.meeting.dto.VideoConferenceListRes;
+import com.crewvy.workspace_service.meeting.dto.VideoConferenceUpdateReq;
+import com.crewvy.workspace_service.meeting.dto.VideoConferenceUpdateRes;
+import com.crewvy.workspace_service.meeting.dto.ai.TranscribeRes;
+import com.crewvy.workspace_service.meeting.entity.Message;
+import com.crewvy.workspace_service.meeting.entity.Minute;
+import com.crewvy.workspace_service.meeting.entity.VideoConference;
+import com.crewvy.workspace_service.meeting.entity.VideoConferenceInvitee;
+import com.crewvy.workspace_service.meeting.repository.MessageRepository;
+import com.crewvy.workspace_service.meeting.repository.MinuteRepository;
+import com.crewvy.workspace_service.meeting.repository.VideoConferenceRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import io.livekit.server.AccessToken;
+import io.livekit.server.EgressServiceClient;
+import io.livekit.server.RoomJoin;
+import io.livekit.server.RoomName;
+import io.livekit.server.RoomServiceClient;
+import jakarta.persistence.EntityNotFoundException;
+import livekit.LivekitEgress;
+import livekit.LivekitModels.DataPacket.Kind;
+import livekit.LivekitModels.ParticipantInfo;
+import lombok.extern.slf4j.Slf4j;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.internal.EverythingIsNonNull;
 
 @Slf4j
 @Service
@@ -46,6 +72,7 @@ public class VideoConferenceService {
 
     private final String LIVEKIT_API_KEY;
     private final String LIVEKIT_API_SECRET;
+    private final MinuteRepository minuteRepository;
 
     public VideoConferenceService(VideoConferenceRepository videoConferenceRepository,
                                   LiveKitWebhookService liveKitWebhookService,
@@ -55,7 +82,8 @@ public class VideoConferenceService {
                                   EgressServiceClient egressServiceClient,
                                   LivekitEgress.S3Upload s3Upload,
                                   @Value("${livekit.apiKey}") String LIVEKIT_API_KEY,
-                                  @Value("${livekit.apiSecret}") String LIVEKIT_API_SECRET) {
+                                  @Value("${livekit.apiSecret}") String LIVEKIT_API_SECRET,
+                                  MinuteRepository minuteRepository) {
         this.videoConferenceRepository = videoConferenceRepository;
         this.objectMapper = objectMapper;
         this.messageRepository = messageRepository;
@@ -64,9 +92,10 @@ public class VideoConferenceService {
         this.s3Upload = s3Upload;
         this.LIVEKIT_API_KEY = LIVEKIT_API_KEY;
         this.LIVEKIT_API_SECRET = LIVEKIT_API_SECRET;
+        this.minuteRepository = minuteRepository;
     }
 
-    public LiveKitSessionRes createVideoConference(UUID memberId, VideoConferenceCreateReq videoConferenceCreateReq) {
+    public LiveKitSessionRes createVideoConference(UUID memberId, String memberName, VideoConferenceCreateReq videoConferenceCreateReq) {
         VideoConference videoConference = videoConferenceCreateReq.toEntity(memberId);
         videoConferenceRepository.save(videoConference);
 
@@ -77,7 +106,7 @@ public class VideoConferenceService {
             createAutoEgressRoom(videoConference);
         }
 
-        String token = createToken(videoConference.getId(), memberId);
+        String token = createToken(videoConference.getId(), memberId, memberName);
 
         videoConference.startVideoConference();
 
@@ -102,7 +131,7 @@ public class VideoConferenceService {
                 .map(VideoConferenceListRes::fromEntity);
     }
 
-    public LiveKitSessionRes joinVideoConference(UUID memberId, UUID videoConferenceId) {
+    public LiveKitSessionRes joinVideoConference(UUID memberId, String memberName, UUID videoConferenceId) {
         VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 화상회의 입니다."));
 
         if (videoConference.getStatus() != VideoConferenceStatus.IN_PROGRESS)
@@ -119,12 +148,12 @@ public class VideoConferenceService {
         }
         if (res.isSuccessful()) throw new UserAlreadyJoinedException("이미 참여 중인 화상회의 입니다.");
 
-        String token = createToken(videoConferenceId, memberId);
+        String token = createToken(videoConferenceId, memberId, memberName);
 
         return LiveKitSessionRes.builder().videoConferenceId(videoConferenceId).token(token).build();
     }
 
-    public LiveKitSessionRes startVideoConference(UUID memberId, UUID videoConferenceId) {
+    public LiveKitSessionRes startVideoConference(UUID memberId, String memberName, UUID videoConferenceId) {
         VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 화상회의 입니다."));
 
         if (videoConference.getStatus() != VideoConferenceStatus.WAITING)
@@ -137,7 +166,7 @@ public class VideoConferenceService {
             createAutoEgressRoom(videoConference);
         }
 
-        String token = createToken(videoConferenceId, memberId);
+        String token = createToken(videoConferenceId, memberId, memberName);
 
         videoConference.startVideoConference();
 
@@ -259,6 +288,15 @@ public class VideoConferenceService {
         videoConferenceRepository.delete(videoConference);
     }
 
+    public MinuteRes findMinute(UUID videoConferenceId) {
+        VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId).orElseThrow(() -> new EntityNotFoundException("회의록이 존재하지 않습니다."));
+
+        if (videoConference.getRecording() == null) throw new EntityNotFoundException("회의록이 존재하지 않습니다.");
+        if (videoConference.getRecording().getMinute() == null) throw new EntityNotFoundException("회의록이 존재하지 않습니다.");
+
+        return MinuteRes.fromEntity(videoConference);
+    }
+
     private void addInvitee(VideoConference videoConference, List<UUID> inviteeIdList) {
         inviteeIdList.stream()
                 .map(id -> VideoConferenceInvitee.builder().memberId(id).videoConference(videoConference).build())
@@ -283,30 +321,77 @@ public class VideoConferenceService {
             throw new LiveKitClientException(e.getMessage());
         }
 
-        LivekitEgress.EncodedFileOutput encodedFileOutput = LivekitEgress.EncodedFileOutput.newBuilder()
+        LivekitEgress.EncodedFileOutput videoEncodedFileOutput = LivekitEgress.EncodedFileOutput.newBuilder()
                 .setFileType(LivekitEgress.EncodedFileType.MP4)
                 .setFilepath("recordings/" + videoConference.getId() + "/" + videoConference.getName() + "-composite.mp4")
                 .setS3(s3Upload)
                 .build();
 
+//        LivekitEgress.EncodedFileOutput audioEncodedFileOutput = LivekitEgress.EncodedFileOutput.newBuilder()
+//                .setFileType(LivekitEgress.EncodedFileType.OGG)
+//                .setFilepath("recordings/" + videoConference.getId() + "/" + videoConference.getName() + "-composite.ogg")
+//                .setS3(s3Upload)
+//                .build();
+
         try {
             egressServiceClient.startRoomCompositeEgress(
-                            videoConference.getId().toString(),
-                            encodedFileOutput,
-                            "speaker")
-                    .execute();
+                    videoConference.getId().toString(),
+                    videoEncodedFileOutput,
+                    "speaker"
+            ).execute();
+
+//            egressServiceClient.startRoomCompositeEgress(
+//                    videoConference.getId().toString(),
+//                    audioEncodedFileOutput,
+//                    "speaker",
+//                    null,
+//                    null,
+//                    true
+//            ).execute();
+
         } catch (IOException e) {
             log.error(e.getMessage());
             throw new LiveKitClientException(e.getMessage());
         }
     }
 
-    private String createToken(UUID videoConferenceId, UUID participantId) {
+    private String createToken(UUID videoConferenceId, UUID participantId, String participantName) {
 
         AccessToken token = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
         token.setIdentity(participantId.toString());
+        token.setName(participantName);
         token.addGrants(new RoomJoin(true), new RoomName(videoConferenceId.toString()));
-
+        log.info("Create token for video conference " + participantName);
         return token.toJwt();
+    }
+
+    @KafkaListener(
+            containerFactory = "meetingKafkaListenerContainerFactory",
+            topics = "transcribe-response",
+            groupId = "workspace-meeting-group"
+    )
+    public void listen(String body, Acknowledgment ack) {
+        TranscribeRes transcribeRes;
+        try {
+            transcribeRes = objectMapper.readValue(body, TranscribeRes.class);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+
+        VideoConference videoConference = videoConferenceRepository.findById(transcribeRes.getVideoConferenceId()).orElseThrow(() -> new EntityNotFoundException("찾을 수 없는 화상회의 입니다."));
+
+        Minute minute = Minute.builder()
+                .recording(videoConference.getRecording())
+                .status(MinuteStatus.COMPLETED)
+                .transcript(transcribeRes.getTranscript())
+                .summary(transcribeRes.getSummary())
+                .errorMsg("")
+                .build();
+
+        minuteRepository.save(minute);
+
+        ack.acknowledge();
+
+        log.info("!!!!! vcs - 회의록 저장 완료 !!!!!!!! 영상 길이 : {}, 소요 시간 : {}", videoConference.getRecording().getDuration(), transcribeRes.getTurnaround());
     }
 }

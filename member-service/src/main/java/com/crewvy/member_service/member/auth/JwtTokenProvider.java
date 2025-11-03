@@ -8,6 +8,7 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,6 +19,7 @@ import java.security.Key;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Component
 public class JwtTokenProvider {
     private final MemberRepository memberRepository;
@@ -70,6 +72,8 @@ public class JwtTokenProvider {
                 .setExpiration(new Date(now.getTime() + expirationAt*60*1000L))
                 .signWith(atKey)
                 .compact();
+
+        log.info("Created JWT token for member '{}'", name);
 
         return accessToken;
     }

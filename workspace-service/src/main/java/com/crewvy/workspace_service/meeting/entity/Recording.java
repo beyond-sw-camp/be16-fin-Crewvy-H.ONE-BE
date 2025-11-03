@@ -36,6 +36,9 @@ public class Recording extends BaseEntity {
     @Column(name = "duration", nullable = false)
     private Long duration;
 
+    @OneToOne(mappedBy = "recording", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Minute minute;
+
     public static Recording fromFileInfo(FileInfo fileInfo, VideoConference videoConference) {
         return Recording.builder()
                 .filename(fileInfo.getFilename())

@@ -2,7 +2,7 @@ package com.crewvy.workspace_service.meeting.controller;
 
 import com.crewvy.workspace_service.meeting.service.LiveKitWebhookService;
 import io.livekit.server.WebhookReceiver;
-import livekit.LivekitWebhook.*;
+import livekit.LivekitWebhook.WebhookEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
