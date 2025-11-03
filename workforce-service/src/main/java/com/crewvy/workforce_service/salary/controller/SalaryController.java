@@ -5,6 +5,8 @@ import com.crewvy.workforce_service.salary.dto.request.SalaryCalculationReq;
 import com.crewvy.workforce_service.salary.dto.request.SalaryCreateReq;
 import com.crewvy.workforce_service.salary.dto.request.SalaryUpdateReq;
 import com.crewvy.workforce_service.salary.dto.response.*;
+import com.crewvy.workforce_service.salary.service.SalaryCalculatorService;
+import com.crewvy.workforce_service.salary.service.SalaryQueryService;
 import com.crewvy.workforce_service.salary.service.SalaryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,12 +26,14 @@ import java.util.UUID;
 public class SalaryController {
 
     private final SalaryService salaryService;
+    private final SalaryQueryService salaryQueryService;
+    private final SalaryCalculatorService salaryCalculatorService;
 
     // 급여 계산
     @PostMapping("/calculate")
     public ResponseEntity<?> calculateSalary(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                              @RequestBody SalaryCalculationReq request) {
-        List<SalaryCalculationRes> response = salaryService.calculateSalary(memberPositionId, request);
+        List<SalaryCalculationRes> response = salaryCalculatorService.calculateSalary(memberPositionId, request);
         return new ResponseEntity<>(
             new ApiResponse<>(true, response, "급여 계산 성공"), 
             HttpStatus.OK
@@ -41,7 +45,7 @@ public class SalaryController {
     public ResponseEntity<?> getSalaryListByCompany(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                                     @RequestParam UUID companyId,
                                                     @RequestParam YearMonth yearMonth) {
-        List<SalaryStatusRes> response = salaryService.getSalaryListByCompany(memberPositionId, companyId, yearMonth);
+        List<SalaryStatusRes> response = salaryQueryService.getSalaryListByCompany(memberPositionId, companyId, yearMonth);
         return new ResponseEntity<>(
             new ApiResponse<>(true, response, "급여 목록 조회 성공"),
             HttpStatus.OK
@@ -53,7 +57,7 @@ public class SalaryController {
     public ResponseEntity<?> getSalaryOutputByCompany(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                                     @RequestParam UUID companyId,
                                                     @RequestParam YearMonth yearMonth) {
-        List<SalaryOutputRes> response = salaryService.getSalaryOutputByCompany(memberPositionId, companyId, yearMonth);
+        List<SalaryOutputRes> response = salaryQueryService.getSalaryOutputByCompany(memberPositionId, companyId, yearMonth);
         return new ResponseEntity<>(
                 new ApiResponse<>(true, response, "급여 목록 조회 성공"),
                 HttpStatus.OK
@@ -65,7 +69,7 @@ public class SalaryController {
     public ResponseEntity<?> getDeductionList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                               @RequestParam UUID companyId,
                                               @RequestParam YearMonth yearMonth) {
-        List<PayrollDeductionRes> response = salaryService.getDeductionList(memberPositionId, companyId, yearMonth);
+        List<PayrollDeductionRes> response = salaryQueryService.getDeductionList(memberPositionId, companyId, yearMonth);
         return new ResponseEntity<>(
                 new ApiResponse<>(true, response, "급여 목록 조회 성공"),
                 HttpStatus.OK
@@ -79,7 +83,7 @@ public class SalaryController {
             @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
             @RequestParam UUID companyId,
             @RequestParam UUID memberId) {
-        List<SalaryCalculationRes> response = salaryService.getSalaryListByMember(memberPositionId, companyId, memberId);
+        List<SalaryCalculationRes> response = salaryQueryService.getSalaryListByMember(memberPositionId, companyId, memberId);
         return new ResponseEntity<>(
             new ApiResponse<>(true, response, "급여 목록 조회 성공"),
             HttpStatus.OK
@@ -112,7 +116,7 @@ public class SalaryController {
     public ResponseEntity<?> getPayrollItemSummary(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                         @RequestParam UUID companyId,
                                         @RequestParam YearMonth yearMonth) {
-        PayrollItemSummaryRes response = salaryService.getPayrollItemSummary(memberPositionId, companyId, yearMonth);
+        PayrollItemSummaryRes response = salaryQueryService.getPayrollItemSummary(memberPositionId, companyId, yearMonth);
         return new ResponseEntity<>(
                 new ApiResponse<>(true, response, "항목별 조회 성공"),
                 HttpStatus.OK
@@ -124,7 +128,7 @@ public class SalaryController {
                                                    @RequestParam UUID companyId,
                                                    @RequestParam String name,
                                                    @RequestParam YearMonth yearMonth) {
-        List<PayrollItemDetailRes> response = salaryService.getPayrollItemDetails(memberPositionId, companyId, name, yearMonth);
+        List<PayrollItemDetailRes> response = salaryQueryService.getPayrollItemDetails(memberPositionId, companyId, name, yearMonth);
         return new ResponseEntity<>(
                 new ApiResponse<>(true, response, "항목별 상세 조회 성공"),
                 HttpStatus.OK
@@ -135,7 +139,7 @@ public class SalaryController {
     public ResponseEntity<?> getSalaryStatement(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                                    @RequestParam UUID companyId,
                                                    @RequestParam YearMonth yearMonth) {
-        List<PayrollStatementRes> response = salaryService.getSalaryStatement(memberPositionId, companyId, yearMonth);
+        List<PayrollStatementRes> response = salaryQueryService.getSalaryStatement(memberPositionId, companyId, yearMonth);
         return new ResponseEntity<>(
                 new ApiResponse<>(true, response, "항목별 상세 조회 성공"),
                 HttpStatus.OK
