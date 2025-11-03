@@ -62,6 +62,7 @@ public class PolicyAssignmentService {
         priorityTargets.add(new PolicyTarget(memberPositionId, PolicyScopeType.MEMBER_POSITION));
         priorityTargets.add(new PolicyTarget(memberId, PolicyScopeType.MEMBER));
         orgPath.forEach(org -> priorityTargets.add(new PolicyTarget(org.getId(), PolicyScopeType.ORGANIZATION)));
+        priorityTargets.add(new PolicyTarget(companyId, PolicyScopeType.COMPANY));
 
         // 3. 활성 정책 조회 (회사 ID로 필터링하여 멀티테넌트 보안 강화)
         List<UUID> targetIds = priorityTargets.stream().map(PolicyTarget::id).collect(Collectors.toList());
@@ -376,6 +377,7 @@ public class PolicyAssignmentService {
         priorityTargets.add(new PolicyTarget(memberPositionId, PolicyScopeType.MEMBER_POSITION));
         priorityTargets.add(new PolicyTarget(memberId, PolicyScopeType.MEMBER));
         orgPath.forEach(org -> priorityTargets.add(new PolicyTarget(org.getId(), PolicyScopeType.ORGANIZATION)));
+        priorityTargets.add(new PolicyTarget(companyId, PolicyScopeType.COMPANY));
 
         // 3. 활성 정책 조회
         List<UUID> targetIds = priorityTargets.stream().map(PolicyTarget::id).collect(Collectors.toList());

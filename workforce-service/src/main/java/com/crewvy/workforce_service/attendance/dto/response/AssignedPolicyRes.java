@@ -1,5 +1,6 @@
 package com.crewvy.workforce_service.attendance.dto.response;
 
+import com.crewvy.workforce_service.attendance.dto.rule.PolicyRuleDetails;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -19,4 +20,5 @@ public class AssignedPolicyRes {
     private String typeName;
     private Boolean isActive;
     private List<String> allowedRequestUnits; // 허용된 신청 단위 (예: ["DAY", "HALF_DAY_AM", "HALF_DAY_PM"])
+    private PolicyRuleDetails ruleDetails; // 정책 규칙 상세 (출장지 필터링 등에 사용)
 }
