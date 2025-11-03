@@ -5,7 +5,9 @@ import com.crewvy.common.event.MemberDeletedEvent;
 import com.crewvy.common.event.MemberSavedEvent;
 import com.crewvy.common.event.OrganizationSavedEvent;
 import com.crewvy.search_service.dto.event.MinuteSavedEvent;
-import com.crewvy.search_service.dto.response.GlobalSearchRes;
+import com.crewvy.search_service.dto.response.ApprovalSearchRes;
+import com.crewvy.search_service.dto.response.EmployeeSearchRes;
+import com.crewvy.search_service.dto.response.SearchResult;
 import com.crewvy.search_service.entity.ApprovalDocument;
 import com.crewvy.search_service.entity.MemberDocument;
 import com.crewvy.search_service.entity.MinuteDocument;
@@ -188,17 +190,17 @@ public class SearchService {
     }
 
     // 통합 검색
-    public List<GlobalSearchRes> searchGlobal(String query, String companyId) {
+    public List<SearchResult> searchGlobal(String query, String companyId) {
         Query employeeSearchQuery = buildEmployeeSearchQuery(query, companyId);
 
         SearchHits<MemberDocument> employeeHits = elasticsearchOperations.search(employeeSearchQuery, MemberDocument.class);
 
-        List<GlobalSearchRes> results = new ArrayList<>();
+        List<SearchResult> results = new ArrayList<>();
 
         // 직원 검색
         employeeHits.forEach(hit -> {
             MemberDocument doc = hit.getContent();
-            results.add(GlobalSearchRes.builder()
+            results.add(EmployeeSearchRes.builder()
                     .id(doc.getMemberId())
                     .category("employee")
                     .title(doc.getName())
@@ -220,10 +222,13 @@ public class SearchService {
 
         approvalHits.forEach(hit -> {
             ApprovalDocument doc = hit.getContent();
-            results.add(GlobalSearchRes.builder()
+            results.add(ApprovalSearchRes.builder()
                     .id(doc.getApprovalId())
                     .category("approval")
                     .title(doc.getTitle())
+                    .titleName(doc.getTitleName())
+                    .memberName(doc.getMemberName())
+                    .createAt(doc.getCreateAt() != null ? doc.getCreateAt().toString() : null)
                     .build());
         });
 
