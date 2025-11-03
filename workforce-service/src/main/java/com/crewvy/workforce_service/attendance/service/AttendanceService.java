@@ -844,13 +844,8 @@ public class AttendanceService {
             return new ArrayList<>();
         }
 
-        // 3. 해당 연도의 MemberBalance 조회
-        List<MemberBalance> allBalances = memberBalanceRepository.findAllByYearAndCompany(companyId, year);
-
-        // 4. 대상 직원들의 Balance만 필터링
-        List<MemberBalance> filteredBalances = allBalances.stream()
-                .filter(mb -> targetMemberIds.contains(mb.getMemberId()))
-                .collect(Collectors.toList());
+        // 3. 해당 연도의 MemberBalance 조회 (개선)
+        List<MemberBalance> filteredBalances = memberBalanceRepository.findAllByMemberIdInAndYear(targetMemberIds, year);
 
         if (filteredBalances.isEmpty()) {
             return new ArrayList<>();
@@ -1311,20 +1306,21 @@ public class AttendanceService {
     @Transactional(readOnly = true)
     public List<MyBalanceRes> getMyAllBalances(UUID memberId, UUID memberPositionId, UUID companyId) {
         int currentYear = LocalDate.now().getYear();
+        LocalDate yearDate = LocalDate.of(currentYear, 1, 1);
+        LocalDateTime yearStart = yearDate.atStartOfDay();
+        LocalDateTime yearEnd = yearDate.withDayOfYear(yearDate.lengthOfYear()).atTime(23, 59, 59);
 
         // 1. 실제 잔액 레코드가 있는 정책들 조회
         List<MemberBalance> balances = memberBalanceRepository.findAllByMemberIdAndYear(memberId, currentYear);
 
-        // 2. 할당받은 모든 정책 조회 (계층 구조 고려: 직책 > 개인 > 조직 > 상위 조직 > 회사)
+        // 2. 할당받은 모든 정책 조회
         List<Policy> allPolicies = policyAssignmentService.findAllAssignedPoliciesForMember(memberId, memberPositionId, companyId);
 
-        // 3. 휴가/휴직 타입 정책만 필터링 (잔액이 있는 정책만: PTC001~PTC006)
-        // 제외: 기본근무(PTC101), 출장(PTC102), 연장근무(PTC103), 야간근무(PTC104), 휴일근무(PTC105)
+        // 3. 휴가/휴직 타입 정책만 필터링
         List<Policy> leavePolicies = allPolicies.stream()
                 .filter(policy -> {
                     if (policy.getPolicyType() == null) return false;
                     PolicyTypeCode typeCode = policy.getPolicyType().getTypeCode();
-                    // 휴가/휴직 정책만 포함 (PTC001~PTC006)
                     return typeCode == PolicyTypeCode.ANNUAL_LEAVE
                             || typeCode == PolicyTypeCode.MATERNITY_LEAVE
                             || typeCode == PolicyTypeCode.PATERNITY_LEAVE
@@ -1334,33 +1330,39 @@ public class AttendanceService {
                 })
                 .toList();
 
-        // 4. 각 정책에 대해 잔액 정보 생성
+        // 4. N+1 문제 해결: 정책별 사용 횟수와 차감일 합계를 한 번의 쿼리로 조회
+        Map<UUID, Long> approvedCountsMap = requestRepository
+                .countApprovedRequestsForMemberAndYear(memberId, RequestStatus.APPROVED, yearStart, yearEnd)
+                .stream()
+                .collect(Collectors.toMap(com.crewvy.workforce_service.attendance.dto.query.PolicyUsageStats::getPolicyId, com.crewvy.workforce_service.attendance.dto.query.PolicyUsageStats::getCount));
+
+        Map<UUID, Double> deductionDaysMap = requestRepository
+                .sumDeductionDaysForMemberAndYear(memberId, RequestStatus.APPROVED, yearStart, yearEnd)
+                .stream()
+                .collect(Collectors.toMap(com.crewvy.workforce_service.attendance.dto.query.PolicyUsageStats::getPolicyId, com.crewvy.workforce_service.attendance.dto.query.PolicyUsageStats::getSum));
+
+        // 5. 각 정책에 대해 잔액 정보 생성
         return leavePolicies.stream()
                 .map(policy -> {
-                    // 해당 정책의 잔액 레코드 찾기
                     MemberBalance balance = balances.stream()
                             .filter(b -> b.getBalanceTypeCode().equals(policy.getPolicyType().getTypeCode()))
                             .findFirst()
                             .orElse(null);
 
-                    // 잔액 차감 가능 여부 (LEAVE/PARENTAL 타입은 차감 가능, TRIP 등은 불가)
                     PolicyTypeCode typeCode = policy.getPolicyType().getTypeCode();
-                    boolean isBalanceDeductible = typeCode.name().contains("PTC00"); // PTC001~PTC006 등
+                    boolean isBalanceDeductible = typeCode.name().contains("PTC00");
 
-                    // 분할 사용 현황 조회
                     Integer maxSplitCount = null;
                     Integer currentSplitCount = null;
                     if (policy.getRuleDetails() != null && policy.getRuleDetails().getLeaveRule() != null) {
                         LeaveRuleDto leaveRule = policy.getRuleDetails().getLeaveRule();
                         maxSplitCount = leaveRule.getMaxSplitCount();
                         if (maxSplitCount != null) {
-                            // 현재 연도에 승인된 신청 횟수 조회
-                            currentSplitCount = countApprovedRequestsForPolicy(memberId, policy.getId(), currentYear);
+                            currentSplitCount = approvedCountsMap.getOrDefault(policy.getId(), 0L).intValue();
                         }
                     }
 
                     if (balance != null) {
-                        // 잔액 레코드가 있는 경우
                         return MyBalanceRes.builder()
                                 .balanceTypeCode(MyBalanceRes.BalanceTypeInfo.builder()
                                         .codeValue(policy.getPolicyType().getTypeCode().getCodeValue())
@@ -1377,30 +1379,15 @@ public class AttendanceService {
                                 .currentSplitCount(currentSplitCount)
                                 .build();
                     } else {
-                        // 잔액 레코드가 없는 경우
-                        // 육아휴직, 출산휴가 등은 정책의 defaultDays를 기준으로 계산
                         Double totalGranted = 0.0;
-                        Double totalUsed = 0.0;
-
-                        // 정책의 leaveRule에서 defaultDays 가져오기
                         if (policy.getRuleDetails() != null && policy.getRuleDetails().getLeaveRule() != null) {
                             Double defaultDays = policy.getRuleDetails().getLeaveRule().getDefaultDays();
                             if (defaultDays != null) {
-                                totalGranted = defaultDays.doubleValue();
+                                totalGranted = defaultDays;
                             }
                         }
 
-                        // 실제 승인된 요청의 deductionDays 합계 계산
-                        LocalDate yearStart = LocalDate.of(currentYear, 1, 1);
-                        LocalDate yearEnd = LocalDate.of(currentYear, 12, 31);
-                        totalUsed = requestRepository.sumDeductionDaysByMemberIdAndPolicyIdAndStatusInDateRange(
-                                memberId,
-                                policy.getId(),
-                                com.crewvy.workforce_service.attendance.constant.RequestStatus.APPROVED,
-                                yearStart.atStartOfDay(),
-                                yearEnd.atTime(23, 59, 59)
-                        ).orElse(0.0);
-
+                        Double totalUsed = deductionDaysMap.getOrDefault(policy.getId(), 0.0);
                         Double remaining = totalGranted - totalUsed;
 
                         return MyBalanceRes.builder()
@@ -1423,22 +1410,7 @@ public class AttendanceService {
                 .toList();
     }
 
-    /**
-     * 특정 정책에 대해 현재 연도에 승인된 신청 횟수를 조회합니다. (분할 사용 현황 파악용)
-     */
-    private int countApprovedRequestsForPolicy(UUID memberId, UUID policyId, int year) {
-        LocalDate yearDate = LocalDate.of(year, 1, 1);
-        LocalDateTime yearStart = yearDate.atStartOfDay();
-        LocalDateTime yearEnd = yearDate.withDayOfYear(yearDate.lengthOfYear()).atTime(23, 59, 59);
 
-        return requestRepository.countByMemberIdAndPolicyIdAndStatusAndStartDateTimeBetween(
-                memberId,
-                policyId,
-                com.crewvy.workforce_service.attendance.constant.RequestStatus.APPROVED,
-                yearStart,
-                yearEnd
-        );
-    }
 
     /**
      * 내게 할당된 모든 정책 조회
@@ -1531,14 +1503,12 @@ public class AttendanceService {
             return new ArrayList<>();
         }
 
-        // 3. 오늘 날짜의 DailyAttendance 조회
+        // 3. 오늘 날짜의 DailyAttendance 조회 (개선)
         LocalDate today = LocalDate.now();
         List<DailyAttendance> todayAttendances = dailyAttendanceRepository
-                .findAllByDateRangeAndCompany(companyId, today, today);
+                .findAllByMemberIdInAndAttendanceDateBetween(targetMemberIds, today, today);
 
-        // 4. 대상 직원들의 DailyAttendance만 필터링
         Map<UUID, DailyAttendance> attendanceMap = todayAttendances.stream()
-                .filter(da -> targetMemberIds.contains(da.getMemberId()))
                 .collect(Collectors.toMap(DailyAttendance::getMemberId, da -> da));
 
         // 5. 직책 정보 조회 (member-service)

@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.attendance.repository;
 
 import com.crewvy.workforce_service.attendance.constant.DeviceType;
 import com.crewvy.workforce_service.attendance.constant.RequestStatus;
+import com.crewvy.workforce_service.attendance.dto.query.PolicyUsageStats;
 import com.crewvy.workforce_service.attendance.entity.Request;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -10,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -162,4 +164,48 @@ public interface RequestRepository extends JpaRepository<Request, UUID> {
             @Param("targetDateEnd") LocalDateTime targetDateEnd,
             @Param("status") RequestStatus status
     );
+
+    @Query("SELECT r.policy.id as policyId, count(r) as count FROM Request r " +
+            "WHERE r.memberId = :memberId " +
+            "AND r.status = :status " +
+            "AND r.startDateTime >= :yearStart " +
+            "AND r.startDateTime <= :yearEnd " +
+            "GROUP BY r.policy.id")
+    List<PolicyUsageStats> countApprovedRequestsForMemberAndYear(
+            @Param("memberId") UUID memberId,
+            @Param("status") RequestStatus status,
+            @Param("yearStart") LocalDateTime yearStart,
+            @Param("yearEnd") LocalDateTime yearEnd
+    );
+
+    @Query("SELECT r.policy.id as policyId, sum(r.deductionDays) as sum FROM Request r " +
+            "WHERE r.memberId = :memberId " +
+            "AND r.status = :status " +
+            "AND r.startDateTime >= :yearStart " +
+            "AND r.startDateTime <= :yearEnd " +
+            "GROUP BY r.policy.id")
+    List<PolicyUsageStats> sumDeductionDaysForMemberAndYear(
+            @Param("memberId") UUID memberId,
+            @Param("status") RequestStatus status,
+            @Param("yearStart") LocalDateTime yearStart,
+            @Param("yearEnd") LocalDateTime yearEnd
+    );
+
+    @Query("SELECT DISTINCT r.memberId FROM Request r " +
+           "WHERE r.status = :status " +
+           "AND r.policy IS NOT NULL " +
+           "AND r.endDateTime >= :start " +
+           "AND r.startDateTime <= :end")
+    List<UUID> findMemberIdsWithApprovedLeaveBetween(@Param("status") RequestStatus status,
+                                                     @Param("start") LocalDateTime start,
+                                                     @Param("end") LocalDateTime end);
+
+    @Query("SELECT r FROM Request r " +
+           "WHERE r.status = :status " +
+           "AND r.policy IS NOT NULL AND r.policy.policyType.balanceDeductible = true " +
+           "AND r.endDateTime >= :start AND r.startDateTime <= :end")
+    Page<Request> findApprovedLeaveRequestsBetween(@Param("status") RequestStatus status,
+                                                   @Param("start") LocalDateTime start,
+                                                   @Param("end") LocalDateTime end,
+                                                   Pageable pageable);
 }

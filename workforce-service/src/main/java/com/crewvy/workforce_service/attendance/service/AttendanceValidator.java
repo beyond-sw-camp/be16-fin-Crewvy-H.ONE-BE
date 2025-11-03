@@ -27,6 +27,18 @@ import java.time.LocalTime;
 @Service
 public class AttendanceValidator {
 
+    private LocalTime safeParseTime(String timeString) {
+        if (timeString == null || timeString.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return LocalTime.parse(timeString);
+        } catch (java.time.format.DateTimeParseException e) {
+            log.error("잘못된 시간 형식입니다. 'HH:mm' 형식이 필요합니다. 입력값: {}", timeString, e);
+            throw new BusinessException("정책의 시간 형식이 잘못되었습니다: " + timeString);
+        }
+    }
+
     /**
      * 오전 반차 출근 시간 검증
      * 점심 종료 시간 + 지각 허용 시간까지 출근 가능
@@ -44,18 +56,13 @@ public class AttendanceValidator {
 
         // FIXED 휴게 모드: fixedBreakEnd 사용
         if (breakRule != null && "FIXED".equals(breakRule.getType()) && breakRule.getFixedBreakEnd() != null) {
-            String breakEnd = breakRule.getFixedBreakEnd(); // "14:00"
-            String[] parts = breakEnd.split(":");
-            maxClockInTime = attendance.getAttendanceDate()
-                    .atTime(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
+            LocalTime breakEndTime = safeParseTime(breakRule.getFixedBreakEnd());
+            maxClockInTime = attendance.getAttendanceDate().atTime(breakEndTime);
         }
         // AUTO/MANUAL 모드: 정규 출근 + 4시간 (오전 근무 종료 추정)
         else if (workTimeRule != null && workTimeRule.getWorkStartTime() != null) {
-            String workStart = workTimeRule.getWorkStartTime(); // "09:00"
-            String[] parts = workStart.split(":");
-            maxClockInTime = attendance.getAttendanceDate()
-                    .atTime(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]))
-                    .plusHours(4); // 09:00 + 4시간 = 13:00 (점심 시작 추정)
+            LocalTime workStartTime = safeParseTime(workTimeRule.getWorkStartTime());
+            maxClockInTime = attendance.getAttendanceDate().atTime(workStartTime).plusHours(4); // 09:00 + 4시간 = 13:00 (점심 시작 추정)
         }
         // 정책 없으면 13:00 기본값
         else {
@@ -93,18 +100,13 @@ public class AttendanceValidator {
 
         // FIXED 휴게 모드: fixedBreakStart 사용
         if (breakRule != null && "FIXED".equals(breakRule.getType()) && breakRule.getFixedBreakStart() != null) {
-            String breakStart = breakRule.getFixedBreakStart(); // "13:00"
-            String[] parts = breakStart.split(":");
-            minClockOutTime = attendance.getAttendanceDate()
-                    .atTime(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
+            LocalTime breakStartTime = safeParseTime(breakRule.getFixedBreakStart());
+            minClockOutTime = attendance.getAttendanceDate().atTime(breakStartTime);
         }
         // AUTO/MANUAL 모드: 정규 출근 + 4시간 (오전 근무 종료 추정)
         else if (workTimeRule != null && workTimeRule.getWorkStartTime() != null) {
-            String workStart = workTimeRule.getWorkStartTime(); // "09:00"
-            String[] parts = workStart.split(":");
-            minClockOutTime = attendance.getAttendanceDate()
-                    .atTime(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]))
-                    .plusHours(4); // 09:00 + 4시간 = 13:00
+            LocalTime workStartTime = safeParseTime(workTimeRule.getWorkStartTime());
+            minClockOutTime = attendance.getAttendanceDate().atTime(workStartTime).plusHours(4); // 09:00 + 4시간 = 13:00
         }
         // 정책 없으면 13:00 기본값
         else {
@@ -196,12 +198,11 @@ public class AttendanceValidator {
             return;
         }
 
-        LocalDate date = clockInTime.toLocalDate();
         LocalTime time = clockInTime.toLocalTime();
 
         // 정책의 출퇴근 가능 시간 범위
-        LocalTime workStart = LocalTime.parse(workTimeRule.getWorkStartTime());
-        LocalTime workEnd = LocalTime.parse(workTimeRule.getWorkEndTime());
+        LocalTime workStart = safeParseTime(workTimeRule.getWorkStartTime());
+        LocalTime workEnd = safeParseTime(workTimeRule.getWorkEndTime());
 
         // workEnd가 자정을 넘어가는 경우 (예: 18:00 ~ 02:00)
         if (workEnd.isBefore(workStart)) {
@@ -236,12 +237,11 @@ public class AttendanceValidator {
             return;
         }
 
-        LocalDate date = clockOutTime.toLocalDate();
         LocalTime time = clockOutTime.toLocalTime();
 
         // 정책의 출퇴근 가능 시간 범위
-        LocalTime workStart = LocalTime.parse(workTimeRule.getWorkStartTime());
-        LocalTime workEnd = LocalTime.parse(workTimeRule.getWorkEndTime());
+        LocalTime workStart = safeParseTime(workTimeRule.getWorkStartTime());
+        LocalTime workEnd = safeParseTime(workTimeRule.getWorkEndTime());
 
         // workEnd가 자정을 넘어가는 경우
         if (workEnd.isBefore(workStart)) {
@@ -282,7 +282,7 @@ public class AttendanceValidator {
 
         switch (limitType) {
             case "FIXED_PLUS_HOURS":
-                validateFixedPlusHours(workDate, workTimeRule, clockOutRule, clockInTime, clockOutTime);
+                validateFixedPlusHours(workDate, workTimeRule, clockOutRule, clockOutTime);
                 break;
             case "END_OF_DAY":
                 validateEndOfDay(workDate, clockInTime, clockOutTime);
@@ -297,16 +297,12 @@ public class AttendanceValidator {
 
     private void validateFixedPlusHours(LocalDate workDate, WorkTimeRuleDto workTimeRule,
                                        ClockOutRuleDto clockOutRule,
-                                       LocalDateTime clockInTime, LocalDateTime clockOutTime) {
+                                       LocalDateTime clockOutTime) {
         if (workTimeRule == null || workTimeRule.getWorkEndTime() == null) {
             return;
         }
 
-        String[] timeParts = workTimeRule.getWorkEndTime().split(":");
-        LocalDateTime standardEndTime = workDate.atTime(
-                Integer.parseInt(timeParts[0]),
-                Integer.parseInt(timeParts[1])
-        );
+        LocalDateTime standardEndTime = workDate.atTime(safeParseTime(workTimeRule.getWorkEndTime()));
 
         Integer maxHours = clockOutRule.getMaxHoursAfterWorkEnd();
         if (maxHours != null) {
@@ -439,22 +435,27 @@ public class AttendanceValidator {
                 (dailyAttendance.getTotalBreakMinutes() != null ? dailyAttendance.getTotalBreakMinutes() : 0);
 
         Integer mandatoryBreakMinutes = null;
+        BreakRuleDto breakRule = null;
+
+        if (policy != null && policy.getRuleDetails() != null) {
+            breakRule = policy.getRuleDetails().getBreakRule();
+        }
 
         // 근무 시간에 따라 필수 휴게 시간 결정
         if (totalMinutesAtWork >= 480) { // 8시간 이상
-            // 정책에 8시간 기준 휴게시간이 설정되어 있으면 사용, 없으면 법정 기본값 60분
-            if (policy != null && policy.getRuleDetails() != null) {
-                BreakRuleDto breakRule = policy.getRuleDetails().getBreakRule();
-                if (breakRule != null && breakRule.getMandatoryBreakMinutes() != null) {
-                    mandatoryBreakMinutes = breakRule.getMandatoryBreakMinutes();
-                }
+            if (breakRule != null && breakRule.getDefaultBreakMinutesFor8Hours() != null) {
+                mandatoryBreakMinutes = breakRule.getDefaultBreakMinutesFor8Hours();
             }
             if (mandatoryBreakMinutes == null) {
                 mandatoryBreakMinutes = 60; // 법정 기본값
             }
         } else if (totalMinutesAtWork >= 240) { // 4시간 이상 8시간 미만
-            // 4시간 이상은 법정 기본값 30분
-            mandatoryBreakMinutes = 30;
+            if (breakRule != null && breakRule.getMandatoryBreakMinutes() != null) {
+                mandatoryBreakMinutes = breakRule.getMandatoryBreakMinutes();
+            }
+            if (mandatoryBreakMinutes == null) {
+                mandatoryBreakMinutes = 30; // 법정 기본값
+            }
         } else {
             return; // 4시간 미만은 의무 휴게시간 없음
         }
@@ -492,9 +493,7 @@ public class AttendanceValidator {
 
         try {
             // 코어타임 시작 시각
-            String[] startParts = coreTimeStart.split(":");
-            LocalDateTime coreStartDateTime = dailyAttendance.getAttendanceDate()
-                    .atTime(Integer.parseInt(startParts[0]), Integer.parseInt(startParts[1]));
+            LocalDateTime coreStartDateTime = dailyAttendance.getAttendanceDate().atTime(safeParseTime(coreTimeStart));
 
             // 지각 허용 시간 적용
             Integer latenessGraceMinutes = (latenessRule != null) ? latenessRule.getLatenessGraceMinutes() : 0;
@@ -518,9 +517,7 @@ public class AttendanceValidator {
 
             // 코어타임 종료 시각 이전에 퇴근하면 조퇴 (퇴근 시각이 있을 경우에만)
             if (dailyAttendance.getLastClockOut() != null && coreTimeEnd != null) {
-                String[] endParts = coreTimeEnd.split(":");
-                LocalDateTime coreEndDateTime = dailyAttendance.getAttendanceDate()
-                        .atTime(Integer.parseInt(endParts[0]), Integer.parseInt(endParts[1]));
+                LocalDateTime coreEndDateTime = dailyAttendance.getAttendanceDate().atTime(safeParseTime(coreTimeEnd));
 
                 // 조퇴 허용 시간 적용
                 Integer earlyLeaveGraceMinutes = (latenessRule != null) ? latenessRule.getEarlyLeaveGraceMinutes() : 0;

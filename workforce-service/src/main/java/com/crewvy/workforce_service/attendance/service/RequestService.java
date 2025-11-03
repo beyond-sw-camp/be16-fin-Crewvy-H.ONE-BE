@@ -32,7 +32,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -732,20 +736,26 @@ public class RequestService {
             return;
         }
 
-        // 기간 내 모든 날짜의 DailyAttendance 조회 및 변경
+        List<DailyAttendance> attendances = dailyAttendanceRepository.findAllByMemberIdInAndAttendanceDateBetween(
+                List.of(request.getMemberId()), startDate, effectiveEndDate);
+        
+        Map<LocalDate, DailyAttendance> attendanceMap = attendances.stream()
+                .collect(Collectors.toMap(DailyAttendance::getAttendanceDate, java.util.function.Function.identity()));
+
+        List<DailyAttendance> attendancesToUpdate = new ArrayList<>();
         LocalDate currentDate = startDate;
         while (!currentDate.isAfter(effectiveEndDate)) {
-            final LocalDate dateToProcess = currentDate;
-            dailyAttendanceRepository.findByMemberIdAndAttendanceDate(request.getMemberId(), dateToProcess)
-                    .ifPresent(dailyAttendance -> {
-                        if (dailyAttendance.getStatus() == AttendanceStatus.ABSENT) {
-                            dailyAttendance.updateStatus(leaveStatus);
-                            dailyAttendanceRepository.save(dailyAttendance);
-                            log.info("결근을 휴가로 변경: memberId={}, date={}, {} -> {}",
-                                    request.getMemberId(), dateToProcess, AttendanceStatus.ABSENT, leaveStatus);
-                        }
-                    });
+            DailyAttendance dailyAttendance = attendanceMap.get(currentDate);
+            if (dailyAttendance != null && dailyAttendance.getStatus() == AttendanceStatus.ABSENT) {
+                dailyAttendance.updateStatus(leaveStatus);
+                attendancesToUpdate.add(dailyAttendance);
+                log.info("결근을 휴가로 변경: memberId={}, date={}, {} -> {}",
+                        request.getMemberId(), currentDate, AttendanceStatus.ABSENT, leaveStatus);
+            }
             currentDate = currentDate.plusDays(1);
+        }
+        if (!attendancesToUpdate.isEmpty()) {
+            dailyAttendanceRepository.saveAll(attendancesToUpdate);
         }
     }
 
@@ -772,25 +782,29 @@ public class RequestService {
                 request.getStartDateTime(),
                 request.getEndDateTime()
         ).toMinutes();
+
+        List<DailyAttendance> attendances = dailyAttendanceRepository.findAllByMemberIdInAndAttendanceDateBetween(
+                List.of(request.getMemberId()), startDate, effectiveEndDate);
         
-        // 기간 내 모든 날짜 처리
+        Map<LocalDate, DailyAttendance> attendanceMap = attendances.stream()
+                .collect(Collectors.toMap(DailyAttendance::getAttendanceDate, java.util.function.Function.identity()));
+
+        List<DailyAttendance> attendancesToSave = new ArrayList<>();
         LocalDate currentDate = startDate;
         while (!currentDate.isAfter(effectiveEndDate)) {
             final LocalDate dateToProcess = currentDate;
             final int dailyMinutes = (int) workMinutes;
             
-            DailyAttendance dailyAttendance = dailyAttendanceRepository
-                    .findByMemberIdAndAttendanceDate(request.getMemberId(), dateToProcess)
-                    .orElse(null);
+            DailyAttendance dailyAttendance = attendanceMap.get(dateToProcess);
             
             if (dailyAttendance == null) {
-                // DailyAttendance가 없으면 새로 생성
                 dailyAttendance = DailyAttendance.builder()
                         .memberId(request.getMemberId())
                         .companyId(request.getPolicy().getCompanyId())
                         .attendanceDate(dateToProcess)
                         .status(AttendanceStatus.NORMAL_WORK)
                         .build();
+                attendancesToSave.add(dailyAttendance);
             }
             
             // 정책 타입에 따라 근무 시간 추가
@@ -808,8 +822,15 @@ public class RequestService {
                         request.getMemberId(), dateToProcess, dailyMinutes);
             }
             
-            dailyAttendanceRepository.save(dailyAttendance);
+            if (!attendancesToSave.contains(dailyAttendance)) {
+                attendancesToSave.add(dailyAttendance);
+            }
+            
             currentDate = currentDate.plusDays(1);
+        }
+        
+        if (!attendancesToSave.isEmpty()) {
+            dailyAttendanceRepository.saveAll(attendancesToSave);
         }
     }
 
@@ -920,27 +941,33 @@ public class RequestService {
             return;
         }
 
+        List<DailyAttendance> attendances = dailyAttendanceRepository.findAllByMemberIdInAndAttendanceDateBetween(
+                List.of(request.getMemberId()), startDate, endDate);
+        
+        Map<LocalDate, DailyAttendance> attendanceMap = attendances.stream()
+                .collect(Collectors.toMap(DailyAttendance::getAttendanceDate, java.util.function.Function.identity()));
+
+        List<DailyAttendance> attendancesToSave = new ArrayList<>();
         LocalDate currentDate = startDate;
         while (!currentDate.isAfter(endDate)) {
-            final LocalDate dateToProcess = currentDate;
-
-            DailyAttendance dailyAttendance = dailyAttendanceRepository
-                    .findByMemberIdAndAttendanceDate(request.getMemberId(), dateToProcess)
-                    .orElse(null);
+            DailyAttendance dailyAttendance = attendanceMap.get(currentDate);
 
             if (dailyAttendance == null) {
-                dailyAttendanceRepository.save(DailyAttendance.builder()
+                dailyAttendance = DailyAttendance.builder()
                         .memberId(request.getMemberId())
                         .companyId(request.getPolicy().getCompanyId())
-                        .attendanceDate(dateToProcess)
+                        .attendanceDate(currentDate)
                         .status(leaveStatus)
-                        .build());
+                        .build();
             } else {
                 dailyAttendance.updateStatus(leaveStatus);
-                dailyAttendanceRepository.save(dailyAttendance);
             }
-
+            attendancesToSave.add(dailyAttendance);
             currentDate = currentDate.plusDays(1);
+        }
+        
+        if (!attendancesToSave.isEmpty()) {
+            dailyAttendanceRepository.saveAll(attendancesToSave);
         }
     }
 
@@ -994,56 +1021,67 @@ public class RequestService {
         
         PolicyTypeCode typeCode = request.getPolicy().getPolicyType().getTypeCode();
 
+        List<DailyAttendance> attendances = dailyAttendanceRepository.findAllByMemberIdInAndAttendanceDateBetween(
+                List.of(request.getMemberId()), startDate, effectiveEndDate);
+        
+        Map<LocalDate, DailyAttendance> attendanceMap = attendances.stream()
+                .collect(Collectors.toMap(DailyAttendance::getAttendanceDate, java.util.function.Function.identity()));
+
+        List<DailyAttendance> attendancesToSave = new ArrayList<>();
         LocalDate currentDate = startDate;
         while (!currentDate.isAfter(effectiveEndDate)) {
             final LocalDate dateToProcess = currentDate;
-            dailyAttendanceRepository.findByMemberIdAndAttendanceDate(request.getMemberId(), dateToProcess)
-                    .ifPresent(da -> {
-                        // 휴가 신청 복원: 휴가 상태 → 결근
-                        if (request.getPolicy().getPolicyType().isBalanceDeductible() 
-                            || typeCode == PolicyTypeCode.BUSINESS_TRIP) {
-                            AttendanceStatus status = da.getStatus();
-                            if (status == AttendanceStatus.ANNUAL_LEAVE 
-                                || status == AttendanceStatus.SICK_LEAVE
-                                || status == AttendanceStatus.MATERNITY_LEAVE
-                                || status == AttendanceStatus.PATERNITY_LEAVE
-                                || status == AttendanceStatus.CHILDCARE_LEAVE
-                                || status == AttendanceStatus.FAMILY_CARE_LEAVE
-                                || status == AttendanceStatus.MENSTRUAL_LEAVE
-                                || status == AttendanceStatus.HALF_DAY_AM
-                                || status == AttendanceStatus.HALF_DAY_PM
-                                || status == AttendanceStatus.UNPAID_LEAVE
-                                || status == AttendanceStatus.BUSINESS_TRIP) {
-                                da.updateStatus(AttendanceStatus.ABSENT);
-                                dailyAttendanceRepository.save(da);
-                            }
-                        }
-                        // 연장/야간/휴일근무 복원: 추가된 시간 차감
-                        else if (typeCode == PolicyTypeCode.OVERTIME
-                                || typeCode == PolicyTypeCode.NIGHT_WORK
-                                || typeCode == PolicyTypeCode.HOLIDAY_WORK) {
-                            long workMinutes = java.time.Duration.between(
-                                    request.getStartDateTime(),
-                                    request.getEndDateTime()
-                            ).toMinutes();
-                            int dailyMinutes = (int) workMinutes;
-                            
-                            // 음수 방지하면서 차감
-                            if (typeCode == PolicyTypeCode.OVERTIME && da.getOvertimeMinutes() != null) {
-                                int newOvertime = Math.max(0, da.getOvertimeMinutes() - dailyMinutes);
-                                // TODO: DailyAttendance에 setter 추가 필요
-                                log.warn("연장근무 복원 필요: memberId={}, date={}, minutes={}", 
-                                        request.getMemberId(), dateToProcess, dailyMinutes);
-                            } else if (typeCode == PolicyTypeCode.NIGHT_WORK && da.getNightWorkMinutes() != null) {
-                                log.warn("야간근무 복원 필요: memberId={}, date={}, minutes={}", 
-                                        request.getMemberId(), dateToProcess, dailyMinutes);
-                            } else if (typeCode == PolicyTypeCode.HOLIDAY_WORK && da.getHolidayWorkMinutes() != null) {
-                                log.warn("휴일근무 복원 필요: memberId={}, date={}, minutes={}", 
-                                        request.getMemberId(), dateToProcess, dailyMinutes);
-                            }
-                        }
-                    });
+            DailyAttendance da = attendanceMap.get(dateToProcess);
+            if (da != null) {
+                // 휴가 신청 복원: 휴가 상태 → 결근
+                if (request.getPolicy().getPolicyType().isBalanceDeductible() 
+                    || typeCode == PolicyTypeCode.BUSINESS_TRIP) {
+                    AttendanceStatus status = da.getStatus();
+                    if (status == AttendanceStatus.ANNUAL_LEAVE 
+                        || status == AttendanceStatus.SICK_LEAVE
+                        || status == AttendanceStatus.MATERNITY_LEAVE
+                        || status == AttendanceStatus.PATERNITY_LEAVE
+                        || status == AttendanceStatus.CHILDCARE_LEAVE
+                        || status == AttendanceStatus.FAMILY_CARE_LEAVE
+                        || status == AttendanceStatus.MENSTRUAL_LEAVE
+                        || status == AttendanceStatus.HALF_DAY_AM
+                        || status == AttendanceStatus.HALF_DAY_PM
+                        || status == AttendanceStatus.UNPAID_LEAVE
+                        || status == AttendanceStatus.BUSINESS_TRIP) {
+                        da.updateStatus(AttendanceStatus.ABSENT);
+                        attendancesToSave.add(da);
+                    }
+                }
+                // 연장/야간/휴일근무 복원: 추가된 시간 차감
+                else if (typeCode == PolicyTypeCode.OVERTIME
+                        || typeCode == PolicyTypeCode.NIGHT_WORK
+                        || typeCode == PolicyTypeCode.HOLIDAY_WORK) {
+                    long workMinutes = java.time.Duration.between(
+                            request.getStartDateTime(),
+                            request.getEndDateTime()
+                    ).toMinutes();
+                    int dailyMinutes = (int) workMinutes;
+                    
+                    // 음수 방지하면서 차감
+                    if (typeCode == PolicyTypeCode.OVERTIME && da.getOvertimeMinutes() != null) {
+                        int newOvertime = Math.max(0, da.getOvertimeMinutes() - dailyMinutes);
+                        // TODO: DailyAttendance에 setter 추가 필요
+                        log.warn("연장근무 복원 필요: memberId={}, date={}, minutes={}", 
+                                request.getMemberId(), dateToProcess, dailyMinutes);
+                    } else if (typeCode == PolicyTypeCode.NIGHT_WORK && da.getNightWorkMinutes() != null) {
+                        log.warn("야간근무 복원 필요: memberId={}, date={}, minutes={}", 
+                                request.getMemberId(), dateToProcess, dailyMinutes);
+                    } else if (typeCode == PolicyTypeCode.HOLIDAY_WORK && da.getHolidayWorkMinutes() != null) {
+                        log.warn("휴일근무 복원 필요: memberId={}, date={}, minutes={}", 
+                                request.getMemberId(), dateToProcess, dailyMinutes);
+                    }
+                }
+            }
             currentDate = currentDate.plusDays(1);
+        }
+        
+        if (!attendancesToSave.isEmpty()) {
+            dailyAttendanceRepository.saveAll(attendancesToSave);
         }
     }
     private void validateApprovalStatus(Request request) {

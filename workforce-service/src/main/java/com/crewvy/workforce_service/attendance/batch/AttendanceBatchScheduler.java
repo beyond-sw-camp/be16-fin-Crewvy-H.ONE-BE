@@ -45,8 +45,8 @@ public class AttendanceBatchScheduler {
 
         String runTime = LocalDateTime.now().toString();
 
+        // Job 1: 결근 자동 처리
         try {
-            // Job 1: 결근 자동 처리
             JobParameters markAbsentParams = new JobParametersBuilder()
                     .addString("runTime", runTime)
                     .toJobParameters();
@@ -54,8 +54,12 @@ public class AttendanceBatchScheduler {
             log.info("[배치 1/2] 결근 처리 배치 실행 중...");
             jobLauncher.run(markAbsentJob, markAbsentParams);
             log.info("[배치 1/2] 결근 처리 배치 완료");
+        } catch (Exception e) {
+            log.error("[배치 1/2] 결근 처리 배치 실행 중 오류 발생", e);
+        }
 
-            // Job 2: 승인된 휴가 DailyAttendance 생성
+        // Job 2: 승인된 휴가 DailyAttendance 생성
+        try {
             JobParameters createLeaveParams = new JobParametersBuilder()
                     .addString("runTime", runTime)
                     .toJobParameters();
@@ -63,16 +67,13 @@ public class AttendanceBatchScheduler {
             log.info("[배치 2/2] 휴가 DailyAttendance 생성 배치 실행 중...");
             jobLauncher.run(createApprovedLeaveDailyAttendanceJob, createLeaveParams);
             log.info("[배치 2/2] 휴가 DailyAttendance 생성 배치 완료");
-
-            log.info("========================================");
-            log.info("근태 일일 배치 완료: {}", LocalDateTime.now());
-            log.info("========================================");
-
         } catch (Exception e) {
-            log.error("========================================");
-            log.error("근태 배치 실행 중 오류 발생", e);
-            log.error("========================================");
+            log.error("[배치 2/2] 휴가 DailyAttendance 생성 배치 실행 중 오류 발생", e);
         }
+
+        log.info("========================================");
+        log.info("근태 일일 배치 완료: {}", LocalDateTime.now());
+        log.info("========================================");
     }
 
     /**
@@ -98,6 +99,7 @@ public class AttendanceBatchScheduler {
     /**
      * 수동 실행용 - 테스트 목적
      */
+    @Async
     public void runCreateLeaveDailyAttendanceJobManually() {
         log.info("수동 실행: 휴가 DailyAttendance 생성 배치");
         String runTime = LocalDateTime.now().toString();
@@ -147,6 +149,7 @@ public class AttendanceBatchScheduler {
     /**
      * 수동 실행용 - 테스트 목적
      */
+    @Async
     public void runAutoCompleteClockOutJobManually() {
         log.info("수동 실행: 미완료 퇴근 자동 처리 배치");
         String runTime = LocalDateTime.now().toString();
@@ -199,6 +202,7 @@ public class AttendanceBatchScheduler {
     /**
      * 수동 실행용 - 테스트 목적
      */
+    @Async
     public void runAnnualLeaveAccrualJobManually() {
         log.info("수동 실행: 연차 자동 발생 배치");
         String runTime = LocalDateTime.now().toString();

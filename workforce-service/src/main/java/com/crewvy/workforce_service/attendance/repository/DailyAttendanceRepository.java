@@ -1,6 +1,8 @@
 package com.crewvy.workforce_service.attendance.repository;
 
 import com.crewvy.workforce_service.attendance.entity.DailyAttendance;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -40,4 +42,14 @@ public interface DailyAttendanceRepository extends JpaRepository<DailyAttendance
             @Param("companyId") UUID companyId,
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
+
+    List<DailyAttendance> findAllByMemberIdInAndAttendanceDateBetween(List<UUID> memberIds, LocalDate startDate, LocalDate endDate);
+
+    Optional<DailyAttendance> findFirstByMemberIdOrderByAttendanceDateDesc(UUID memberId);
+
+    @Query("SELECT da FROM DailyAttendance da " +
+           "WHERE da.attendanceDate = :date " +
+           "AND da.firstClockIn IS NOT NULL AND da.lastClockOut IS NULL " +
+           "AND da.status IN (com.crewvy.workforce_service.attendance.constant.AttendanceStatus.NORMAL_WORK, com.crewvy.workforce_service.attendance.constant.AttendanceStatus.BUSINESS_TRIP)")
+    Page<DailyAttendance> findIncompleteAttendances(@Param("date") LocalDate date, Pageable pageable);
 }
