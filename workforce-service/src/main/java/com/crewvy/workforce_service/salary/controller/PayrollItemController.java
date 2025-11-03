@@ -4,6 +4,7 @@ import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.salary.constant.SalaryType;
 import com.crewvy.workforce_service.salary.dto.request.PayrollItemCreateReq;
 import com.crewvy.workforce_service.salary.dto.request.PayrollItemUpdateReq;
+import com.crewvy.workforce_service.salary.dto.response.PayrollItemFixedRes;
 import com.crewvy.workforce_service.salary.dto.response.PayrollItemRes;
 import com.crewvy.workforce_service.salary.service.PayrollItemService;
 import lombok.RequiredArgsConstructor;
@@ -60,10 +61,19 @@ public class PayrollItemController {
         return new ResponseEntity<>(new ApiResponse<>(true, response, "항목 수정 성공"), HttpStatus.OK);
     }
 
-    // 급여 항목 삭제 
+    // 급여 항목 삭제
     @DeleteMapping
     public ResponseEntity<?> deletePayrollItems(@RequestBody List<UUID> ids) {
         payrollItemService.deletePayrollItems(ids);
         return new ResponseEntity<>(new ApiResponse<>(true, null, "항목 삭제 성공"), HttpStatus.OK);
+    }
+
+    // 고정 수당 항목 조회
+    @GetMapping("/fixed-allowance")
+    public ResponseEntity<?> deletePayrollItems(@RequestParam UUID companyId) {
+        List<PayrollItemFixedRes> fixedAllowanceList = payrollItemService.getFixedAllowanceHistory(companyId);
+        return new ResponseEntity<>(
+                new ApiResponse<>(true, fixedAllowanceList, "고정 수당 항목 조회 성공")
+                , HttpStatus.OK);
     }
 }

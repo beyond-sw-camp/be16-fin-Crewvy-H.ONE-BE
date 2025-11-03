@@ -7,17 +7,15 @@ import lombok.Setter;
 import java.time.LocalDate;
 import java.util.UUID;
 
-@Setter
 @Getter
-public class FixedAllowanceCreateReq {
+@Setter
+public class FixedAllowanceCreateAllReq {
 
-    private UUID companyId;
-    private UUID memberId;
     private String allowanceName;
     private int amount;
     private LocalDate effectiveDate;
 
-    public FixedAllowance toEntity() {
+    public FixedAllowance toEntity(UUID memberId, UUID companyId) {
         return FixedAllowance.builder()
                 .companyId(companyId)
                 .memberId(memberId)

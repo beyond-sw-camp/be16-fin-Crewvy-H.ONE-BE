@@ -45,7 +45,7 @@ public interface MemberClient {
     ApiResponse<List<OrganizationRes>> getOrganizationList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId);
 
     // 급여 계산용 회원 정보 조회 (companyId로 조회)
-    @GetMapping("/member/salary-list")
+    @GetMapping("/member/{companyId}/salary-list")
     ApiResponse<List<MemberSalaryListRes>> getSalaryList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                                         @RequestParam UUID companyId);
+                                                         @PathVariable UUID companyId);
 }
