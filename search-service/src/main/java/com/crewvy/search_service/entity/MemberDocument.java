@@ -42,6 +42,9 @@ public class MemberDocument {
     private String phoneNumber;
 
     @Field(type = FieldType.Text)
+    private String email;
+
+    @Field(type = FieldType.Text)
     private String memberStatus;
 
     @CompletionField(maxInputLength = 100)

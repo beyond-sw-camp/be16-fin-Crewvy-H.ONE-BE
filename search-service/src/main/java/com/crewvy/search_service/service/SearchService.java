@@ -75,6 +75,7 @@ public class SearchService {
                 .organizationList(event.getOrganizationList())
                 .titleName(event.getTitleName())
                 .phoneNumber(event.getPhoneNumber())
+                .email(event.getEmail())
                 .memberStatus(event.getMemberStatus())
                 .suggest(new Completion(new String[]{suggestText}))
                 .build();
