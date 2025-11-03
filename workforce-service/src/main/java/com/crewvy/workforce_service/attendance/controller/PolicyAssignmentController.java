@@ -93,9 +93,9 @@ public class PolicyAssignmentController {
     @DeleteMapping
     public ResponseEntity<ApiResponse<Void>> deleteAssignments(
             @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-            @RequestParam("assignmentIds") List<UUID> assignmentIds) {
-        
-        policyAssignmentService.deleteAssignments(memberPositionId, assignmentIds);
+            @RequestBody @Valid PolicyAssignmentIdListRequest idListRequest) {
+
+        policyAssignmentService.deleteAssignments(memberPositionId, idListRequest.getAssignmentIds());
         return new ResponseEntity<>(ApiResponse.success(null, "선택된 정책 할당들이 삭제되었습니다."), HttpStatus.OK);
     }
 }

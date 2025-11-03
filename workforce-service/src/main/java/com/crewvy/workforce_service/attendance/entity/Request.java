@@ -1,6 +1,7 @@
 package com.crewvy.workforce_service.attendance.entity;
 
 import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.workforce_service.approval.entity.ApprovalDocument;
 import com.crewvy.workforce_service.attendance.constant.DeviceType;
 import com.crewvy.workforce_service.attendance.constant.RequestStatus;
 import com.crewvy.workforce_service.attendance.constant.RequestUnit;
@@ -13,7 +14,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -37,8 +37,9 @@ public class Request extends BaseEntity {
     @Column(name = "member_id", nullable = false)
     private UUID memberId;
 
-    @Column(name = "document_id")
-    private UUID documentId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "document_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
+    private ApprovalDocument approvalDocument;
 
     @Column(name = "request_unit")
     @Convert(converter = RequestUnitConverter.class)
@@ -80,11 +81,11 @@ public class Request extends BaseEntity {
     private DeviceType deviceType;
 
     /**
-     * 결재 문서 ID 업데이트
-     * Approval 생성 후 연결하기 위해 사용
+     * 결재 문서 연결
+     * Approval 양식과 연결하기 위해 사용
      */
-    public void updateDocumentId(UUID documentId) {
-        this.documentId = documentId;
+    public void updateApprovalDocument(ApprovalDocument approvalDocument) {
+        this.approvalDocument = approvalDocument;
     }
 
     /**

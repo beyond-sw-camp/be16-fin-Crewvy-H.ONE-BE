@@ -13,8 +13,9 @@ public class EventRequest {
     @NotNull(message = "이벤트 타입은 필수값입니다.")
     private EventType eventType;
 
-    @NotBlank(message = "디바이스 ID는 필수값입니다.")
-    private String deviceId;
+    // deviceId는 근태 인증에 사용하지 않음 (로그인으로 사용자 판별, deviceType으로 인증 방식 구분)
+    // @NotBlank(message = "디바이스 ID는 필수값입니다.")
+    // private String deviceId;
 
     @NotNull(message = "디바이스 타입은 필수값입니다.")
     private DeviceType deviceType;

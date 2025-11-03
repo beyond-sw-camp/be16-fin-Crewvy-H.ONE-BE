@@ -38,4 +38,6 @@ public class LeaveRequestCreateDto {
     private String requesterComment; // 신청자 코멘트 (선택)
 
     private String workLocation;     // 출장지 (출장 신청 시 사용)
+
+    private UUID documentId;         // 결재 문서 ID (선택 - 결재가 필요한 경우)
 }

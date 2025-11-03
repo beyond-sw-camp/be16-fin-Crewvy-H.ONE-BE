@@ -26,5 +26,10 @@ public class PolicyUpdateRequest {
 
     private LocalDate effectiveTo;
 
+    /**
+     * 자동 승인 여부.
+     */
+    private Boolean autoApprove;
+
     private Map<String, Object> ruleDetails;
 }
