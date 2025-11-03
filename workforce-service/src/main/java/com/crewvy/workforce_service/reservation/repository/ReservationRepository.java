@@ -4,6 +4,7 @@ import com.crewvy.workforce_service.reservation.entity.Reservation;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -18,6 +19,8 @@ public interface ReservationRepository extends JpaRepository<Reservation, UUID> 
     boolean existsByReservationTypeIdAndStartDateTimeLessThanAndEndDateTimeGreaterThan(UUID reservationTypeId,
                                                                                        LocalDateTime endDateTime,
                                                                                        LocalDateTime startDateTime);
+
+    List<Reservation> findAllByStartDateTimeIn(List<LocalDate> today);
 }
 
 

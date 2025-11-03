@@ -1,6 +1,8 @@
 package com.crewvy.workforce_service.reservation.service;
 
 import com.crewvy.common.dto.ApiResponse;
+import com.crewvy.common.dto.ScheduleDeleteDto;
+import com.crewvy.common.dto.ScheduleDto;
 import com.crewvy.common.entity.Bool;
 import com.crewvy.common.exception.ResourceNotFoundException;
 import com.crewvy.workforce_service.feignClient.MemberClient;
@@ -19,6 +21,7 @@ import com.crewvy.workforce_service.reservation.repository.ReservationRepository
 import com.crewvy.workforce_service.reservation.repository.ReservationTypeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +40,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ReservationService {
 
+    private final ApplicationEventPublisher eventPublisher;
     private final ReservationRepository reservationRepository;
     private final ReservationTypeRepository reservationTypeRepository;
     private final RecurringSettingRepository recurringSettingRepository;
@@ -61,13 +65,23 @@ public class ReservationService {
 
         Reservation reservation = reservationCreateReq.toEntity(type);
         Reservation savedReservation = reservationRepository.save(reservation);
+
+        ScheduleDto scheduleDto = ScheduleDto.builder()
+                .originId(savedReservation.getId())
+                .title(savedReservation.getTitle())
+                .contents(savedReservation.getNote())
+                .startDate(savedReservation.getStartDateTime())
+                .endDate(savedReservation.getEndDateTime())
+                .type("CT002")
+                .build();
+        eventPublisher.publishEvent(scheduleDto);
+
         return ReservationRes.fromEntity(savedReservation);
     }
 
     private ReservationRes createRecurringReservations(ReservationCreateReq reservationCreateReq, ReservationType type) {
         RecurringSetting recurringSetting = reservationCreateReq.getRepeatCreateReq().toEntity();
         RecurringSetting saved = recurringSettingRepository.save(recurringSetting);
-
 
         List<LocalDateTime> recurringStartTimes = calculateRecurringDates(reservationCreateReq);
         if (recurringStartTimes.isEmpty()) {
@@ -88,6 +102,20 @@ public class ReservationService {
         }
 
         List<Reservation> savedReservations = reservationRepository.saveAll(reservationsList);
+
+        for (Reservation reservation : savedReservations) {
+
+            ScheduleDto scheduleDto = ScheduleDto.builder()
+                    .originId(reservation.getId())
+                    .title(reservation.getTitle())
+                    .contents(reservation.getNote())
+                    .startDate(reservation.getStartDateTime())
+                    .endDate(reservation.getEndDateTime())
+                    .type("CT002")
+                    .build();
+
+            eventPublisher.publishEvent(scheduleDto);
+        }
 
         return ReservationRes.fromEntity(savedReservations.get(0));
     }
@@ -199,6 +227,12 @@ public class ReservationService {
             throw new ResourceNotFoundException("예약을 찾을 수 없습니다.");
         }
         reservationRepository.deleteById(id);
+
+        ScheduleDeleteDto scheduleDto = ScheduleDeleteDto.builder()
+                .originId(id)
+                .build();
+
+        eventPublisher.publishEvent(scheduleDto);
     }
 
     public ReservationRes updateReservationStatus(UUID id, ReservationUpdateStatusReq req) {
