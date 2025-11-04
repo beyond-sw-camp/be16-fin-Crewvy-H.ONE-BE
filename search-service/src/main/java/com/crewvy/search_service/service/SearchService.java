@@ -135,7 +135,7 @@ public class SearchService {
     public void listenApprovalCompletedEvent(ApprovalCompletedEvent event) {
         ApprovalDocument approvalDocument = ApprovalDocument.builder()
                 .approvalId(event.getApprovalId().toString())
-                .memberId(event.getMemberId().toString())
+                .memberPositionId(event.getMemberPositionId().toString())
                 .title(event.getTitle())
                 .titleName(event.getTitleName())
                 .memberName(event.getMemberName())
@@ -189,7 +189,9 @@ public class SearchService {
     public Page<ApprovalDocument> searchApprovals(String query, String memberPositionId, Pageable pageable) {
         Query searchQuery = new NativeQueryBuilder()
                 .withQuery(q -> q.bool(b -> b
-                        .must(m -> m.queryString(qs -> qs.fields("title").query("*".concat(query).concat("*"))))))
+                        .must(m -> m.match(ma -> ma.field("title").query(query)))
+                        .filter(f -> f.term(t -> t.field("approverIdList.keyword").value(memberPositionId)))
+                ))
                 .withPageable(pageable)
                 .build();
         SearchHits<ApprovalDocument> searchHits = elasticsearchOperations.search(searchQuery, ApprovalDocument.class);

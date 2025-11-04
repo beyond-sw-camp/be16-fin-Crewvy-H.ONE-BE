@@ -23,6 +23,7 @@ public class MinuteSavedEvent implements Serializable {
     private String name;
     private String summary;
     private String hostId;
+    @Builder.Default
     private Set<String> inviteeIdSet = new HashSet<>();
     @JsonProperty("createDateTime")
     private LocalDateTime createdAt;

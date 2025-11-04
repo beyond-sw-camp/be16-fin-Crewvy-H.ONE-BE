@@ -260,29 +260,10 @@ public class ApprovalService {
         // 4. 최종 상태 결정: 결재 라인이 1명뿐인 경우 최종 승인 처리
         if (dto.getLineDtoList().size() == 1) {
             approval.updateState(ApprovalState.APPROVED);
-
-            List<String> memberPositionIdList = approval.getApprovalLineList().stream()
-                    .map(line -> line.getMemberPositionId().toString())
-                    .collect(Collectors.toList());
-
-            List<PositionDto> requesterPositionInfo = memberClient.getPositionList(memberPositionId, new IdListReq(List.of(approval.getMemberPositionId()))).getData();
-            if (requesterPositionInfo != null && !requesterPositionInfo.isEmpty()) {
-                ApprovalCompletedEvent approvalEvent = new ApprovalCompletedEvent(
-                        approval.getId(),
-                        requesterPositionInfo.get(0).getMemberId(),
-                        approval.getTitle(),
-                        requesterPositionInfo.get(0).getTitleName(),
-                        requesterPositionInfo.get(0).getMemberName(),
-                        memberPositionIdList,
-                        approval.getCreatedAt()
-                );
-                log.info("이거 뭐라고 뜨니:" + requesterPositionInfo.get(0).getMemberId().toString());
-                eventPublisher.publishEvent(approvalEvent);
-            }
         }
 
         // 5. 부모 엔티티를 한 번만 저장
-        approvalRepository.save(approval);
+        Approval savedApproval = approvalRepository.saveAndFlush(approval);
 
 //        알림 전송
         if(alarmId != null) {
@@ -294,7 +275,25 @@ public class ApprovalService {
                     .build();
 
             eventPublisher.publishEvent(message);
+        }
 
+        // Elasticsearch 저장을 위한 이벤트 발행
+        List<PositionDto> requesterPositionInfo = memberClient.getPositionList(memberPositionId, new IdListReq(List.of(savedApproval.getMemberPositionId()))).getData();
+        if (requesterPositionInfo != null && !requesterPositionInfo.isEmpty()) {
+            List<String> approverIdList = savedApproval.getApprovalLineList().stream()
+                    .map(line -> line.getMemberPositionId().toString())
+                    .collect(Collectors.toList());
+
+            ApprovalCompletedEvent approvalEvent = new ApprovalCompletedEvent(
+                    savedApproval.getId(),
+                    memberPositionId,
+                    savedApproval.getTitle(),
+                    requesterPositionInfo.get(0).getTitleName(),
+                    requesterPositionInfo.get(0).getMemberName(),
+                    approverIdList,
+                    savedApproval.getCreatedAt()
+            );
+            eventPublisher.publishEvent(approvalEvent);
         }
 
         return approval.getId();
@@ -405,14 +404,13 @@ public class ApprovalService {
 
                 ApprovalCompletedEvent approvalEvent = new ApprovalCompletedEvent(
                         approval.getId(),
-                        requesterPositionInfo.get(0).getMemberId(),
+                        memberPositionId,
                         approval.getTitle(),
                         requesterPositionInfo.get(0).getTitleName(),
                         requesterPositionInfo.get(0).getMemberName(),
                         approverIdList,
                         approval.getCreatedAt()
                 );
-                log.info("이건 뭐라고 뜨니:" + requesterPositionInfo.get(0).getMemberId().toString());
                 eventPublisher.publishEvent(approvalEvent);
             }
 

@@ -25,7 +25,7 @@ public class ApprovalDocument {
     private String approvalId;
 
     @Field(type = FieldType.Keyword)
-    private String memberId;
+    private String memberPositionId;
 
     @Field(type = FieldType.Text)
     private String title;

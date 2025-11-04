@@ -20,10 +20,11 @@ public class ApprovalCompletedEvent implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private UUID approvalId;
-    private UUID memberId;
+    private UUID memberPositionId;
     private String title;
     private String titleName;
     private String memberName;
+    @Builder.Default
     private List<String> approvalLineList = new ArrayList<>();
     @JsonProperty("createDateTime")
     private LocalDateTime createdAt;
