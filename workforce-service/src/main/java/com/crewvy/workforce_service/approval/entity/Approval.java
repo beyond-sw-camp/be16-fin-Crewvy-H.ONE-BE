@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.approval.entity;
 
 import com.crewvy.common.converter.JsonToMapConverter;
 import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.common.entity.Bool;
 import com.crewvy.workforce_service.approval.constant.ApprovalState;
 import com.crewvy.workforce_service.approval.converter.ApprovalStateConverter;
 import jakarta.persistence.*;
@@ -47,6 +48,9 @@ public class Approval extends BaseEntity {
     @Builder.Default
     @OneToMany(mappedBy = "approval", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Attachment> attachmentList = new ArrayList<>();
+
+    @Builder.Default
+    private Bool isDirectCreatable = Bool.FALSE;
 
     public void updateState(ApprovalState state) {
         this.state = state;

@@ -37,6 +37,8 @@ public class Request extends BaseEntity {
     @Column(name = "member_id", nullable = false)
     private UUID memberId;
 
+    private UUID approvalId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "document_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private ApprovalDocument approvalDocument;
@@ -97,5 +99,9 @@ public class Request extends BaseEntity {
         if (status == RequestStatus.APPROVED || status == RequestStatus.REJECTED) {
             this.completedAt = LocalDateTime.now();
         }
+    }
+
+    public void updateApprovalId(UUID approvalId) {
+        this.approvalId = approvalId;
     }
 }

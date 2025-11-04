@@ -208,4 +208,6 @@ public interface RequestRepository extends JpaRepository<Request, UUID> {
                                                    @Param("start") LocalDateTime start,
                                                    @Param("end") LocalDateTime end,
                                                    Pageable pageable);
+
+    Optional<Request> findByApprovalId(UUID id);
 }

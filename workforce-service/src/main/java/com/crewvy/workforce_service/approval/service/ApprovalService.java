@@ -3,6 +3,7 @@ package com.crewvy.workforce_service.approval.service;
 import com.crewvy.common.S3.S3Uploader;
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.dto.NotificationMessage;
+import com.crewvy.common.dto.ScheduleDto;
 import com.crewvy.common.exception.BusinessException;
 import com.crewvy.workforce_service.approval.constant.ApprovalState;
 import com.crewvy.workforce_service.approval.constant.LineStatus;
@@ -14,6 +15,9 @@ import com.crewvy.workforce_service.approval.repository.ApprovalDocumentReposito
 import com.crewvy.workforce_service.approval.repository.ApprovalLineRepository;
 import com.crewvy.workforce_service.approval.repository.ApprovalReplyRepository;
 import com.crewvy.workforce_service.approval.repository.ApprovalRepository;
+import com.crewvy.workforce_service.attendance.constant.RequestStatus;
+import com.crewvy.workforce_service.attendance.entity.Request;
+import com.crewvy.workforce_service.attendance.repository.RequestRepository;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberDto;
@@ -44,6 +48,7 @@ public class ApprovalService {
     private final S3Uploader s3Uploader;
     private final MemberClient memberClient;
     private final ApplicationEventPublisher eventPublisher;
+    private final RequestRepository requestRepository;
 
 //    문서 양식 생성
     public UUID uploadDocument(UploadDocumentDto dto) {
@@ -58,10 +63,16 @@ public class ApprovalService {
 
 //    문서 양식 조회
     @Transactional(readOnly = true)
-    public DocumentResponseDto getDocument(UUID id, UUID memberPositionId, UUID memberId) {
+    public DocumentResponseDto getDocument(UUID id, UUID requestId, UUID memberPositionId, UUID memberId) {
         // 1. 문서와 정책 목록을 한 번에 조회합니다 (N+1 방지).
         ApprovalDocument document = approvalDocumentRepository.findByIdWithPolicies(id)
                 .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 문서입니다."));
+
+        Request request = null;
+        if(requestId != null) {
+            request = requestRepository.findById(requestId)
+                    .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 요청입니다."));
+        }
 
         // 2. 조직도는 한 번만 조회하여 재사용합니다.
         List<OrganizationNodeDto> orgTree = memberClient.getOrganization(memberId).getData();
@@ -115,12 +126,25 @@ public class ApprovalService {
                 .sorted(Comparator.comparing(ApprovalStepDto::getIndex)) // lineIndex 순서대로 최종 정렬
                 .toList();
 
+        RequestResDto dto = null;
+        if(request != null) {
+            dto = RequestResDto.builder()
+                    .requestType(request.getPolicy().getPolicyType().getTypeName())
+                    .requestUnit(request.getRequestUnit().getCodeName())
+                    .startDate(request.getStartDateTime())
+                    .endDate(request.getEndDateTime())
+                    .reason(request.getReason())
+                    .workLocation(request.getWorkLocation())
+                    .build();
+        }
+
         // 6. 완성된 추천 결재자 목록을 최종 DTO에 담아 반환합니다.
         return DocumentResponseDto.builder()
                 .documentId(document.getId())
                 .documentName(document.getDocumentName())
                 .metadata(document.getMetadata())
                 .policy(policyLine)
+                .request(dto)
                 .build();
     }
 
@@ -257,6 +281,42 @@ public class ApprovalService {
         // 5. 부모 엔티티를 한 번만 저장
         approvalRepository.save(approval);
 
+//        request에 approvalId 추가
+        if(dto.getRequestId() != null) {
+            Request request = requestRepository.findById(dto.getRequestId())
+                    .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 신청입니다."));
+
+            request.updateApprovalId(approval.getId());
+            if(approval.getState().equals(ApprovalState.APPROVED)) {
+                request.updateStatus(RequestStatus.APPROVED);
+                if(request.getPolicy().getPolicyType().getTypeName().equals("출장")) {
+                    ScheduleDto schedule = ScheduleDto.builder()
+                            .originId(request.getId())
+                            .type("CT004")
+                            .title(request.getPolicy().getPolicyType().getTypeName())
+                            .contents(request.getReason())
+                            .startDate(request.getStartDateTime())
+                            .endDate(request.getEndDateTime())
+                            .memberId(request.getMemberId())
+                            .build();
+                    eventPublisher.publishEvent(schedule);
+                }
+                else if(request.getPolicy().getPolicyType().getTypeName().contains("휴가")) {
+                    ScheduleDto schedule = ScheduleDto.builder()
+                            .originId(request.getId())
+                            .type("CT003")
+                            .title(request.getPolicy().getPolicyType().getTypeName())
+                            .contents(request.getReason())
+                            .startDate(request.getStartDateTime())
+                            .endDate(request.getEndDateTime())
+                            .memberId(request.getMemberId())
+                            .build();
+                    eventPublisher.publishEvent(schedule);
+                }
+            }
+        }
+
+
 //        알림 전송
         if(alarmId != null) {
             NotificationMessage message = NotificationMessage.builder()
@@ -307,6 +367,14 @@ public class ApprovalService {
                     .build();
 
             approval.getApprovalLineList().add(approvalLine);
+        }
+
+//        request에 approvalId 추가
+        if(dto.getRequestId() != null) {
+            Request request = requestRepository.findById(dto.getRequestId())
+                    .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 신청입니다."));
+
+            request.updateApprovalId(approval.getId());
         }
 
         return approval.getId();
@@ -369,6 +437,36 @@ public class ApprovalService {
             // 5-2. 현재 결재자가 마지막인 경우, 문서 전체 상태를 최종 승인으로 변경
             approval.updateState(ApprovalState.APPROVED);
 
+            Optional<Request> request = requestRepository.findByApprovalId(approval.getId());
+            if(request.isPresent()) {
+                request.get().updateStatus(RequestStatus.APPROVED);
+                if(request.get().getPolicy().getPolicyType().getTypeName().equals("출장")) {
+                    ScheduleDto schedule = ScheduleDto.builder()
+                            .originId(request.get().getId())
+                            .type("CT004")
+                            .title(request.get().getPolicy().getPolicyType().getTypeName())
+                            .contents(request.get().getReason())
+                            .startDate(request.get().getStartDateTime())
+                            .endDate(request.get().getEndDateTime())
+                            .memberId(request.get().getMemberId())
+                            .build();
+                    eventPublisher.publishEvent(schedule);
+                }
+                else if(request.get().getPolicy().getPolicyType().getTypeName().contains("휴가")) {
+                    ScheduleDto schedule = ScheduleDto.builder()
+                            .originId(request.get().getId())
+                            .type("CT003")
+                            .title(request.get().getPolicy().getPolicyType().getTypeName())
+                            .contents(request.get().getReason())
+                            .startDate(request.get().getStartDateTime())
+                            .endDate(request.get().getEndDateTime())
+                            .memberId(request.get().getMemberId())
+                            .build();
+                    eventPublisher.publishEvent(schedule);
+                }
+            }
+
+
             UUID nextApproverId = approval.getMemberPositionId();
 
             List<PositionDto> position = memberClient.getPositionList(memberPositionId, new IdListReq(List.of(nextApproverId))).getData();
@@ -407,6 +505,9 @@ public class ApprovalService {
 
         // 5. 문서 전체 상태를 '반려'로 즉시 변경
         approval.updateState(ApprovalState.REJECTED);
+
+        Optional<Request> request = requestRepository.findByApprovalId(approval.getId());
+        request.ifPresent(value -> value.updateStatus(RequestStatus.REJECTED));
 
         UUID nextApproverId = approval.getMemberPositionId();
 

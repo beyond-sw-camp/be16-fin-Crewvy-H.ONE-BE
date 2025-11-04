@@ -25,10 +25,11 @@ public class ApprovalController {
 
     @GetMapping("/get-document/{id}")
     public ResponseEntity<?> getDocument(@PathVariable UUID id,
+                                         @RequestParam(required = false) UUID requestId,
                                          @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                          @RequestHeader("X-User-UUID") UUID memberId
     ) {
-        DocumentResponseDto document = approvalService.getDocument(id, memberPositionId, memberId);
+        DocumentResponseDto document = approvalService.getDocument(id, requestId, memberPositionId, memberId);
         return new ResponseEntity<>(
                 ApiResponse.success(document, "양식 상세 조회"),
                 HttpStatus.OK

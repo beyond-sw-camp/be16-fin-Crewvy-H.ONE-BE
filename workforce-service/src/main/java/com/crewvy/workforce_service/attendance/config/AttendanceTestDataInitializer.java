@@ -42,19 +42,19 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     private final DailyAttendanceRepository dailyAttendanceRepository;
 
     // H.ONE 컴퍼니 ID (member-service의 AutoCreateAdmin에서 생성됨)
-    private static final UUID COMPANY_ID = UUID.fromString("7c030086-1bd6-4e17-b1db-02e7d83d4e77");
+    private static final UUID COMPANY_ID = UUID.fromString("12b9423d-beda-4473-a323-99a376225c0f");
 
     // 테스트용 멤버 ID들 (AutoCreateAdmin에서 생성된 emp1~10@h.one)
-    private static final UUID HR_ADMIN_ID = UUID.fromString("ff39db0b-8f89-43b7-b921-5d75234cbe46"); // emp1 - 김민준 (관리자)
-    private static final UUID HR_MEMBER1_ID = UUID.fromString("317b10c5-54eb-4b16-9adb-7e51fea62bb7"); // emp2 - 이서준 (지각 잦음)
-    private static final UUID HR_MEMBER2_ID = UUID.fromString("6d77b308-ef59-40ea-85b4-db125bf3e315"); // emp3 - 박도윤 (출산휴가)
-    private static final UUID HR_MEMBER3_ID = UUID.fromString("c98d9365-62c9-4874-9860-0eec35b2f107"); // emp4 - 최시우 (육아휴직 분할 사용)
-    private static final UUID HR_MEMBER4_ID = UUID.fromString("0b88e0e9-0e6f-4cf9-87d0-972433e0d2bb"); // emp5 - 정하준 (생리휴가)
-    private static final UUID DEV_MEMBER1_ID = UUID.fromString("ecb5dd8a-8ae8-4e50-9339-aa8f775739c1"); // emp6 - 강지호 (초과근무 많음)
-    private static final UUID DEV_MEMBER2_ID = UUID.fromString("090c1cfc-e099-44bd-b2f6-06668d101b71"); // emp7 - 윤은우 (야간근무)
-    private static final UUID DEV_MEMBER3_ID = UUID.fromString("bf416691-5ed6-4301-bcf4-4bd447c96b3d"); // emp8 - 임선우 (배우자 출산휴가)
-    private static final UUID DEV_MEMBER4_ID = UUID.fromString("12bb872c-b142-4b2b-949f-24e06cfaaa2e"); // emp9 - 한유찬 (개인 정책)
-    private static final UUID DEV_MEMBER5_ID = UUID.fromString("f7d45d53-eee7-4e77-b329-1335e2f77b42"); // emp10 - 오이안 (가족돌봄)
+    private static final UUID HR_ADMIN_ID = UUID.fromString("0853b214-9958-4765-bdb2-cd4ea555bca4"); // emp1 - 김민준 (관리자)
+    private static final UUID HR_MEMBER1_ID = UUID.fromString("7ad02525-b869-4a52-926a-0461723efce7"); // emp2 - 이서준 (지각 잦음)
+    private static final UUID HR_MEMBER2_ID = UUID.fromString("be05c8d4-3f1d-42e0-8b9e-6243fdceb3bc"); // emp3 - 박도윤 (출산휴가)
+    private static final UUID HR_MEMBER3_ID = UUID.fromString("4fe0d111-a3bc-48e3-8777-f3b3e665032c"); // emp4 - 최시우 (육아휴직 분할 사용)
+    private static final UUID HR_MEMBER4_ID = UUID.fromString("6396a97f-719b-4ff0-8ccf-b6b36a2dd8e4"); // emp5 - 정하준 (생리휴가)
+    private static final UUID DEV_MEMBER1_ID = UUID.fromString("5e39204e-e3b2-43d7-bf04-6e918651c452"); // emp6 - 강지호 (초과근무 많음)
+    private static final UUID DEV_MEMBER2_ID = UUID.fromString("96175226-4036-4e96-adff-5027810ed366"); // emp7 - 윤은우 (야간근무)
+    private static final UUID DEV_MEMBER3_ID = UUID.fromString("ed709d5d-1347-48e7-9e29-9e69f3aa9906"); // emp8 - 임선우 (배우자 출산휴가)
+    private static final UUID DEV_MEMBER4_ID = UUID.fromString("3397106b-20ea-4c85-b1a4-9fda0ec6e71f"); // emp9 - 한유찬 (개인 정책)
+    private static final UUID DEV_MEMBER5_ID = UUID.fromString("32781e02-4409-4bab-9250-51ec9ccdf387"); // emp10 - 오이안 (가족돌봄)
 
     private static final List<UUID> ALL_MEMBERS = List.of(
             HR_ADMIN_ID, HR_MEMBER1_ID, HR_MEMBER2_ID, HR_MEMBER3_ID, HR_MEMBER4_ID,

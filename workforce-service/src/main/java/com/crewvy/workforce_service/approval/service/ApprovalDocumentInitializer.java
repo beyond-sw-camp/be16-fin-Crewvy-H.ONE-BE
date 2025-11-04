@@ -63,6 +63,15 @@ public class ApprovalDocumentInitializer implements ApplicationRunner {
             documentRepository.save(leaveAbsenceDoc);
             log.info("기본 문서 생성: {}", leaveAbsenceDoc.getDocumentName());
 
+            // --- 4. 추가근무 신청서 ---
+            Map<String, Object> overTimeMetadata = createOvertimeRequestTemplate(); // 메서드로 분리
+            ApprovalDocument overTimeDoc = ApprovalDocument.builder()
+                    .documentName("추가근무 신청서")
+                    .metadata(overTimeMetadata)
+                    .build();
+            documentRepository.save(overTimeDoc);
+            log.info("기본 문서 생성: {}", overTimeDoc.getDocumentName());
+
             // --- (다른 기본 문서들 추가) ---
 
             log.info("=== 기본 결재 문서 생성 완료 ===");
@@ -74,14 +83,12 @@ public class ApprovalDocumentInitializer implements ApplicationRunner {
     // --- Metadata 생성 헬퍼 메서드들 ---
 
     private Map<String, Object> createLeaveRequestMetadata() {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("template_name", "휴가 신청서");
-        metadata.put("description", "연차, 반차, 병가 등 개인 휴가를 신청하는 양식입니다.");
 
+        // 1. 스키마(schema)는 동일하게 생성
         Map<String, Object> schema = new HashMap<>();
         List<List<Map<String, Object>>> rows = new ArrayList<>();
 
-        // Row 1: 기본 정보 (읽기 전용)
+        // Row 1: 기본 정보
         rows.add(List.of(
                 Map.of("id", "department", "label", "소속", "type", "text", "readonly", true),
                 Map.of("id", "position", "label", "직급", "type", "text", "readonly", true),
@@ -89,45 +96,53 @@ public class ApprovalDocumentInitializer implements ApplicationRunner {
         ));
         // Row 2: 휴가 종류
         rows.add(List.of(
-                Map.of("id", "leave_type", "label", "휴가 종류", "type", "select", "required", true,
-                        "options", List.of("연차", "오전 반차", "오후 반차", "병가", "경조사 휴가", "공가"))
+                Map.of("id", "requestType", "label", "휴가 종류", "type", "text", "required", true)
         ));
-        // Row 3: 휴가 기간
+        // Row 3: 휴가 단위
         rows.add(List.of(
-                Map.of("id", "start_date", "label", "시작일", "type", "date", "required", true),
-                Map.of("id", "end_date", "label", "종료일", "type", "date", "required", true)
+                Map.of("id", "requestUnit", "label", "휴가 단위", "type", "text", "required", true)
         ));
-        // Row 4: 사유
+        // Row 4: 휴가 기간
+        rows.add(List.of(
+                Map.of("id", "startDate", "label", "시작일", "type", "datetime", "required", true),
+                Map.of("id", "endDate", "label", "종료일", "type", "datetime", "required", true)
+        ));
+        // Row 5: 사유
         rows.add(List.of(
                 Map.of("id", "reason", "label", "휴가 사유", "type", "textarea", "required", true,
                         "placeholder", "예: 가족 여행, 개인 사유")
         ));
-        // Row 5: 비상 연락처
+        // Row 6: 비상 연락처
         rows.add(List.of(
                 Map.of("id", "emergency_contact", "label", "비상 연락처", "type", "tel", "required", true,
                         "placeholder", "휴가 중 연락 가능한 번호")
         ));
-        // Row 6: 업무 대리인
+        // Row 7: 업무 대리인
         rows.add(List.of(
                 Map.of("id", "handover_agent", "label", "업무 대리인", "type", "text", "required", true,
                         "placeholder", "대리인의 이름과 소속을 기재")
         ));
-        // Row 7: 인수인계 내용
+        // Row 8: 인수인계 내용
         rows.add(List.of(
                 Map.of("id", "handover_details", "label", "인수인계 내용", "type", "textarea", "required", true,
                         "placeholder", "부재 중 처리해야 할 업무 내용을 상세히 기재")
         ));
 
         schema.put("rows", rows);
-        metadata.put("schema", schema);
-        return metadata;
+
+        // 2. (*** 변경된 부분 ***)
+        // 최상위 객체에 바로 모든 정보를 할당합니다.
+        Map<String, Object> rootDocument = new HashMap<>();
+        rootDocument.put("documentName", "휴가 신청서");
+        rootDocument.put("description", "연차, 반차, 병가 등 개인 휴가를 신청하는 양식입니다.");
+        rootDocument.put("schema", schema); // schema를 metadata 없이 바로 추가
+
+        return rootDocument;
     }
 
     private Map<String, Object> createBusinessTripMetadata() {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("template_name", "출장 신청서");
-        metadata.put("description", "업무상 출장 시, 목적과 경비를 사전에 승인받기 위한 양식입니다.");
 
+        // 1. 스키마(schema)는 동일하게 생성
         Map<String, Object> schema = new HashMap<>();
         List<List<Map<String, Object>>> rows = new ArrayList<>();
 
@@ -139,17 +154,17 @@ public class ApprovalDocumentInitializer implements ApplicationRunner {
         ));
         // Row 2: 출장지
         rows.add(List.of(
-                Map.of("id", "destination", "label", "출장지", "type", "text", "required", true,
+                Map.of("id", "workLocation", "label", "출장지", "type", "text", "required", true,
                         "placeholder", "예: 부산광역시 해운대구")
         ));
         // Row 3: 출장 기간
         rows.add(List.of(
-                Map.of("id", "start_date", "label", "출장 시작일", "type", "date", "required", true),
-                Map.of("id", "end_date", "label", "출장 종료일", "type", "date", "required", true)
+                Map.of("id", "startDate", "label", "출장 시작일", "type", "datetime", "required", true),
+                Map.of("id", "endDate", "label", "출장 종료일", "type", "datetime", "required", true)
         ));
         // Row 4: 출장 목적
         rows.add(List.of(
-                Map.of("id", "purpose", "label", "출장 목적", "type", "textarea", "required", true,
+                Map.of("id", "reason", "label", "출장 목적", "type", "textarea", "required", true,
                         "placeholder", "방문 기관, 미팅 대상, 주요 업무 내용을 상세히 기재")
         ));
         // Row 5: 예상 경비
@@ -170,15 +185,20 @@ public class ApprovalDocumentInitializer implements ApplicationRunner {
         ));
 
         schema.put("rows", rows);
-        metadata.put("schema", schema);
-        return metadata;
+
+        // 2. (*** 변경된 부분 ***)
+        // 최상위 객체에 바로 모든 정보를 할당합니다.
+        Map<String, Object> rootDocument = new HashMap<>();
+        rootDocument.put("documentName", "출장 신청서");
+        rootDocument.put("description", "업무상 출장 시, 목적과 경비를 사전에 승인받기 위한 양식입니다.");
+        rootDocument.put("schema", schema); // schema를 metadata 없이 바로 추가
+
+        return rootDocument;
     }
 
     private Map<String, Object> createLeaveOfAbsenceMetadata() {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("template_name", "휴직 신청서");
-        metadata.put("description", "질병, 육아, 자기계발 등 개인 사유로 인한 휴직을 신청하는 양식입니다.");
 
+        // 1. 스키마(schema)는 동일하게 생성
         Map<String, Object> schema = new HashMap<>();
         List<List<Map<String, Object>>> rows = new ArrayList<>();
 
@@ -188,31 +208,36 @@ public class ApprovalDocumentInitializer implements ApplicationRunner {
                 Map.of("id", "position", "label", "직급", "type", "text", "readonly", true),
                 Map.of("id", "name", "label", "신청자", "type", "text", "readonly", true)
         ));
-        // Row 2: 휴직 종류
+
+        // Row 2: 휴직 종류 (id: "requestType", type: "text")
         rows.add(List.of(
-                Map.of("id", "leave_of_absence_type", "label", "휴직 종류", "type", "select", "required", true,
-                        "options", List.of("질병 휴직", "육아 휴직", "가족돌봄 휴직", "자기계발 휴직", "무급 휴직"))
+                Map.of("id", "requestType", "label", "휴직 종류", "type", "text", "required", true)
         ));
-        // Row 3: 휴직 기간
+
+        // Row 3: 휴직 기간 (id: "startDate", "endDate")
         rows.add(List.of(
-                Map.of("id", "start_date", "label", "휴직 시작일", "type", "date", "required", true),
-                Map.of("id", "end_date", "label", "휴직 종료일", "type", "date", "required", true)
+                Map.of("id", "startDate", "label", "휴직 시작일", "type", "date", "required", true),
+                Map.of("id", "endDate", "label", "휴직 종료일", "type", "date", "required", true)
         ));
+
         // Row 4: 사유
         rows.add(List.of(
                 Map.of("id", "reason", "label", "휴직 사유", "type", "textarea", "required", true,
                         "placeholder", "휴직 사유를 상세히 기재 (필요시 증빙 서류 제출)")
         ));
+
         // Row 5: 연락처
         rows.add(List.of(
                 Map.of("id", "emergency_contact", "label", "휴직 중 연락처", "type", "tel", "required", true,
                         "placeholder", "휴직 기간 중 연락 가능한 번호")
         ));
+
         // Row 6: 업무 대리인
         rows.add(List.of(
                 Map.of("id", "handover_agent", "label", "업무 대리인", "type", "text", "required", true,
                         "placeholder", "대리인의 이름과 소속을 기재")
         ));
+
         // Row 7: 인수인계 내용
         rows.add(List.of(
                 Map.of("id", "handover_details", "label", "인수인계 내용", "type", "textarea", "required", true,
@@ -220,7 +245,55 @@ public class ApprovalDocumentInitializer implements ApplicationRunner {
         ));
 
         schema.put("rows", rows);
-        metadata.put("schema", schema);
-        return metadata;
+
+        // 2. (*** 변경된 부분 ***)
+        // 최상위 객체에 바로 모든 정보를 할당합니다.
+        Map<String, Object> rootDocument = new HashMap<>();
+        rootDocument.put("documentName", "휴직 신청서");
+        rootDocument.put("description", "질병, 육아, 자기계발 등 개인 사유로 인한 휴직을 신청하는 양식입니다.");
+        rootDocument.put("schema", schema); // schema를 metadata 없이 바로 추가
+
+        return rootDocument;
+    }
+
+    private Map<String, Object> createOvertimeRequestTemplate() {
+
+        // 1. 스키마(schema) 생성
+        Map<String, Object> schema = new HashMap<>();
+        List<List<Map<String, Object>>> rows = new ArrayList<>();
+
+        // Row 1: 기본 정보
+        rows.add(List.of(
+                Map.of("id", "department", "label", "소속", "type", "text", "readonly", true),
+                Map.of("id", "position", "label", "직급", "type", "text", "readonly", true),
+                Map.of("id", "name", "label", "신청자", "type", "text", "readonly", true)
+        ));
+
+        // Row 2: 근무 유형
+        rows.add(List.of(
+                Map.of("id", "requestType", "label", "근무 유형", "type", "text", "required", true)
+        ));
+
+        // Row 3: 근무 시간 (datetime)
+        rows.add(List.of(
+                Map.of("id", "startDate", "label", "시작 시간", "type", "datetime", "required", true, "placeholder", "예: 19:00"),
+                Map.of("id", "endDate", "label", "종료 시간", "type", "datetime", "required", true, "placeholder", "예: 21:00")
+        ));
+
+        // Row 4: 사유
+        rows.add(List.of(
+                Map.of("id", "reason", "label", "추가근무 사유", "type", "textarea", "required", true,
+                        "placeholder", "수행할 업무 내용을 상세히 기재")
+        ));
+
+        schema.put("rows", rows);
+
+        // 2. 최상위 객체에 바로 모든 정보를 할당
+        Map<String, Object> rootDocument = new HashMap<>();
+        rootDocument.put("documentName", "추가근무 신청서");
+        rootDocument.put("description", "연장, 야간, 휴일 근무 등 정규 시간 외 근무를 신청하는 양식입니다.");
+        rootDocument.put("schema", schema); // schema를 metadata 없이 바로 추가
+
+        return rootDocument;
     }
 }
