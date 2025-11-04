@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Getter
 @Setter
@@ -16,4 +17,6 @@ public class TripRuleDto {
     private BigDecimal accommodationLimit;
     // 교통비 최대 한도
     private BigDecimal transportationLimit;
+    // 허용된 출장지 목록 (WorkLocation의 locationName)
+    private List<String> allowedWorkLocations;
 }

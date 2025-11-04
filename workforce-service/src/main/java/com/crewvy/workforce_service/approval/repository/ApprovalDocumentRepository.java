@@ -11,4 +11,6 @@ import java.util.UUID;
 public interface ApprovalDocumentRepository extends JpaRepository<ApprovalDocument, UUID> {
     @Query("SELECT d FROM ApprovalDocument d LEFT JOIN FETCH d.policyList WHERE d.id = :id")
     Optional<ApprovalDocument> findByIdWithPolicies(@Param("id") UUID id);
+
+    Optional<ApprovalDocument> findByDocumentName(String documentName);
 }

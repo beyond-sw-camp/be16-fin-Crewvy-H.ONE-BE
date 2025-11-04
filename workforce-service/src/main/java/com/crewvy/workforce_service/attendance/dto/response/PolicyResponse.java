@@ -20,18 +20,20 @@ public class PolicyResponse {
     private final boolean isBalanceDeductible;
     private final LocalDate effectiveFrom;
     private final LocalDate effectiveTo;
+    private final Boolean autoApprove;
     private final PolicyRuleDetails ruleDetails;
 
     public PolicyResponse(Policy policy) {
         this.policyId = policy.getId();
         this.policyTypeId = policy.getPolicyType().getId();
-        this.typeCode = policy.getPolicyType().getTypeCode(); // typeCode 값 할당
+        this.typeCode = policy.getPolicyType().getTypeCode();
         this.name = policy.getName();
         this.isPaid = policy.getIsPaid();
         this.isActive = policy.getIsActive();
         this.isBalanceDeductible = policy.getPolicyType().isBalanceDeductible();
         this.effectiveFrom = policy.getEffectiveFrom();
         this.effectiveTo = policy.getEffectiveTo();
+        this.autoApprove = policy.getAutoApprove();
         this.ruleDetails = policy.getRuleDetails();
     }
 }

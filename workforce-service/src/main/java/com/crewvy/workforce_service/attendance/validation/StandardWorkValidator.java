@@ -28,15 +28,35 @@ public class StandardWorkValidator implements PolicyRuleValidator {
              throw new InvalidPolicyRuleException("고정 근무 시간(fixedWorkMinutes)은 필수이며 0보다 커야 합니다.");
         }
 
-        // 3. 법적 휴게시간 준수 여부 검사 (근로기준법 제54조)
+        // 3. 휴게 규칙 타입별 필수 필드 검증
         var breakRule = details.getBreakRule();
-        if (workTimeRule.getFixedWorkMinutes() >= 480) { // 8시간 이상 근무 시
-            if (breakRule.getMandatoryBreakMinutes() == null || breakRule.getMandatoryBreakMinutes() < 60) {
-                throw new InvalidPolicyRuleException("법규 위반: 8시간 이상 근무 시, 휴게 시간은 60분 이상이어야 합니다.");
+        if (breakRule.getType() == null) {
+            throw new InvalidPolicyRuleException("휴게 규칙의 타입(type)은 필수입니다.");
+        }
+
+        if ("FIXED".equals(breakRule.getType())) {
+            // FIXED 타입: 고정 휴게 시작/종료 시각 필수
+            if (breakRule.getFixedBreakStart() == null || breakRule.getFixedBreakEnd() == null) {
+                throw new InvalidPolicyRuleException("FIXED 타입의 휴게 규칙에는 시작 및 종료 시각(fixedBreakStart, fixedBreakEnd)이 필수입니다.");
             }
-        } else if (workTimeRule.getFixedWorkMinutes() >= 240) { // 4시간 이상 근무 시
-            if (breakRule.getMandatoryBreakMinutes() == null || breakRule.getMandatoryBreakMinutes() < 30) {
-                throw new InvalidPolicyRuleException("법규 위반: 4시간 이상 근무 시, 휴게 시간은 30분 이상이어야 합니다.");
+        } else if ("AUTO".equals(breakRule.getType()) || "MANUAL".equals(breakRule.getType())) {
+            // AUTO/MANUAL 타입: 기본 휴게 시간 필수
+            if (breakRule.getDefaultBreakMinutesFor8Hours() == null) {
+                throw new InvalidPolicyRuleException("AUTO/MANUAL 타입의 휴게 규칙에는 기본 휴게 시간(defaultBreakMinutesFor8Hours)이 필수입니다.");
+            }
+        }
+
+        // 4. 법적 휴게시간 준수 여부 검사 (근로기준법 제54조)
+        // FIXED 타입은 고정 휴게 시간으로 법정 최소 시간 자동 보장, AUTO/MANUAL만 검증
+        if (!"FIXED".equals(breakRule.getType())) {
+            if (workTimeRule.getFixedWorkMinutes() >= 480) { // 8시간 이상 근무 시
+                if (breakRule.getMandatoryBreakMinutes() == null || breakRule.getMandatoryBreakMinutes() < 60) {
+                    throw new InvalidPolicyRuleException("법규 위반: 8시간 이상 근무 시, 휴게 시간은 60분 이상이어야 합니다.");
+                }
+            } else if (workTimeRule.getFixedWorkMinutes() >= 240) { // 4시간 이상 근무 시
+                if (breakRule.getMandatoryBreakMinutes() == null || breakRule.getMandatoryBreakMinutes() < 30) {
+                    throw new InvalidPolicyRuleException("법규 위반: 4시간 이상 근무 시, 휴게 시간은 30분 이상이어야 합니다.");
+                }
             }
         }
 

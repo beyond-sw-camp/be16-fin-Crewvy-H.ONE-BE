@@ -47,4 +47,13 @@ public interface MemberBalanceRepository extends JpaRepository<MemberBalance, UU
             PolicyTypeCode balanceTypeCode,
             Integer year
     );
+
+    /**
+     * 특정 직원의 특정 연도 모든 휴가 정책 잔액 조회
+     */
+    List<MemberBalance> findAllByMemberIdAndYear(UUID memberId, Integer year);
+
+    List<MemberBalance> findAllByMemberIdInAndYear(List<UUID> memberIds, int year);
+
+    List<MemberBalance> findByMemberIdInAndBalanceTypeCodeAndYear(List<UUID> memberIds, PolicyTypeCode balanceTypeCode, int year);
 }

@@ -27,6 +27,12 @@ public class PolicyCreateRequest {
 
     private LocalDate effectiveTo;
 
+    /**
+     * 자동 승인 여부.
+     * true일 경우, 이 정책으로 신청한 요청이 자동으로 승인됩니다.
+     */
+    private Boolean autoApprove;
+
     // 프론트엔드에서 자유롭게 구성한 JSON을 Map으로 받음
     private Map<String, Object> ruleDetails;
 }

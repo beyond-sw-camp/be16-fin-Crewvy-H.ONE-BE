@@ -3,6 +3,7 @@ package com.crewvy.workforce_service.attendance.controller;
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.attendance.dto.request.DeviceRequestCreateDto;
 import com.crewvy.workforce_service.attendance.dto.request.LeaveRequestCreateDto;
+import com.crewvy.workforce_service.attendance.dto.request.TripRequestCreateDto;
 import com.crewvy.workforce_service.attendance.dto.response.DeviceRequestResponse;
 import com.crewvy.workforce_service.attendance.dto.response.LeaveRequestResponse;
 import com.crewvy.workforce_service.attendance.service.RequestService;
@@ -38,6 +39,21 @@ public class RequestController {
         LeaveRequestResponse response = requestService.createLeaveRequest(
                 memberId, memberPositionId, companyId, organizationId, createDto);
         return new ResponseEntity<>(ApiResponse.success(response, "휴가 신청이 완료되었습니다."), HttpStatus.CREATED);
+    }
+
+    /**
+     * 출장 신청 생성
+     */
+    @PostMapping("/trip")
+    public ResponseEntity<ApiResponse<LeaveRequestResponse>> createTripRequest(
+            @RequestHeader("X-User-UUID") UUID memberId,
+            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+            @RequestHeader("X-User-CompanyId") UUID companyId,
+            @RequestHeader("X-User-OrganizationId") UUID organizationId,
+            @RequestBody @Valid TripRequestCreateDto createDto) {
+        LeaveRequestResponse response = requestService.createTripRequest(
+                memberId, memberPositionId, companyId, organizationId, createDto);
+        return new ResponseEntity<>(ApiResponse.success(response, "출장 신청이 완료되었습니다."), HttpStatus.CREATED);
     }
 
     /**
