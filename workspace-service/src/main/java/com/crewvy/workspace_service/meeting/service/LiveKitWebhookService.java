@@ -1,14 +1,18 @@
 package com.crewvy.workspace_service.meeting.service;
 
+import com.crewvy.workspace_service.meeting.dto.ai.TranscribeReq;
 import com.crewvy.workspace_service.meeting.entity.Recording;
 import com.crewvy.workspace_service.meeting.entity.VideoConference;
 import com.crewvy.workspace_service.meeting.repository.RecordingRepository;
 import com.crewvy.workspace_service.meeting.repository.VideoConferenceRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import livekit.LivekitEgress.EgressStatus;
 import livekit.LivekitEgress.FileInfo;
 import livekit.LivekitWebhook.WebhookEvent;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,12 +25,18 @@ public class LiveKitWebhookService {
 
     private final VideoConferenceRepository videoConferenceRepository;
     private final RecordingRepository recordingRepository;
+    private final KafkaTemplate<String, String> meetingKafkaTemplate;
+    private final ObjectMapper objectMapper;
 
     public LiveKitWebhookService(VideoConferenceRepository videoConferenceRepository,
-                                 RecordingRepository recordingRepository) {
+                                 RecordingRepository recordingRepository,
+                                 KafkaTemplate<String, String> meetingKafkaTemplate,
+                                 ObjectMapper objectMapper) {
 
         this.videoConferenceRepository = videoConferenceRepository;
         this.recordingRepository = recordingRepository;
+        this.meetingKafkaTemplate = meetingKafkaTemplate;
+        this.objectMapper = objectMapper;
     }
 
     public void handleWebhook(WebhookEvent event) {
@@ -107,7 +117,17 @@ public class LiveKitWebhookService {
         Recording recording = Recording.fromFileInfo(fileInfo, videoConference);
         recordingRepository.save(recording);
 
+        TranscribeReq transcribeReq = TranscribeReq.fromEntity(recording);
 
+        String data;
+        try {
+            data = objectMapper.writeValueAsString(transcribeReq);
+        } catch (JsonProcessingException e) {
+            log.error(e.getMessage());
+            throw new RuntimeException("오류 발생");
+        }
+
+        meetingKafkaTemplate.send("transcribe-request", data);
     }
 
     private void handleIngressStarted(WebhookEvent event) {

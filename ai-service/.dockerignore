@@ -1,0 +1,7 @@
+.git
+.gitignore
+.idea
+__pycache__
+models
+tmp
+*.pyc

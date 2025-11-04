@@ -227,10 +227,7 @@ public class DailyAttendance extends BaseEntity {
         }
         Duration duration = Duration.between(this.currentBreakStartTime, breakEndTime);
         int breakMinutes = (int) duration.toMinutes();
-        if (this.totalBreakMinutes == null) {
-            this.totalBreakMinutes = 0;
-        }
-        this.totalBreakMinutes += breakMinutes;
+        addBreakMinutes(breakMinutes);
         this.currentBreakStartTime = null;
     }
 
@@ -301,6 +298,131 @@ public class DailyAttendance extends BaseEntity {
         } else {
             this.isEarlyLeave = false;
             this.earlyLeaveMinutes = 0;
+        }
+    }
+
+    /**
+     * 근태 상태 변경 (사후 휴가 신청 등에 사용)
+     */
+    public void updateStatus(AttendanceStatus newStatus) {
+        this.status = newStatus;
+    }
+
+    /**
+     * 연장 근무 시간 추가 (사후 신청 승인 시 사용)
+     */
+    public void addOvertimeMinutes(int minutes) {
+        if (this.overtimeMinutes == null) {
+            this.overtimeMinutes = 0;
+        }
+        this.overtimeMinutes += minutes;
+        
+        if (this.workedMinutes == null) {
+            this.workedMinutes = 0;
+        }
+        this.workedMinutes += minutes;
+    }
+
+    /**
+     * 야간 근무 시간 추가 (사후 신청 승인 시 사용)
+     */
+    public void addNightWorkMinutes(int minutes) {
+        if (this.nightWorkMinutes == null) {
+            this.nightWorkMinutes = 0;
+        }
+        this.nightWorkMinutes += minutes;
+        
+        if (this.workedMinutes == null) {
+            this.workedMinutes = 0;
+        }
+        this.workedMinutes += minutes;
+    }
+
+    /**
+     * 휴일 근무 시간 추가 (사후 신청 승인 시 사용)
+     */
+    public void addHolidayWorkMinutes(int minutes) {
+        if (this.holidayWorkMinutes == null) {
+            this.holidayWorkMinutes = 0;
+        }
+        this.holidayWorkMinutes += minutes;
+        
+        if (this.workedMinutes == null) {
+            this.workedMinutes = 0;
+        }
+        this.workedMinutes += minutes;
+    }
+
+    /**
+     * AUTO 모드에서 자동으로 휴게 시간 설정
+     */
+    public void setTotalBreakMinutes(Integer totalBreakMinutes) {
+        this.totalBreakMinutes = totalBreakMinutes;
+    }
+
+    /**
+     * 반차/시차 승인 후 실제 출근 시 firstClockIn 업데이트
+     */
+    public void updateFirstClockIn(LocalDateTime clockInTime) {
+        this.firstClockIn = clockInTime;
+    }
+
+    /**
+     * 지각 여부 설정 (선택근무제 코어타임 검증용)
+     */
+    public void setIsLate(Boolean isLate) {
+        this.isLate = isLate;
+    }
+
+    /**
+     * 조퇴 여부 설정 (선택근무제 코어타임 검증용)
+     */
+    public void setIsEarlyLeave(Boolean isEarlyLeave) {
+        this.isEarlyLeave = isEarlyLeave;
+    }
+
+    /**
+     * 관리자가 근태 기록을 수정합니다.
+     * null이 아닌 필드만 업데이트됩니다.
+     */
+    public void updateByAdmin(LocalDateTime firstClockIn, LocalDateTime lastClockOut,
+                              Integer workedMinutes, Integer overtimeMinutes,
+                              Integer totalBreakMinutes, Integer totalGoOutMinutes,
+                              Boolean isLate, Integer lateMinutes,
+                              Boolean isEarlyLeave, Integer earlyLeaveMinutes,
+                              AttendanceStatus status) {
+        if (firstClockIn != null) {
+            this.firstClockIn = firstClockIn;
+        }
+        if (lastClockOut != null) {
+            this.lastClockOut = lastClockOut;
+        }
+        if (workedMinutes != null) {
+            this.workedMinutes = workedMinutes;
+        }
+        if (overtimeMinutes != null) {
+            this.overtimeMinutes = overtimeMinutes;
+        }
+        if (totalBreakMinutes != null) {
+            this.totalBreakMinutes = totalBreakMinutes;
+        }
+        if (totalGoOutMinutes != null) {
+            this.totalGoOutMinutes = totalGoOutMinutes;
+        }
+        if (isLate != null) {
+            this.isLate = isLate;
+        }
+        if (lateMinutes != null) {
+            this.lateMinutes = lateMinutes;
+        }
+        if (isEarlyLeave != null) {
+            this.isEarlyLeave = isEarlyLeave;
+        }
+        if (earlyLeaveMinutes != null) {
+            this.earlyLeaveMinutes = earlyLeaveMinutes;
+        }
+        if (status != null) {
+            this.status = status;
         }
     }
 }

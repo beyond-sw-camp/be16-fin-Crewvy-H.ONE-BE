@@ -1,11 +1,13 @@
 package com.crewvy.workspace_service.meeting.dto;
 
+import com.crewvy.workspace_service.meeting.entity.Recording;
 import com.crewvy.workspace_service.meeting.entity.VideoConference;
 import com.crewvy.workspace_service.meeting.entity.VideoConferenceInvitee;
 import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Getter
@@ -14,6 +16,8 @@ import java.util.UUID;
 @AllArgsConstructor(access = AccessLevel.PROTECTED)
 public class VideoConferenceListRes {
     private UUID id;
+    private UUID hostId;
+    private String hostName;
     private String name;
     private String description;
     private LocalDateTime scheduledStartTime;
@@ -22,10 +26,14 @@ public class VideoConferenceListRes {
     private Boolean isRecording;
     private List<UUID> inviteeIdList;
     private String recordingUrl;
+    private Boolean hasMinute;
 
     public static VideoConferenceListRes fromEntity(VideoConference videoConference) {
+        Optional<Recording> optionalRecording = Optional.ofNullable(videoConference.getRecording());
+
         return VideoConferenceListRes.builder()
                 .id(videoConference.getId())
+                .hostId(videoConference.getHostId())
                 .name(videoConference.getName())
                 .description(videoConference.getDescription())
                 .scheduledStartTime(videoConference.getScheduledStartTime())
@@ -33,7 +41,11 @@ public class VideoConferenceListRes {
                 .status(videoConference.getStatus().getCodeName())
                 .isRecording(videoConference.getIsRecording().toBoolean())
                 .inviteeIdList(videoConference.getVideoConferenceInviteeSet().stream().map(VideoConferenceInvitee::getMemberId).toList())
-                .recordingUrl(videoConference.getRecording() != null ? videoConference.getRecording().getUrl() : null)
+                .recordingUrl(optionalRecording
+                        .map(Recording::getUrl)
+                        .orElse(null))
+                .hasMinute(optionalRecording
+                        .map(Recording::getMinute).isPresent())
                 .build();
     }
 }

@@ -5,6 +5,8 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import org.apache.http.HttpHeaders;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -13,11 +15,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.List;
 
 @Component
 public class JwtTokenFilter implements GlobalFilter {
+    private static final Logger log = LoggerFactory.getLogger(JwtTokenFilter.class);
     @Value("${jwt.secretKeyAt}")
     private String secretKeyAt;
     private Key atKey;
@@ -36,7 +41,7 @@ public class JwtTokenFilter implements GlobalFilter {
             "/member/reset-password",
             "/member/check-business-number",
             "/actuator/health",
-            "/openvidu-webhooks",
+            "/transcribe",
             "/livekit/webhook"
     );
 
@@ -70,7 +75,7 @@ public class JwtTokenFilter implements GlobalFilter {
                     .getBody();
 
             String memberId = claims.getSubject();
-            String memberPositionId = claims.get("memberPositionId", String.class);
+            String memberPositionId = claims.get("MemberPositionId", String.class);
             String organizationId = claims.get("organizationId", String.class);
             String companyId = claims.get("companyId", String.class);
             String name = claims.get("name", String.class);
@@ -79,6 +84,7 @@ public class JwtTokenFilter implements GlobalFilter {
                     .request(r -> r
                             .header("X-User-UUID", memberId)
                             .header("X-User-MemberPositionId", memberPositionId)
+                            .header("X-User-Name", URLEncoder.encode(name, StandardCharsets.UTF_8))
                             .header("X-User-OrganizationId", organizationId)
                             .header("X-User-CompanyId", companyId))
                     .build();

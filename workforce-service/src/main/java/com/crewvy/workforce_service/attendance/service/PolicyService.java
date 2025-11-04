@@ -61,6 +61,7 @@ public class PolicyService {
                 .effectiveFrom(request.getEffectiveFrom())
                 .effectiveTo(request.getEffectiveTo())
                 .ruleDetails(ruleDetails)
+                .autoApprove(request.getAutoApprove())
                 .build();
 
         Policy savedPolicy = policyRepository.save(newPolicy);
@@ -107,7 +108,8 @@ public class PolicyService {
                 request.getIsPaid(),
                 request.getEffectiveFrom(),
                 request.getEffectiveTo(),
-                ruleDetails
+                ruleDetails,
+                request.getAutoApprove()
         );
         return new PolicyResponse(policy);
     }
@@ -152,8 +154,19 @@ public class PolicyService {
         return policyTypes.stream().map(PolicyTypeResponse::new).collect(Collectors.toList());
     }
 
-    public PolicyResponse findMyEffectivePolicy(UUID memberId, UUID companyId, UUID organizationId) {
-        Policy effectivePolicy = policyAssignmentService.findEffectivePolicyForMember(memberId, companyId, organizationId);
+    public PolicyResponse findMyEffectivePolicy(UUID memberId, UUID memberPositionId, UUID companyId) {
+        // 기본근무(STANDARD_WORK) 정책을 조회 (휴게 규칙, 근무 시간 규칙 등 포함)
+        Policy effectivePolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
+                memberId,
+                memberPositionId,
+                companyId,
+                PolicyTypeCode.STANDARD_WORK
+        );
+
+        if (effectivePolicy == null) {
+            throw new ResourceNotFoundException("할당된 기본근무 정책을 찾을 수 없습니다.");
+        }
+
         return new PolicyResponse(effectivePolicy);
     }
 
