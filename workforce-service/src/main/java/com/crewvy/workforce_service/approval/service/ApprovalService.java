@@ -258,6 +258,24 @@ public class ApprovalService {
         // 4. 최종 상태 결정: 결재 라인이 1명뿐인 경우 최종 승인 처리
         if (dto.getLineDtoList().size() == 1) {
             approval.updateState(ApprovalState.APPROVED);
+
+            List<String> memberPositionIdList = approval.getApprovalLineList().stream()
+                    .map(line -> line.getMemberPositionId().toString())
+                    .collect(Collectors.toList());
+
+            List<PositionDto> requesterPositionInfo = memberClient.getPositionList(memberPositionId, new IdListReq(List.of(approval.getMemberPositionId()))).getData();
+            if (requesterPositionInfo != null && !requesterPositionInfo.isEmpty()) {
+                ApprovalCompletedEvent approvalEvent = new ApprovalCompletedEvent(
+                        approval.getId(),
+                        requesterPositionInfo.get(0).getMemberId(),
+                        approval.getTitle(),
+                        requesterPositionInfo.get(0).getTitleName(),
+                        requesterPositionInfo.get(0).getMemberName(),
+                        memberPositionIdList,
+                        approval.getCreatedAt()
+                );
+                eventPublisher.publishEvent(approvalEvent);
+            }
         }
 
         // 5. 부모 엔티티를 한 번만 저장
@@ -325,7 +343,7 @@ public class ApprovalService {
     }
 
 //    결재 승인
-    public void approveApproval(UUID approvalId, UUID memberPositionId, UUID companyId) {
+    public void approveApproval(UUID approvalId, UUID memberPositionId) {
         // 1. Fetch Join으로 Approval과 LineList를 한 번에 조회 (성능 최적화)
         Approval approval = approvalRepository.findByIdWithLines(approvalId)
                 .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 결재입니다."));
@@ -378,13 +396,17 @@ public class ApprovalService {
             // Elasticsearch 저장을 위한 이벤트 발행
             List<PositionDto> requesterPositionInfo = memberClient.getPositionList(memberPositionId, new IdListReq(List.of(approval.getMemberPositionId()))).getData();
             if (requesterPositionInfo != null && !requesterPositionInfo.isEmpty()) {
+                List<String> approverIdList = approval.getApprovalLineList().stream()
+                        .map(line -> line.getMemberPositionId().toString())
+                        .collect(Collectors.toList());
+
                 ApprovalCompletedEvent approvalEvent = new ApprovalCompletedEvent(
                         approval.getId(),
                         requesterPositionInfo.get(0).getMemberId(),
-                        companyId,
                         approval.getTitle(),
-                        requesterPositionInfo.get(0).getMemberName(),
                         requesterPositionInfo.get(0).getTitleName(),
+                        requesterPositionInfo.get(0).getMemberName(),
+                        approverIdList,
                         approval.getCreatedAt()
                 );
                 eventPublisher.publishEvent(approvalEvent);

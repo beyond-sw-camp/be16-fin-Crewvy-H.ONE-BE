@@ -24,6 +24,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.elasticsearch.client.elc.NativeQueryBuilder;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
+import org.springframework.data.elasticsearch.core.SearchHitSupport;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.query.Query;
 import org.springframework.data.elasticsearch.core.suggest.Completion;
@@ -32,6 +33,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -135,14 +137,18 @@ public class SearchService {
     // 결재 문서 저장
     @KafkaListener(topics = "approval-completed-events", groupId = "search-service-group")
     public void listenApprovalCompletedEvent(ApprovalCompletedEvent event) {
+        if (event.getApprovalId() == null) {
+            log.error("Received ApprovalCompletedEvent with null approvalId. Discarding event: {}", event);
+            return;
+        }
         ApprovalDocument approvalDocument = ApprovalDocument.builder()
                 .approvalId(event.getApprovalId().toString())
-                .companyId(event.getCompanyId().toString())
                 .memberId(event.getMemberId().toString())
                 .title(event.getTitle())
-                .memberName(event.getMemberName())
                 .titleName(event.getTitleName())
+                .memberName(event.getMemberName())
                 .createAt(event.getCreatedAt())
+                .approverIdList(event.getApprovalLineList())
                 .build();
         approvalSearchRepository.save(approvalDocument);
     }
@@ -161,10 +167,10 @@ public class SearchService {
     }
 
     // 직원 검색
-    public List<MemberDocument> searchEmployees(String query, String companyId) {
-        Query searchQuery = buildEmployeeSearchQuery(query, companyId);
+    public Page<MemberDocument> searchEmployees(String query, String companyId, Pageable pageable) {
+        Query searchQuery = buildEmployeeSearchQuery(query, companyId, pageable);
         SearchHits<MemberDocument> searchHits = elasticsearchOperations.search(searchQuery, MemberDocument.class);
-        return searchHits.stream().map(SearchHit::getContent).collect(Collectors.toList());
+        return SearchHitSupport.searchPageFor(searchHits, pageable).map(SearchHit::getContent);
     }
 
     // 조직 검색
@@ -173,26 +179,35 @@ public class SearchService {
     }
 
     // 조직별 직원 검색
-    public List<MemberDocument> searchEmployeesByOrganization(String organizationId, String companyId) {
+    public Page<MemberDocument> searchEmployeesByOrganization(String organizationId, UUID companyId, Pageable pageable) {
         Query searchQuery = new NativeQueryBuilder()
                 .withQuery(q -> q.bool(b -> b
                         .must(s -> s.nested(n -> n
                                 .path("organizationList")
                                 .query(nq -> nq.term(t -> t.field("organizationList.organizationId").value(organizationId)))))
-                        .filter(f -> f.term(t -> t.field("companyId.keyword").value(companyId)))))
+                        .filter(f -> f.term(t -> t.field("companyId.keyword").value(companyId.toString())))))
+                .withPageable(pageable)
                 .build();
         SearchHits<MemberDocument> searchHits = elasticsearchOperations.search(searchQuery, MemberDocument.class);
-        return searchHits.stream().map(SearchHit::getContent).collect(Collectors.toList());
+        return SearchHitSupport.searchPageFor(searchHits, pageable).map(SearchHit::getContent);
     }
 
     // 결재 문서 페이징 검색
-    public Page<ApprovalDocument> searchApprovals(String query, String companyId, Pageable pageable) {
-        return approvalSearchRepository.findByTitleContainingAndCompanyId(query, companyId, pageable);
+    public Page<ApprovalDocument> searchApprovals(String query, String memberPositionId, Pageable pageable) {
+        log.info("Received query in searchApprovals: {}", query);
+        Query searchQuery = new NativeQueryBuilder()
+                .withQuery(q -> q.bool(b -> b
+                        .must(m -> m.queryString(qs -> qs.fields("title").query("*".concat(query).concat("*"))))))
+                .withPageable(pageable)
+                .build();
+        log.info("Elasticsearch Query: {}", ((org.springframework.data.elasticsearch.client.elc.NativeQuery) searchQuery).getQuery().toString());
+        SearchHits<ApprovalDocument> searchHits = elasticsearchOperations.search(searchQuery, ApprovalDocument.class);
+        return SearchHitSupport.searchPageFor(searchHits, pageable).map(SearchHit::getContent);
     }
 
     // 통합 검색
-    public List<SearchResult> searchGlobal(String query, String companyId) {
-        Query employeeSearchQuery = buildEmployeeSearchQuery(query, companyId);
+    public List<SearchResult> searchGlobal(String query, String companyId, String memberPositionId) {
+        Query employeeSearchQuery = buildEmployeeSearchQuery(query, companyId, Pageable.unpaged());
 
         SearchHits<MemberDocument> employeeHits = elasticsearchOperations.search(employeeSearchQuery, MemberDocument.class);
 
@@ -205,24 +220,18 @@ public class SearchService {
                     .id(doc.getMemberId())
                     .category("employee")
                     .title(doc.getName())
-                    .department(doc.getOrganizationList().stream().map(OrganizationSavedEvent::getName).collect(Collectors.joining(", ")))
-                    .position(String.join(", ", doc.getTitleName()))
+                    .department(doc.getOrganizationList() != null ? doc.getOrganizationList().stream()
+                            .map(OrganizationSavedEvent::getName).collect(Collectors.joining(", ")) : "")
+                    .position(doc.getTitleName() != null ? String.join(", ", doc.getTitleName()) : "")
                     .contact(doc.getPhoneNumber())
+                    .email(doc.getEmail())
                     .status(doc.getMemberStatus())
                     .build());
         });
 
         // 결재문서 검색
-        Query approvalSearchQuery = new NativeQueryBuilder()
-                .withQuery(q -> q.bool(b -> b
-                        .must(m -> m.match(t -> t.field("title").query(query)))
-                        .filter(f -> f.term(t -> t.field("companyId.keyword").value(companyId)))))
-                .build();
-
-        SearchHits<ApprovalDocument> approvalHits = elasticsearchOperations.search(approvalSearchQuery, ApprovalDocument.class);
-
-        approvalHits.forEach(hit -> {
-            ApprovalDocument doc = hit.getContent();
+        Page<ApprovalDocument> approvalPage = searchApprovals(query, memberPositionId, Pageable.unpaged());
+        approvalPage.forEach(doc -> {
             results.add(ApprovalSearchRes.builder()
                     .id(doc.getApprovalId())
                     .category("approval")
@@ -236,22 +245,24 @@ public class SearchService {
         return results;
     }
 
-    private Query buildEmployeeSearchQuery(String query, String companyId) {
+    private Query buildEmployeeSearchQuery(String query, String companyId, Pageable pageable) {
         if (query.matches("^[0-9\\-]+$")) {
             return new NativeQueryBuilder()
                     .withQuery(q -> q.bool(b -> b
                             .must(m -> m.term(t -> t.field("phoneNumber").value(query)))
                             .filter(f -> f.term(t -> t.field("companyId.keyword").value(companyId)))))
+                    .withPageable(pageable)
                     .build();
         } else {
             return new NativeQueryBuilder()
                     .withQuery(q -> q.bool(b -> b
-                            .should(s -> s.multiMatch(mm -> mm.query(query).fields("name")))
+                            .should(s -> s.multiMatch(mm -> mm.query(query).fields("name", "titleName", "email")))
                             .should(s -> s.nested(n -> n
                                     .path("organizationList")
                                     .query(nq -> nq.match(m -> m.field("organizationList.name").query(query)))))
                             .minimumShouldMatch("1")
                             .filter(f -> f.term(t -> t.field("companyId.keyword").value(companyId)))))
+                    .withPageable(pageable)
                     .build();
         }
     }

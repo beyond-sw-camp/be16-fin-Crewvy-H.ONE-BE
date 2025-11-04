@@ -8,6 +8,8 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -19,10 +21,10 @@ public class ApprovalCompletedEvent implements Serializable {
 
     private UUID approvalId;
     private UUID memberId;
-    private UUID companyId;
     private String title;
-    private String memberName;
     private String titleName;
+    private String memberName;
+    private List<String> approvalLineList = new ArrayList<>();
     @JsonProperty("createDateTime")
     private LocalDateTime createdAt;
 }

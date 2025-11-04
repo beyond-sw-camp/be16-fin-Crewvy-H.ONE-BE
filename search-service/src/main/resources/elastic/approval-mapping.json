@@ -3,9 +3,6 @@
     "approvalId": {
       "type": "keyword"
     },
-    "companyId": {
-      "type": "keyword"
-    },
     "memberId": {
       "type": "keyword"
     },
@@ -13,7 +10,18 @@
       "type": "text",
       "analyzer": "korean_analyzer"
     },
-    "createdAt": {
+    "titleName": {
+      "type": "text",
+      "analyzer": "korean_analyzer"
+    },
+    "memberName": {
+      "type": "text",
+      "analyzer": "korean_analyzer"
+    },
+    "approverIdList": {
+      "type": "keyword"
+    },
+    "createAt": {
       "type": "date",
       "format": "yyyy-MM-dd'T'HH:mm:ss.SSSSSS||epoch_millis"
     }

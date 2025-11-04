@@ -9,6 +9,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @NoArgsConstructor
@@ -24,9 +25,6 @@ public class ApprovalDocument {
     private String approvalId;
 
     @Field(type = FieldType.Keyword)
-    private String companyId;
-
-    @Field(type = FieldType.Keyword)
     private String memberId;
 
     @Field(type = FieldType.Text)
@@ -37,6 +35,9 @@ public class ApprovalDocument {
 
     @Field(type = FieldType.Text)
     private String memberName;
+
+    @Field(type = FieldType.Keyword)
+    private List<String> approverIdList;
 
     @Field(type = FieldType.Date, format = {}, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS||epoch_millis")
     private LocalDateTime createAt;

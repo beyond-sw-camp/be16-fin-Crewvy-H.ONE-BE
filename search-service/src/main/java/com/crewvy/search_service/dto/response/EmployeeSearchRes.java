@@ -14,6 +14,7 @@ public class EmployeeSearchRes implements SearchResult {
     private String department;
     private String position;
     private String contact;
+    private String email;
     private String status;
 
     @Override
