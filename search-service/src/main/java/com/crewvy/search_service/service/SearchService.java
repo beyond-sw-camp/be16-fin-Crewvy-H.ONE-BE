@@ -194,13 +194,11 @@ public class SearchService {
 
     // 결재 문서 페이징 검색
     public Page<ApprovalDocument> searchApprovals(String query, String memberPositionId, Pageable pageable) {
-        log.info("Received query in searchApprovals: {}", query);
         Query searchQuery = new NativeQueryBuilder()
                 .withQuery(q -> q.bool(b -> b
                         .must(m -> m.queryString(qs -> qs.fields("title").query("*".concat(query).concat("*"))))))
                 .withPageable(pageable)
                 .build();
-        log.info("Elasticsearch Query: {}", ((org.springframework.data.elasticsearch.client.elc.NativeQuery) searchQuery).getQuery().toString());
         SearchHits<ApprovalDocument> searchHits = elasticsearchOperations.search(searchQuery, ApprovalDocument.class);
         return SearchHitSupport.searchPageFor(searchHits, pageable).map(SearchHit::getContent);
     }

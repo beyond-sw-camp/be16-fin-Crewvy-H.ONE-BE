@@ -106,7 +106,6 @@ public class JwtTokenProvider {
         String rtMemberId = rtClaims.getSubject();
 
         if (!rtMemberId.equals(atMemberId)) {
-            System.out.println("이거 실행 되니");
             throw new IllegalArgumentException("사용자 정보가 일치하지 않습니다.");
         }
 
