@@ -27,13 +27,15 @@ public class VideoConferenceListRes {
     private List<UUID> inviteeIdList;
     private String recordingUrl;
     private Boolean hasMinute;
+    private Integer participantsCnt;
 
-    public static VideoConferenceListRes fromEntity(VideoConference videoConference) {
+    public static VideoConferenceListRes fromEntity(VideoConference videoConference, String hostName) {
         Optional<Recording> optionalRecording = Optional.ofNullable(videoConference.getRecording());
 
         return VideoConferenceListRes.builder()
                 .id(videoConference.getId())
                 .hostId(videoConference.getHostId())
+                .hostName(hostName)
                 .name(videoConference.getName())
                 .description(videoConference.getDescription())
                 .scheduledStartTime(videoConference.getScheduledStartTime())
@@ -46,6 +48,29 @@ public class VideoConferenceListRes {
                         .orElse(null))
                 .hasMinute(optionalRecording
                         .map(Recording::getMinute).isPresent())
+                .build();
+    }
+
+    public static VideoConferenceListRes fromEntityWithParticipantsCnt(VideoConference videoConference, String hostName, int participantsCnt) {
+        Optional<Recording> optionalRecording = Optional.ofNullable(videoConference.getRecording());
+
+        return VideoConferenceListRes.builder()
+                .id(videoConference.getId())
+                .hostId(videoConference.getHostId())
+                .hostName(hostName)
+                .name(videoConference.getName())
+                .description(videoConference.getDescription())
+                .scheduledStartTime(videoConference.getScheduledStartTime())
+                .actualStartTime(videoConference.getActualStartTime())
+                .status(videoConference.getStatus().getCodeName())
+                .isRecording(videoConference.getIsRecording().toBoolean())
+                .inviteeIdList(videoConference.getVideoConferenceInviteeSet().stream().map(VideoConferenceInvitee::getMemberId).toList())
+                .recordingUrl(optionalRecording
+                        .map(Recording::getUrl)
+                        .orElse(null))
+                .hasMinute(optionalRecording
+                        .map(Recording::getMinute).isPresent())
+                .participantsCnt(participantsCnt)
                 .build();
     }
 }
