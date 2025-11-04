@@ -22,7 +22,7 @@ public class MemberSavedEvent implements Serializable {
     private List<OrganizationSavedEvent> organizationList;
     private List<String> titleName;
     private String phoneNumber;
+    private String email;
     private String memberStatus;
     private String position;
-    private String email;
 }

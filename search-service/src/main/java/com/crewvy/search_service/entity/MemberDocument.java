@@ -9,7 +9,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.*;
-
 import org.springframework.data.elasticsearch.core.suggest.Completion;
 
 import java.util.List;
@@ -41,6 +40,9 @@ public class MemberDocument {
 
     @Field(type = FieldType.Keyword, name = "phoneNumber")
     private String phoneNumber;
+
+    @Field(type = FieldType.Text)
+    private String email;
 
     @Field(type = FieldType.Text)
     private String memberStatus;

@@ -1,0 +1,29 @@
+{
+  "properties": {
+    "approvalId": {
+      "type": "keyword"
+    },
+    "memberId": {
+      "type": "keyword"
+    },
+    "title": {
+      "type": "text",
+      "analyzer": "korean_analyzer"
+    },
+    "titleName": {
+      "type": "text",
+      "analyzer": "korean_analyzer"
+    },
+    "memberName": {
+      "type": "text",
+      "analyzer": "korean_analyzer"
+    },
+    "approverIdList": {
+      "type": "keyword"
+    },
+    "createAt": {
+      "type": "date",
+      "format": "yyyy-MM-dd'T'HH:mm:ss.SSSSSS||epoch_millis"
+    }
+  }
+}

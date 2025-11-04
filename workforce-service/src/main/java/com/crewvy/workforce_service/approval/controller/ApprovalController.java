@@ -76,9 +76,8 @@ public class ApprovalController {
     }
 
     @PatchMapping("/approve/{approvalId}")
-    public ResponseEntity<?> approveApproval(@PathVariable UUID approvalId,
-                                             @RequestHeader ("X-User-MemberPositionId") UUID memberPositionId
-    ) {
+        public ResponseEntity<?> approveApproval(@PathVariable UUID approvalId,
+                                                 @RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
         approvalService.approveApproval(approvalId, memberPositionId);
         return new ResponseEntity<>(ApiResponse.success(approvalId, "승인"), HttpStatus.OK);
     }

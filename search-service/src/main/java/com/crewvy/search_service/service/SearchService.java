@@ -1,17 +1,30 @@
 package com.crewvy.search_service.service;
 
+import com.crewvy.common.event.ApprovalCompletedEvent;
 import com.crewvy.common.event.MemberDeletedEvent;
 import com.crewvy.common.event.MemberSavedEvent;
 import com.crewvy.common.event.OrganizationSavedEvent;
+import com.crewvy.search_service.dto.event.MinuteSavedEvent;
+import com.crewvy.search_service.dto.response.ApprovalSearchRes;
+import com.crewvy.search_service.dto.response.EmployeeSearchRes;
+import com.crewvy.search_service.dto.response.SearchResult;
+import com.crewvy.search_service.entity.ApprovalDocument;
 import com.crewvy.search_service.entity.MemberDocument;
+import com.crewvy.search_service.entity.MinuteDocument;
 import com.crewvy.search_service.entity.OrganizationDocument;
+import com.crewvy.search_service.repository.ApprovalSearchRepository;
 import com.crewvy.search_service.repository.MemberSearchRepository;
+import com.crewvy.search_service.repository.MinuteRepository;
 import com.crewvy.search_service.repository.OrganizationSearchRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.elasticsearch.client.elc.NativeQueryBuilder;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
+import org.springframework.data.elasticsearch.core.SearchHitSupport;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.query.Query;
 import org.springframework.data.elasticsearch.core.suggest.Completion;
@@ -20,13 +33,17 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SearchService {
     private final MemberSearchRepository memberSearchRepository;
     private final OrganizationSearchRepository organizationSearchRepository;
+    private final ApprovalSearchRepository approvalSearchRepository;
+    private final MinuteRepository minuteRepository;
     private final ElasticsearchOperations elasticsearchOperations;
 
     // 직원 추가
@@ -60,6 +77,7 @@ public class SearchService {
                 .organizationList(event.getOrganizationList())
                 .titleName(event.getTitleName())
                 .phoneNumber(event.getPhoneNumber())
+                .email(event.getEmail())
                 .memberStatus(event.getMemberStatus())
                 .suggest(new Completion(new String[]{suggestText}))
                 .build();
@@ -116,28 +134,43 @@ public class SearchService {
                 () -> new EntityNotFoundException("존재하지 않는 직원입니다.")));
     }
 
-    // 직원 검색
-    public List<MemberDocument> searchEmployees(String query, String companyId) {
-        Query searchQuery;
-        if (query.matches("^[0-9\\-]+$")) {
-            searchQuery = new NativeQueryBuilder()
-                    .withQuery(q -> q.bool(b -> b
-                            .must(m -> m.term(t -> t.field("phoneNumber").value(query)))
-                            .filter(f -> f.term(t -> t.field("companyId.keyword").value(companyId)))))
-                    .build();
-        } else {
-            searchQuery = new NativeQueryBuilder()
-                    .withQuery(q -> q.bool(b -> b
-                            .should(s -> s.multiMatch(mm -> mm.query(query).fields("name")))
-                            .should(s -> s.nested(n -> n
-                                    .path("organizationList")
-                                    .query(nq -> nq.match(m -> m.field("organizationList.name").query(query)))))
-                            .minimumShouldMatch("1")
-                            .filter(f -> f.term(t -> t.field("companyId.keyword").value(companyId)))))
-                    .build();
+    // 결재 문서 저장
+    @KafkaListener(topics = "approval-completed-events", groupId = "search-service-group")
+    public void listenApprovalCompletedEvent(ApprovalCompletedEvent event) {
+        if (event.getApprovalId() == null) {
+            log.error("Received ApprovalCompletedEvent with null approvalId. Discarding event: {}", event);
+            return;
         }
+        ApprovalDocument approvalDocument = ApprovalDocument.builder()
+                .approvalId(event.getApprovalId().toString())
+                .memberId(event.getMemberId().toString())
+                .title(event.getTitle())
+                .titleName(event.getTitleName())
+                .memberName(event.getMemberName())
+                .createAt(event.getCreatedAt())
+                .approverIdList(event.getApprovalLineList())
+                .build();
+        approvalSearchRepository.save(approvalDocument);
+    }
+
+    // 회의록 요약 저장
+    @KafkaListener(topics = "minute-saved-events", groupId = "search-service-group")
+    public void listenMinuteSavedEvent(MinuteSavedEvent event) {
+        MinuteDocument minuteDocument = MinuteDocument.builder()
+                .minuteId(event.getMinuteId())
+                .title(event.getTitle())
+                .summary(event.getSummary())
+                .memberId(event.getMemberId())
+                .createDateTime(event.getCreateDateTime())
+                .build();
+        minuteRepository.save(minuteDocument);
+    }
+
+    // 직원 검색
+    public Page<MemberDocument> searchEmployees(String query, String companyId, Pageable pageable) {
+        Query searchQuery = buildEmployeeSearchQuery(query, companyId, pageable);
         SearchHits<MemberDocument> searchHits = elasticsearchOperations.search(searchQuery, MemberDocument.class);
-        return searchHits.stream().map(SearchHit::getContent).collect(Collectors.toList());
+        return SearchHitSupport.searchPageFor(searchHits, pageable).map(SearchHit::getContent);
     }
 
     // 조직 검색
@@ -146,15 +179,89 @@ public class SearchService {
     }
 
     // 조직별 직원 검색
-    public List<MemberDocument> searchEmployeesByOrganization(String organizationId, String companyId) {
+    public Page<MemberDocument> searchEmployeesByOrganization(String organizationId, UUID companyId, Pageable pageable) {
         Query searchQuery = new NativeQueryBuilder()
                 .withQuery(q -> q.bool(b -> b
                         .must(s -> s.nested(n -> n
                                 .path("organizationList")
                                 .query(nq -> nq.term(t -> t.field("organizationList.organizationId").value(organizationId)))))
-                        .filter(f -> f.term(t -> t.field("companyId.keyword").value(companyId)))))
+                        .filter(f -> f.term(t -> t.field("companyId.keyword").value(companyId.toString())))))
+                .withPageable(pageable)
                 .build();
         SearchHits<MemberDocument> searchHits = elasticsearchOperations.search(searchQuery, MemberDocument.class);
-        return searchHits.stream().map(SearchHit::getContent).collect(Collectors.toList());
+        return SearchHitSupport.searchPageFor(searchHits, pageable).map(SearchHit::getContent);
+    }
+
+    // 결재 문서 페이징 검색
+    public Page<ApprovalDocument> searchApprovals(String query, String memberPositionId, Pageable pageable) {
+        Query searchQuery = new NativeQueryBuilder()
+                .withQuery(q -> q.bool(b -> b
+                        .must(m -> m.queryString(qs -> qs.fields("title").query("*".concat(query).concat("*"))))))
+                .withPageable(pageable)
+                .build();
+        SearchHits<ApprovalDocument> searchHits = elasticsearchOperations.search(searchQuery, ApprovalDocument.class);
+        return SearchHitSupport.searchPageFor(searchHits, pageable).map(SearchHit::getContent);
+    }
+
+    // 통합 검색
+    public List<SearchResult> searchGlobal(String query, String companyId, String memberPositionId) {
+        Query employeeSearchQuery = buildEmployeeSearchQuery(query, companyId, Pageable.unpaged());
+
+        SearchHits<MemberDocument> employeeHits = elasticsearchOperations.search(employeeSearchQuery, MemberDocument.class);
+
+        List<SearchResult> results = new ArrayList<>();
+
+        // 직원 검색
+        employeeHits.forEach(hit -> {
+            MemberDocument doc = hit.getContent();
+            results.add(EmployeeSearchRes.builder()
+                    .id(doc.getMemberId())
+                    .category("employee")
+                    .title(doc.getName())
+                    .department(doc.getOrganizationList() != null ? doc.getOrganizationList().stream()
+                            .map(OrganizationSavedEvent::getName).collect(Collectors.joining(", ")) : "")
+                    .position(doc.getTitleName() != null ? String.join(", ", doc.getTitleName()) : "")
+                    .contact(doc.getPhoneNumber())
+                    .email(doc.getEmail())
+                    .status(doc.getMemberStatus())
+                    .build());
+        });
+
+        // 결재문서 검색
+        Page<ApprovalDocument> approvalPage = searchApprovals(query, memberPositionId, Pageable.unpaged());
+        approvalPage.forEach(doc -> {
+            results.add(ApprovalSearchRes.builder()
+                    .id(doc.getApprovalId())
+                    .category("approval")
+                    .title(doc.getTitle())
+                    .titleName(doc.getTitleName())
+                    .memberName(doc.getMemberName())
+                    .createAt(doc.getCreateAt() != null ? doc.getCreateAt().toString() : null)
+                    .build());
+        });
+
+        return results;
+    }
+
+    private Query buildEmployeeSearchQuery(String query, String companyId, Pageable pageable) {
+        if (query.matches("^[0-9\\-]+$")) {
+            return new NativeQueryBuilder()
+                    .withQuery(q -> q.bool(b -> b
+                            .must(m -> m.term(t -> t.field("phoneNumber").value(query)))
+                            .filter(f -> f.term(t -> t.field("companyId.keyword").value(companyId)))))
+                    .withPageable(pageable)
+                    .build();
+        } else {
+            return new NativeQueryBuilder()
+                    .withQuery(q -> q.bool(b -> b
+                            .should(s -> s.multiMatch(mm -> mm.query(query).fields("name", "titleName", "email")))
+                            .should(s -> s.nested(n -> n
+                                    .path("organizationList")
+                                    .query(nq -> nq.match(m -> m.field("organizationList.name").query(query)))))
+                            .minimumShouldMatch("1")
+                            .filter(f -> f.term(t -> t.field("companyId.keyword").value(companyId)))))
+                    .withPageable(pageable)
+                    .build();
+        }
     }
 }
