@@ -67,6 +67,9 @@ public class RequestService {
         Policy policy = policyRepository.findById(createDto.getPolicyId())
                 .orElseThrow(() -> new ResourceNotFoundException("정책을 찾을 수 없습니다."));
 
+        // 1-1. 정책 활성화 상태 및 유효기간 검증
+        validatePolicyStatus(policy);
+
         // 2. 정책 규칙 및 요청 유효성 검증
         validateLeaveRequest(policy, createDto, memberId, companyId);
 
@@ -203,6 +206,9 @@ public class RequestService {
         Policy policy = policyRepository.findById(createDto.getPolicyId())
                 .orElseThrow(() -> new ResourceNotFoundException("정책을 찾을 수 없습니다."));
 
+        // 1-1. 정책 활성화 상태 및 유효기간 검증
+        validatePolicyStatus(policy);
+
         // 2. 출장 정책 타입 검증
         if (policy.getPolicyType().getTypeCode() != PolicyTypeCode.BUSINESS_TRIP) {
             throw new BusinessException("출장 정책이 아닙니다.");
@@ -332,6 +338,32 @@ public class RequestService {
     }
 
     // --- 검증 메서드들 ---
+
+    /**
+     * 정책 활성화 상태 및 유효기간 검증
+     */
+    private void validatePolicyStatus(Policy policy) {
+        // 1. 정책 활성화 상태 확인
+        if (policy.getIsActive() == null || !policy.getIsActive()) {
+            throw new BusinessException("비활성화된 정책입니다. 관리자에게 문의하세요.");
+        }
+
+        LocalDate today = LocalDate.now();
+
+        // 2. 정책 시작일 확인
+        if (policy.getEffectiveFrom() != null && today.isBefore(policy.getEffectiveFrom())) {
+            throw new BusinessException(
+                    String.format("정책 적용 시작일 이전입니다. (적용 시작일: %s)", policy.getEffectiveFrom())
+            );
+        }
+
+        // 3. 정책 종료일 확인
+        if (policy.getEffectiveTo() != null && today.isAfter(policy.getEffectiveTo())) {
+            throw new BusinessException(
+                    String.format("정책 적용 기간이 종료되었습니다. (종료일: %s)", policy.getEffectiveTo())
+            );
+        }
+    }
 
     /**
      * 휴가 신청 검증
@@ -1061,19 +1093,23 @@ public class RequestService {
                             request.getEndDateTime()
                     ).toMinutes();
                     int dailyMinutes = (int) workMinutes;
-                    
-                    // 음수 방지하면서 차감
-                    if (typeCode == PolicyTypeCode.OVERTIME && da.getOvertimeMinutes() != null) {
-                        int newOvertime = Math.max(0, da.getOvertimeMinutes() - dailyMinutes);
-                        // TODO: DailyAttendance에 setter 추가 필요
-                        log.warn("연장근무 복원 필요: memberId={}, date={}, minutes={}", 
-                                request.getMemberId(), dateToProcess, dailyMinutes);
-                    } else if (typeCode == PolicyTypeCode.NIGHT_WORK && da.getNightWorkMinutes() != null) {
-                        log.warn("야간근무 복원 필요: memberId={}, date={}, minutes={}", 
-                                request.getMemberId(), dateToProcess, dailyMinutes);
-                    } else if (typeCode == PolicyTypeCode.HOLIDAY_WORK && da.getHolidayWorkMinutes() != null) {
-                        log.warn("휴일근무 복원 필요: memberId={}, date={}, minutes={}", 
-                                request.getMemberId(), dateToProcess, dailyMinutes);
+
+                    // 신청 거부 시 해당 근무 시간을 DailyAttendance에서 차감
+                    if (typeCode == PolicyTypeCode.OVERTIME && da.getOvertimeMinutes() != null && da.getOvertimeMinutes() > 0) {
+                        da.subtractOvertimeMinutes(dailyMinutes);
+                        attendancesToSave.add(da);
+                        log.info("연장근무 복원 완료: memberId={}, date={}, 차감분={}분, 남은 연장근무={}분",
+                                request.getMemberId(), dateToProcess, dailyMinutes, da.getOvertimeMinutes());
+                    } else if (typeCode == PolicyTypeCode.NIGHT_WORK && da.getNightWorkMinutes() != null && da.getNightWorkMinutes() > 0) {
+                        da.subtractNightWorkMinutes(dailyMinutes);
+                        attendancesToSave.add(da);
+                        log.info("야간근무 복원 완료: memberId={}, date={}, 차감분={}분, 남은 야간근무={}분",
+                                request.getMemberId(), dateToProcess, dailyMinutes, da.getNightWorkMinutes());
+                    } else if (typeCode == PolicyTypeCode.HOLIDAY_WORK && da.getHolidayWorkMinutes() != null && da.getHolidayWorkMinutes() > 0) {
+                        da.subtractHolidayWorkMinutes(dailyMinutes);
+                        attendancesToSave.add(da);
+                        log.info("휴일근무 복원 완료: memberId={}, date={}, 차감분={}분, 남은 휴일근무={}분",
+                                request.getMemberId(), dateToProcess, dailyMinutes, da.getHolidayWorkMinutes());
                     }
                 }
             }

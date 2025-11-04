@@ -50,6 +50,9 @@ public class PolicyService {
         // 법정 필수 유급 휴가 검증
         validateMandatoryPaidLeave(request.getTypeCode(), request.getIsPaid());
 
+        // 정책 유효 기간 논리적 일관성 검증
+        validatePolicyEffectiveDates(request.getEffectiveFrom(), request.getEffectiveTo());
+
         PolicyRuleDetails ruleDetails = convertAndValidateRuleDetails(request.getRuleDetails(), request.getTypeCode());
 
         Policy newPolicy = Policy.builder()
@@ -97,6 +100,9 @@ public class PolicyService {
 
         // 3. 법정 필수 유급 휴가 검증
         validateMandatoryPaidLeave(request.getTypeCode(), request.getIsPaid());
+
+        // 3-1. 정책 유효 기간 논리적 일관성 검증
+        validatePolicyEffectiveDates(request.getEffectiveFrom(), request.getEffectiveTo());
 
         // 4. ruleDetails 변환 및 검증
         PolicyRuleDetails ruleDetails = convertAndValidateRuleDetails(request.getRuleDetails(), policyType.getTypeCode());
@@ -239,6 +245,27 @@ public class PolicyService {
                 case PATERNITY_LEAVE:
                     throw new BusinessException("배우자 출산휴가는 반드시 유급이어야 합니다. (남녀고용평등법 제18조의2)");
             }
+        }
+    }
+
+    /**
+     * 정책 유효 기간의 논리적 일관성을 검증합니다.
+     * - effectiveFrom이 effectiveTo보다 이후일 수 없음
+     *
+     * @param effectiveFrom 정책 시작일
+     * @param effectiveTo 정책 종료일
+     */
+    private void validatePolicyEffectiveDates(java.time.LocalDate effectiveFrom, java.time.LocalDate effectiveTo) {
+        // 둘 다 null이면 무기한 정책으로 간주하여 검증 스킵
+        if (effectiveFrom == null || effectiveTo == null) {
+            return;
+        }
+
+        // 시작일이 종료일보다 이후인 경우
+        if (effectiveFrom.isAfter(effectiveTo)) {
+            throw new BusinessException(
+                String.format("정책 시작일(%s)은 종료일(%s)보다 이후일 수 없습니다.",
+                    effectiveFrom, effectiveTo));
         }
     }
 }

@@ -316,11 +316,26 @@ public class DailyAttendance extends BaseEntity {
             this.overtimeMinutes = 0;
         }
         this.overtimeMinutes += minutes;
-        
+
         if (this.workedMinutes == null) {
             this.workedMinutes = 0;
         }
         this.workedMinutes += minutes;
+    }
+
+    /**
+     * 연장 근무 시간 차감 (신청 거부 시 롤백용)
+     */
+    public void subtractOvertimeMinutes(int minutes) {
+        if (this.overtimeMinutes == null) {
+            this.overtimeMinutes = 0;
+        }
+        this.overtimeMinutes = Math.max(0, this.overtimeMinutes - minutes);
+
+        if (this.workedMinutes == null) {
+            this.workedMinutes = 0;
+        }
+        this.workedMinutes = Math.max(0, this.workedMinutes - minutes);
     }
 
     /**
@@ -331,11 +346,26 @@ public class DailyAttendance extends BaseEntity {
             this.nightWorkMinutes = 0;
         }
         this.nightWorkMinutes += minutes;
-        
+
         if (this.workedMinutes == null) {
             this.workedMinutes = 0;
         }
         this.workedMinutes += minutes;
+    }
+
+    /**
+     * 야간 근무 시간 차감 (신청 거부 시 롤백용)
+     */
+    public void subtractNightWorkMinutes(int minutes) {
+        if (this.nightWorkMinutes == null) {
+            this.nightWorkMinutes = 0;
+        }
+        this.nightWorkMinutes = Math.max(0, this.nightWorkMinutes - minutes);
+
+        if (this.workedMinutes == null) {
+            this.workedMinutes = 0;
+        }
+        this.workedMinutes = Math.max(0, this.workedMinutes - minutes);
     }
 
     /**
@@ -346,11 +376,26 @@ public class DailyAttendance extends BaseEntity {
             this.holidayWorkMinutes = 0;
         }
         this.holidayWorkMinutes += minutes;
-        
+
         if (this.workedMinutes == null) {
             this.workedMinutes = 0;
         }
         this.workedMinutes += minutes;
+    }
+
+    /**
+     * 휴일 근무 시간 차감 (신청 거부 시 롤백용)
+     */
+    public void subtractHolidayWorkMinutes(int minutes) {
+        if (this.holidayWorkMinutes == null) {
+            this.holidayWorkMinutes = 0;
+        }
+        this.holidayWorkMinutes = Math.max(0, this.holidayWorkMinutes - minutes);
+
+        if (this.workedMinutes == null) {
+            this.workedMinutes = 0;
+        }
+        this.workedMinutes = Math.max(0, this.workedMinutes - minutes);
     }
 
     /**
