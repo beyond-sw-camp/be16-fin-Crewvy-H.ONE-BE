@@ -10,29 +10,33 @@ import com.crewvy.workforce_service.approval.constant.RequirementType;
 import com.crewvy.workforce_service.approval.dto.request.*;
 import com.crewvy.workforce_service.approval.dto.response.*;
 import com.crewvy.workforce_service.approval.entity.*;
-import com.crewvy.workforce_service.approval.repository.ApprovalDocumentRepository;
-import com.crewvy.workforce_service.approval.repository.ApprovalLineRepository;
-import com.crewvy.workforce_service.approval.repository.ApprovalReplyRepository;
-import com.crewvy.workforce_service.approval.repository.ApprovalRepository;
+import com.crewvy.workforce_service.approval.event.ApprovalCompletedEvent;
+import com.crewvy.workforce_service.approval.repository.*;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberDto;
 import com.crewvy.workforce_service.feignClient.dto.response.OrganizationNodeDto;
 import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -44,6 +48,8 @@ public class ApprovalService {
     private final S3Uploader s3Uploader;
     private final MemberClient memberClient;
     private final ApplicationEventPublisher eventPublisher;
+    private final SearchOutboxEventRepository searchOutboxEventRepository;
+    private final ObjectMapper objectMapper;
 
 //    문서 양식 생성
     public UUID uploadDocument(UploadDocumentDto dto) {
@@ -252,6 +258,24 @@ public class ApprovalService {
         // 4. 최종 상태 결정: 결재 라인이 1명뿐인 경우 최종 승인 처리
         if (dto.getLineDtoList().size() == 1) {
             approval.updateState(ApprovalState.APPROVED);
+
+            List<String> memberPositionIdList = approval.getApprovalLineList().stream()
+                    .map(line -> line.getMemberPositionId().toString())
+                    .collect(Collectors.toList());
+
+            List<PositionDto> requesterPositionInfo = memberClient.getPositionList(memberPositionId, new IdListReq(List.of(approval.getMemberPositionId()))).getData();
+            if (requesterPositionInfo != null && !requesterPositionInfo.isEmpty()) {
+                ApprovalCompletedEvent approvalEvent = new ApprovalCompletedEvent(
+                        approval.getId(),
+                        requesterPositionInfo.get(0).getMemberId(),
+                        approval.getTitle(),
+                        requesterPositionInfo.get(0).getTitleName(),
+                        requesterPositionInfo.get(0).getMemberName(),
+                        memberPositionIdList,
+                        approval.getCreatedAt()
+                );
+                eventPublisher.publishEvent(approvalEvent);
+            }
         }
 
         // 5. 부모 엔티티를 한 번만 저장
@@ -368,6 +392,25 @@ public class ApprovalService {
         } else {
             // 5-2. 현재 결재자가 마지막인 경우, 문서 전체 상태를 최종 승인으로 변경
             approval.updateState(ApprovalState.APPROVED);
+
+            // Elasticsearch 저장을 위한 이벤트 발행
+            List<PositionDto> requesterPositionInfo = memberClient.getPositionList(memberPositionId, new IdListReq(List.of(approval.getMemberPositionId()))).getData();
+            if (requesterPositionInfo != null && !requesterPositionInfo.isEmpty()) {
+                List<String> approverIdList = approval.getApprovalLineList().stream()
+                        .map(line -> line.getMemberPositionId().toString())
+                        .collect(Collectors.toList());
+
+                ApprovalCompletedEvent approvalEvent = new ApprovalCompletedEvent(
+                        approval.getId(),
+                        requesterPositionInfo.get(0).getMemberId(),
+                        approval.getTitle(),
+                        requesterPositionInfo.get(0).getTitleName(),
+                        requesterPositionInfo.get(0).getMemberName(),
+                        approverIdList,
+                        approval.getCreatedAt()
+                );
+                eventPublisher.publishEvent(approvalEvent);
+            }
 
             UUID nextApproverId = approval.getMemberPositionId();
 
@@ -920,6 +963,28 @@ public class ApprovalService {
                     .toList();
 
             document.getPolicyList().addAll(newPolicies);
+        }
+    }
+
+    // 결재 데이터 변경이 완료된 후 Elasticsearch 동기화를 위한 이벤트 저장
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void handleApprovalCompletedEvent(ApprovalCompletedEvent event) {
+        saveSearchOutboxEvent(event);
+    }
+
+    // elastic search에 저장
+    public void saveSearchOutboxEvent(ApprovalCompletedEvent event) {
+        try {
+            String payload = objectMapper.writeValueAsString(event);
+            ApprovalSearchOutboxEvent outboxEvent = ApprovalSearchOutboxEvent.builder()
+                    .topic("approval-completed-events")
+                    .aggregateId(event.getApprovalId())
+                    .payload(payload)
+                    .build();
+            searchOutboxEventRepository.save(outboxEvent);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new RuntimeException("Failed to serialize approval event", e);
         }
     }
 }
