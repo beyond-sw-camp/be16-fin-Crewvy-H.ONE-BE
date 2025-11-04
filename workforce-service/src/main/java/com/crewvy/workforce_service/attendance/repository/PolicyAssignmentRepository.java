@@ -12,7 +12,8 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
-public interface PolicyAssignmentRepository extends JpaRepository<PolicyAssignment, UUID> {
+public interface PolicyAssignmentRepository extends JpaRepository<PolicyAssignment, UUID>,
+        PolicyAssignmentRepositoryCustom {
 
     List<PolicyAssignment> findByTargetIdAndScopeType(UUID targetId, PolicyScopeType scopeType);
 

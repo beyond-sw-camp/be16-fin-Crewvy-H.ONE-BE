@@ -11,11 +11,13 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
-public interface PolicyRepository extends JpaRepository<Policy, UUID> {
-    @Query("SELECT p FROM Policy p WHERE p.companyId = :companyId " +
-           "AND p.effectiveFrom <= :currentDate " +
-           "AND (p.effectiveTo IS NULL OR p.effectiveTo >= :currentDate)")
-    Page<Policy> findActivePolicies(@Param("companyId") UUID companyId, @Param("currentDate") LocalDate currentDate, Pageable pageable);
+public interface PolicyRepository extends JpaRepository<Policy, UUID>, PolicyRepositoryCustom {
+//    @Query("SELECT p FROM Policy p WHERE p.companyId = :companyId " +
+//           "AND p.effectiveFrom <= :currentDate " +
+//           "AND (p.effectiveTo IS NULL OR p.effectiveTo >= :currentDate)")
+//    Page<Policy> findActivePolicies(@Param("companyId") UUID companyId, @Param("currentDate") LocalDate currentDate,
+//                                    Pageable pageable);
+
     Page<Policy> findByCompanyId(UUID companyId, Pageable pageable);
 
     @Query("SELECT DISTINCT p.companyId FROM Policy p")

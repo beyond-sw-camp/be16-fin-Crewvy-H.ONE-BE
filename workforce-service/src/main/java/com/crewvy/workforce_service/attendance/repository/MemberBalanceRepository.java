@@ -34,6 +34,9 @@ public interface MemberBalanceRepository extends JpaRepository<MemberBalance, UU
     List<MemberBalance> findAllByYearAndCompany(
             @Param("companyId") UUID companyId,
             @Param("year") Integer year);
+    // findAllByYearAndCompany 아래 메서드로 바꾸면 @Query 안써도 됨
+    List<MemberBalance> findAllByCompanyIdAndYearOrderByMemberIdAsc(
+            UUID companyId, Integer year);
 
     /**
      * 특정 직원의 특정 연도 특정 타입의 잔여 일수 조회
