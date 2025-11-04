@@ -8,9 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface ApprovalDocumentRepository extends JpaRepository<ApprovalDocument, UUID> {
-    @Query("SELECT d FROM ApprovalDocument d LEFT JOIN FETCH d.policyList WHERE d.id = :id")
-    Optional<ApprovalDocument> findByIdWithPolicies(@Param("id") UUID id);
-
+public interface ApprovalDocumentRepository extends JpaRepository<ApprovalDocument, UUID>,
+        ApprovalDocumentRepositoryCustom {
     Optional<ApprovalDocument> findByDocumentName(String documentName);
 }
