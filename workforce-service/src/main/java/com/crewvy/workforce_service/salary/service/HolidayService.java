@@ -52,4 +52,28 @@ public class HolidayService {
         }
         return adjustedDate;
     }
+
+    // 기간 내 소정 일수 계산
+    public int getScheduledWorkingDays(LocalDate startDate, LocalDate endDate) {
+        int workingDays = 0;
+        for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+            if (isWorkingDay(date)) {
+                workingDays++;
+            }
+        }
+        return workingDays;
+    }
+
+    public boolean isWorkingDay(LocalDate date) {
+        // 주말인지 확인
+        DayOfWeek dayOfWeek = date.getDayOfWeek();
+        boolean isWeekend = (dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY);
+
+        if (isWeekend) {
+            return false;
+        }
+
+        // 공휴일인지 확인
+        return !holidayRepository.existsBySolarDate(date);
+    }
 }
