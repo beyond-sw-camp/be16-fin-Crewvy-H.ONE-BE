@@ -30,6 +30,20 @@ public class LeaveRuleDto {
     private Integer requestDeadlineDays;
 
     /**
+     * 사후 신청 허용 여부.
+     * true: 휴가 시작일 이후에도 신청 가능 (급한 개인 사정 등)
+     * false: 사전 신청만 가능
+     */
+    private Boolean allowRetrospectiveRequest;
+
+    /**
+     * 사후 신청 가능 기간 (휴가 시작일로부터 N일 이내).
+     * 예: 7일 → 휴가 시작일로부터 최대 7일 이내에만 사후 신청 가능
+     * allowRetrospectiveRequest가 true일 때만 사용됩니다.
+     */
+    private Integer retrospectiveRequestDays;
+
+    /**
      * 휴가 신청 최소 단위 (예: "DAY", "HALF_DAY", "HOUR").
      * @deprecated allowedRequestUnits 필드로 대체 예정
      */

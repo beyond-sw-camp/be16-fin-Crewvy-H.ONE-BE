@@ -4,10 +4,7 @@ package com.crewvy.workforce_service.salary.entity;
 import com.crewvy.workforce_service.salary.constant.SalaryType;
 import com.crewvy.workforce_service.salary.converter.SalaryTypeConverter;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.math.BigInteger;
 import java.util.UUID;
@@ -15,7 +12,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Getter
+@Data
 @Entity
 public class SalaryDetail {
 

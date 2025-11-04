@@ -3,6 +3,7 @@ package com.crewvy.workforce_service.feignClient;
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
 import com.crewvy.workforce_service.feignClient.dto.response.*;
+import com.crewvy.workforce_service.feignClient.dto.response.MemberEmploymentInfoDto;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberSalaryListRes;
 import com.crewvy.workforce_service.feignClient.dto.response.NameDto;
 import com.crewvy.workforce_service.feignClient.dto.response.OrganizationNodeDto;
@@ -45,7 +46,13 @@ public interface MemberClient {
     ApiResponse<List<OrganizationRes>> getOrganizationList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId);
 
     // 급여 계산용 회원 정보 조회 (companyId로 조회)
-    @GetMapping("/member/salary-list")
+    @GetMapping("/member/{companyId}/salary-list")
     ApiResponse<List<MemberSalaryListRes>> getSalaryList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                                         @RequestParam UUID companyId);
+                                                         @PathVariable UUID companyId);
+
+    // 연차 발생 계산용 회원 고용 정보 조회 (companyId로 조회)
+    // TODO: member-service에 해당 엔드포인트 구현 필요
+    @GetMapping("/member/employment-info")
+    ApiResponse<List<MemberEmploymentInfoDto>> getEmploymentInfo(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                                                  @RequestParam UUID companyId);
 }

@@ -21,6 +21,7 @@ import java.util.UUID;
 public class SalaryCalculationRes {
     private UUID salaryId;
     private UUID memberId;
+    private String sabun;
     private String memberName;
     private String department;
     private int workingDays;
@@ -29,25 +30,27 @@ public class SalaryCalculationRes {
     private LocalDate paymentDate;
     private List<SalaryDetailRes> allowanceList;
     private List<SalaryDetailRes> deductionList;
+    private List<FixedAllowanceRes> fixedList;
     private BigInteger totalAllowance;
     private BigInteger totalDeduction;
     private BigInteger netPay;
-    
-    public static SalaryCalculationRes fromEntity(Salary salary, String memberName, String department,
-                                                int workingDays, LocalDate periodStartDate, LocalDate periodEndDate) {
+
+    public static SalaryCalculationRes fromEntity(Salary salary, String memberName, String department, String sabun,
+                                                  int workingDays, LocalDate periodStartDate, LocalDate periodEndDate) {
         List<SalaryDetailRes> allowanceList = new ArrayList<>();
         List<SalaryDetailRes> deductionList = new ArrayList<>();
-        
+        List<FixedAllowanceRes> fixedList = new ArrayList<>();
+
         BigInteger totalAllowance = BigInteger.ZERO;
         BigInteger totalDeduction = BigInteger.ZERO;
-        
+
         for (SalaryDetail detail : salary.getSalaryDetailList()) {
             SalaryDetailRes detailRes = SalaryDetailRes.builder()
                     .salaryName(detail.getSalaryName())
                     .salaryType(detail.getSalaryType().name())
                     .amount(detail.getAmount())
                     .build();
-            
+
             if (detail.getSalaryType() == SalaryType.ALLOWANCE) {
                 allowanceList.add(detailRes);
                 totalAllowance = totalAllowance.add(detail.getAmount());
@@ -56,10 +59,11 @@ public class SalaryCalculationRes {
                 totalDeduction = totalDeduction.add(detail.getAmount());
             }
         }
-        
+
         return SalaryCalculationRes.builder()
                 .salaryId(salary.getId())
                 .memberId(salary.getMemberId())
+                .sabun(sabun)
                 .memberName(memberName != null ? memberName : "")
                 .department(department != null ? department : "")
                 .workingDays(workingDays)
@@ -68,6 +72,7 @@ public class SalaryCalculationRes {
                 .paymentDate(salary.getPaymentDate())
                 .allowanceList(allowanceList)
                 .deductionList(deductionList)
+                .fixedList(fixedList)
                 .totalAllowance(totalAllowance)
                 .totalDeduction(totalDeduction)
                 .netPay(salary.getNetPay())

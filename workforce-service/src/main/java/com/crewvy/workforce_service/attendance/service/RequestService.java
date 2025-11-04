@@ -2,17 +2,23 @@ package com.crewvy.workforce_service.attendance.service;
 
 import com.crewvy.common.exception.BusinessException;
 import com.crewvy.common.exception.ResourceNotFoundException;
+import com.crewvy.workforce_service.approval.entity.ApprovalDocument;
+import com.crewvy.workforce_service.attendance.constant.AttendanceStatus;
 import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
 import com.crewvy.workforce_service.attendance.constant.RequestStatus;
 import com.crewvy.workforce_service.attendance.constant.RequestUnit;
 import com.crewvy.workforce_service.attendance.dto.request.DeviceRequestCreateDto;
 import com.crewvy.workforce_service.attendance.dto.request.LeaveRequestCreateDto;
+import com.crewvy.workforce_service.attendance.dto.request.TripRequestCreateDto;
 import com.crewvy.workforce_service.attendance.dto.response.DeviceRequestResponse;
 import com.crewvy.workforce_service.attendance.dto.response.LeaveRequestResponse;
 import com.crewvy.workforce_service.attendance.dto.rule.LeaveRuleDto;
+import com.crewvy.workforce_service.attendance.dto.rule.TripRuleDto;
+import com.crewvy.workforce_service.attendance.entity.DailyAttendance;
 import com.crewvy.workforce_service.attendance.entity.MemberBalance;
 import com.crewvy.workforce_service.attendance.entity.Policy;
 import com.crewvy.workforce_service.attendance.entity.Request;
+import com.crewvy.workforce_service.attendance.repository.DailyAttendanceRepository;
 import com.crewvy.workforce_service.attendance.repository.MemberBalanceRepository;
 import com.crewvy.workforce_service.attendance.repository.PolicyRepository;
 import com.crewvy.workforce_service.attendance.repository.RequestRepository;
@@ -26,7 +32,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -37,8 +47,9 @@ public class RequestService {
     private final RequestRepository requestRepository;
     private final PolicyRepository policyRepository;
     private final MemberBalanceRepository memberBalanceRepository;
+    private final DailyAttendanceRepository dailyAttendanceRepository;
     private final PolicyAssignmentService policyAssignmentService;
-    // private final ApprovalService approvalService; // TODO: Phase 2 - Approval 연동
+    private final com.crewvy.workforce_service.approval.repository.ApprovalDocumentRepository approvalDocumentRepository;
 
     /**
      * 휴가 신청 생성
@@ -86,8 +97,19 @@ public class RequestService {
                 startDateTime = createDto.getStartDateTime();
                 endDateTime = createDto.getEndDateTime();
                 long minutesBetween = ChronoUnit.MINUTES.between(startDateTime, endDateTime);
-                // 하루 근무를 8시간(480분)으로 가정하여 차감 일수 계산
-                deductionDays = Math.round((minutesBetween / 480.0) * 100) / 100.0;
+
+                // 정책에서 표준 근무 시간 조회 (fixedWorkMinutes)
+                Integer standardWorkMinutes = getStandardWorkMinutesFromPolicy(policy);
+
+                // 휴게 시간 조회 및 차감
+                Integer breakMinutes = getBreakMinutesFromPolicy(policy);
+                Integer actualWorkMinutes = standardWorkMinutes - (breakMinutes != null ? breakMinutes : 0);
+
+                // 실제 근무시간 기준으로 차감 일수 계산
+                deductionDays = Math.round((minutesBetween / (double) actualWorkMinutes) * 100) / 100.0;
+
+                log.info("시차 휴가 계산: 신청시간={}분, 표준근무={}분, 휴게={}분, 실제근무={}분, 차감일수={}일",
+                        minutesBetween, standardWorkMinutes, breakMinutes, actualWorkMinutes, deductionDays);
                 break;
             default:
                 throw new BusinessException("지원하지 않는 신청 단위입니다.");
@@ -99,11 +121,33 @@ public class RequestService {
             validateMemberBalance(memberId, companyId, policy.getPolicyType().getTypeCode(), deductionDays);
         }
 
-        // 5. Request 엔티티 생성
+        // 4-1. 연장/야간/휴일근무 허용 여부 및 주간 한도 검증
+        PolicyTypeCode typeCode = policy.getPolicyType().getTypeCode();
+        if (typeCode == PolicyTypeCode.OVERTIME
+                || typeCode == PolicyTypeCode.NIGHT_WORK
+                || typeCode == PolicyTypeCode.HOLIDAY_WORK) {
+            // StandardWork 정책 조회 (OvertimeRule 확인용)
+            Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
+                    memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
+            validateOvertimeAllowed(standardWorkPolicy, typeCode); // 허용 여부 검증
+            validateWeeklyOvertimeLimit(memberId, startDateTime, endDateTime); // 주간 한도 검증
+        }
+
+        // 4-2. 중복 신청 확인 (동시성 제어)
+        boolean isDuplicate = requestRepository.existsDuplicateRequest(
+                memberId, policy.getId(), startDateTime, endDateTime);
+        if (isDuplicate) {
+            throw new BusinessException("동일한 기간에 이미 신청한 내역이 있습니다. 중복 신청은 불가능합니다.");
+        }
+
+        // 5. 정책 타입에 따라 ApprovalDocument 자동 매핑
+        ApprovalDocument approvalDocument = getApprovalDocumentByPolicyType(policy.getPolicyType().getTypeCode());
+
+        // 6. Request 엔티티 생성
         Request request = Request.builder()
                 .policy(policy)
                 .memberId(memberId)
-                .documentId(null) // TODO: Phase 2 - Approval 생성 후 업데이트
+                .approvalDocument(approvalDocument)
                 .requestUnit(createDto.getRequestUnit())
                 .startDateTime(startDateTime)
                 .endDateTime(endDateTime)
@@ -119,6 +163,111 @@ public class RequestService {
         // TODO: Phase 2 - Approval 생성 및 연동
         // UUID approvalId = approvalService.createApproval(...);
         // savedRequest.updateDocumentId(approvalId);
+
+        // 자동 승인 처리
+        if (Boolean.TRUE.equals(policy.getAutoApprove())) {
+            // 잔액 차감이 필요한 정책인 경우 차감 처리 (휴가)
+            if (policy.getPolicyType().isBalanceDeductible()) {
+                applyLeaveRequestBalance(savedRequest);
+            }
+            // 연장/야간/휴일근무인 경우 근무시간 처리
+            else if (policy.getPolicyType().getTypeCode() == PolicyTypeCode.OVERTIME
+                    || policy.getPolicyType().getTypeCode() == PolicyTypeCode.NIGHT_WORK
+                    || policy.getPolicyType().getTypeCode() == PolicyTypeCode.HOLIDAY_WORK) {
+                applyWorkRequestToDailyAttendance(savedRequest);
+            }
+            savedRequest.updateStatus(RequestStatus.APPROVED);
+            log.info("자동 승인 처리 완료: memberId={}, policyId={}, requestId={}",
+                    memberId, policy.getId(), savedRequest.getId());
+        }
+
+        log.info("휴가 신청 완료: memberId={}, policyId={}, deductionDays={}, autoApproved={}",
+                memberId, policy.getId(), deductionDays, Boolean.TRUE.equals(policy.getAutoApprove()));
+
+        return LeaveRequestResponse.from(savedRequest);
+    }
+
+    /**
+     * 출장 신청 생성
+     * Phase 1: Request 생성 및 자동 승인 처리
+     * Phase 2: Approval 생성 및 연동 추가 예정
+     */
+    public LeaveRequestResponse createTripRequest(
+            UUID memberId,
+            UUID memberPositionId,
+            UUID companyId,
+            UUID organizationId,
+            TripRequestCreateDto createDto) {
+
+        // 1. 정책 조회 및 검증
+        Policy policy = policyRepository.findById(createDto.getPolicyId())
+                .orElseThrow(() -> new ResourceNotFoundException("정책을 찾을 수 없습니다."));
+
+        // 2. 출장 정책 타입 검증
+        if (policy.getPolicyType().getTypeCode() != PolicyTypeCode.BUSINESS_TRIP) {
+            throw new BusinessException("출장 정책이 아닙니다.");
+        }
+
+        // 3. 출장 기간 검증
+        if (createDto.getStartAt().isAfter(createDto.getEndAt())) {
+            throw new BusinessException("시작일은 종료일보다 이후일 수 없습니다.");
+        }
+
+        // 4. DateTime 계산 (출장은 일자 단위로만 신청)
+        LocalDateTime startDateTime = createDto.getStartAt().atStartOfDay();
+        LocalDateTime endDateTime = createDto.getEndAt().atTime(23, 59, 59);
+
+        // 4-1. 중복 신청 확인 (동시성 제어)
+        boolean isDuplicate = requestRepository.existsDuplicateRequest(
+                memberId, policy.getId(), startDateTime, endDateTime);
+        if (isDuplicate) {
+            throw new BusinessException("동일한 기간에 이미 신청한 내역이 있습니다. 중복 신청은 불가능합니다.");
+        }
+
+        // 4-2. 출장지 검증 (정책에 허용된 출장지인지 확인)
+        if (policy.getRuleDetails() != null && policy.getRuleDetails().getTripRule() != null) {
+            TripRuleDto tripRule = policy.getRuleDetails().getTripRule();
+            if (tripRule.getAllowedWorkLocations() != null && !tripRule.getAllowedWorkLocations().isEmpty()) {
+                if (createDto.getWorkLocation() == null || !tripRule.getAllowedWorkLocations().contains(createDto.getWorkLocation())) {
+                    throw new BusinessException("이 정책에서 허용되지 않는 출장지입니다. 허용된 출장지: " +
+                            String.join(", ", tripRule.getAllowedWorkLocations()));
+                }
+            }
+        }
+
+        // 5. 정책 타입에 따라 ApprovalDocument 자동 매핑
+        ApprovalDocument approvalDocument = getApprovalDocumentByPolicyType(policy.getPolicyType().getTypeCode());
+
+        // 6. Request 엔티티 생성
+        Request request = Request.builder()
+                .policy(policy)
+                .memberId(memberId)
+                .approvalDocument(approvalDocument)
+                .requestUnit(RequestUnit.DAY) // 출장은 일자 단위
+                .startDateTime(startDateTime)
+                .endDateTime(endDateTime)
+                .deductionDays(0.0) // 출장은 잔액 차감 없음
+                .reason(createDto.getReason())
+                .status(RequestStatus.PENDING)
+                .requesterComment(createDto.getRequesterComment())
+                .workLocation(createDto.getWorkLocation()) // 출장지
+                .build();
+
+        Request savedRequest = requestRepository.save(request);
+
+        // TODO: Phase 2 - Approval 생성 및 연동
+        // UUID approvalId = approvalService.createApproval(...);
+        // savedRequest.updateDocumentId(approvalId);
+
+        // 자동 승인 처리
+        if (Boolean.TRUE.equals(policy.getAutoApprove())) {
+            savedRequest.updateStatus(RequestStatus.APPROVED);
+            log.info("출장 자동 승인 처리 완료: memberId={}, policyId={}, requestId={}",
+                    memberId, policy.getId(), savedRequest.getId());
+        }
+
+        log.info("출장 신청 완료: memberId={}, policyId={}, workLocation={}, autoApproved={}",
+                memberId, policy.getId(), createDto.getWorkLocation(), Boolean.TRUE.equals(policy.getAutoApprove()));
 
         return LeaveRequestResponse.from(savedRequest);
     }
@@ -189,8 +338,36 @@ public class RequestService {
      */
     private void validateLeaveRequest(Policy policy, LeaveRequestCreateDto createDto, UUID memberId, UUID companyId) {
         LeaveRuleDto leaveRule = policy.getRuleDetails().getLeaveRule();
+
+        // 출장 정책 등 leaveRule이 없는 경우 기본 검증만 수행
         if (leaveRule == null) {
-            throw new BusinessException("휴가 규칙이 설정되지 않은 정책입니다.");
+            // 기본 날짜/시간 유효성만 검증
+            LocalDateTime startDateTime;
+            LocalDateTime endDateTime;
+
+            if (createDto.getRequestUnit() == RequestUnit.TIME_OFF) {
+                if (createDto.getStartDateTime() == null || createDto.getEndDateTime() == null) {
+                    throw new BusinessException("시차 신청 시에는 시작 및 종료 시각을 모두 입력해야 합니다.");
+                }
+                if (createDto.getStartDateTime().isAfter(createDto.getEndDateTime())) {
+                    throw new BusinessException("시작 시각은 종료 시각보다 이후일 수 없습니다.");
+                }
+                startDateTime = createDto.getStartDateTime();
+                endDateTime = createDto.getEndDateTime();
+            } else {
+                if (createDto.getStartAt() == null || createDto.getEndAt() == null) {
+                    throw new BusinessException("일차 신청 시에는 시작일과 종료일을 모두 입력해야 합니다.");
+                }
+                if (createDto.getStartAt().isAfter(createDto.getEndAt())) {
+                    throw new BusinessException("시작일은 종료일보다 이후일 수 없습니다.");
+                }
+                startDateTime = createDto.getStartAt().atStartOfDay();
+                endDateTime = createDto.getEndAt().atTime(23, 59, 59);
+            }
+
+            // 중복 신청 확인
+            validateDuplicateRequest(memberId, startDateTime, endDateTime);
+            return; // leaveRule 상세 검증은 건너뜀
         }
 
         LocalDate requestStartDate;
@@ -234,12 +411,30 @@ public class RequestService {
             }
         }
 
-        // 3. 신청 마감일 확인 (requestDeadlineDays)
-        if (leaveRule.getRequestDeadlineDays() != null) {
-            long daysUntilStart = ChronoUnit.DAYS.between(LocalDate.now(), requestStartDate);
-            if (daysUntilStart < leaveRule.getRequestDeadlineDays()) {
+        // 3. 신청 시점 검증 (사전/사후 신청)
+        LocalDate today = LocalDate.now();
+        long daysFromStart = ChronoUnit.DAYS.between(requestStartDate, today);
+
+        if (daysFromStart < 0) {
+            // 사전 신청 (휴가 시작일이 미래)
+            if (leaveRule.getRequestDeadlineDays() != null) {
+                long daysUntilStart = -daysFromStart; // 양수로 변환
+                if (daysUntilStart < leaveRule.getRequestDeadlineDays()) {
+                    throw new BusinessException(
+                            String.format("휴가 시작일 %d일 전까지 신청해야 합니다.", leaveRule.getRequestDeadlineDays())
+                    );
+                }
+            }
+        } else {
+            // 사후 신청 (휴가 시작일이 현재 또는 과거)
+            if (leaveRule.getAllowRetrospectiveRequest() == null || !leaveRule.getAllowRetrospectiveRequest()) {
+                throw new BusinessException("이 휴가는 사전 신청만 가능합니다. 사후 신청이 허용되지 않습니다.");
+            }
+
+            if (leaveRule.getRetrospectiveRequestDays() != null && daysFromStart > leaveRule.getRetrospectiveRequestDays()) {
                 throw new BusinessException(
-                        String.format("휴가 시작일 %d일 전까지 신청해야 합니다.", leaveRule.getRequestDeadlineDays())
+                        String.format("사후 신청은 휴가 시작일로부터 %d일 이내에만 가능합니다. (현재 %d일 경과)",
+                                leaveRule.getRetrospectiveRequestDays(), daysFromStart)
                 );
             }
         }
@@ -252,6 +447,17 @@ public class RequestService {
         // 5. [신규] 최소 연속 신청일수 확인 (minConsecutiveDays)
         if (leaveRule.getMinConsecutiveDays() != null && requestedDays < leaveRule.getMinConsecutiveDays()) {
             throw new BusinessException(String.format("이 휴가는 최소 %d일 이상 연속으로 신청해야 합니다.", leaveRule.getMinConsecutiveDays()));
+        }
+
+        // 5-1. [신규] 최대 분할 횟수 확인 (maxSplitCount)
+        if (leaveRule.getMaxSplitCount() != null) {
+            int currentSplitCount = countApprovedRequestsByPolicy(memberId, policy.getId());
+            if (currentSplitCount >= leaveRule.getMaxSplitCount()) {
+                throw new BusinessException(
+                    String.format("이 휴가는 최대 %d회까지 분할 사용 가능합니다. (현재 %d회 사용)",
+                        leaveRule.getMaxSplitCount(), currentSplitCount)
+                );
+            }
         }
 
         // 6. 기간별 최대 사용일수 확인 (limitPeriod, maxDaysPerPeriod)
@@ -334,7 +540,23 @@ public class RequestService {
         ).orElse(0.0);
     }
 
+    /**
+     * 해당 정책으로 승인된 신청 횟수 조회 (현재 연도 기준)
+     * 분할 사용 횟수 체크를 위해 사용됩니다.
+     */
+    private int countApprovedRequestsByPolicy(UUID memberId, UUID policyId) {
+        LocalDate now = LocalDate.now();
+        LocalDateTime yearStart = now.withDayOfYear(1).atStartOfDay();
+        LocalDateTime yearEnd = now.withDayOfYear(now.lengthOfYear()).atTime(23, 59, 59);
 
+        return requestRepository.countByMemberIdAndPolicyIdAndStatusAndStartDateTimeBetween(
+                memberId,
+                policyId,
+                RequestStatus.APPROVED,
+                yearStart,
+                yearEnd
+        );
+    }
 
     // TODO: Phase 2 - Approval 결재 완료 콜백
     // public void handleApprovalResult(UUID documentId, ApprovalState state) {
@@ -442,5 +664,621 @@ public class RequestService {
         request.updateStatus(RequestStatus.REJECTED);
         log.info("디바이스 반려 완료: requestId={}, memberId={}, deviceId={}",
                 requestId, request.getMemberId(), request.getDeviceId());
+    }
+
+    /**
+     * 휴가 신청 승인 시 MemberBalance 차감 처리
+     */
+    private void applyLeaveRequestBalance(Request request) {
+        if (request.getPolicy() == null || !request.getPolicy().getPolicyType().isBalanceDeductible()) {
+            return; // 차감 불필요한 정책은 스킵
+        }
+
+        int currentYear = LocalDate.now().getYear();
+        PolicyTypeCode typeCode = request.getPolicy().getPolicyType().getTypeCode();
+
+        MemberBalance balance = memberBalanceRepository
+                .findByMemberIdAndBalanceTypeCodeAndYear(request.getMemberId(), typeCode, currentYear)
+                .orElseThrow(() -> new BusinessException("잔여 일수 정보를 찾을 수 없습니다."));
+
+        // 잔액 차감
+        double newUsed = balance.getTotalUsed() + request.getDeductionDays();
+        double newRemaining = balance.getRemaining() - request.getDeductionDays();
+
+        // MemberBalance 업데이트를 위해 새로운 엔티티 생성
+        MemberBalance updatedBalance = MemberBalance.builder()
+                .id(balance.getId())
+                .memberId(balance.getMemberId())
+                .companyId(balance.getCompanyId())
+                .balanceTypeCode(balance.getBalanceTypeCode())
+                .year(balance.getYear())
+                .totalGranted(balance.getTotalGranted())
+                .totalUsed(newUsed)
+                .remaining(newRemaining)
+                .expirationDate(balance.getExpirationDate())
+                .isPaid(balance.getIsPaid())
+                .build();
+
+        memberBalanceRepository.save(updatedBalance);
+
+        log.info("휴가 잔액 차감 완료: memberId={}, typeCode={}, deducted={}, remaining={}",
+                request.getMemberId(), typeCode, request.getDeductionDays(), newRemaining);
+
+        // 사후 신청 처리: 결근을 휴가로 변경
+        updateAbsentToDaysToLeave(request);
+    }
+
+    /**
+     * 사후 신청 시 결근 상태를 휴가로 변경
+     */
+    private void updateAbsentToDaysToLeave(Request request) {
+        LocalDate today = LocalDate.now();
+        LocalDate startDate = request.getStartDateTime().toLocalDate();
+        LocalDate endDate = request.getEndDateTime().toLocalDate();
+
+        // 사후 신청이 아니면 스킵 (휴가 시작일이 미래)
+        if (startDate.isAfter(today)) {
+            return;
+        }
+
+        // 해당 기간의 DailyAttendance 조회 (오늘 이전 날짜만)
+        LocalDate effectiveEndDate = endDate.isAfter(today) ? today : endDate;
+
+        // PolicyTypeCode에 따른 AttendanceStatus 매핑
+        AttendanceStatus leaveStatus = mapPolicyTypeToAttendanceStatus(
+                request.getPolicy().getPolicyType().getTypeCode(),
+                request.getRequestUnit()
+        );
+
+        if (leaveStatus == null) {
+            log.warn("PolicyTypeCode를 AttendanceStatus로 매핑할 수 없습니다: {}",
+                    request.getPolicy().getPolicyType().getTypeCode());
+            return;
+        }
+
+        List<DailyAttendance> attendances = dailyAttendanceRepository.findAllByMemberIdInAndAttendanceDateBetween(
+                List.of(request.getMemberId()), startDate, effectiveEndDate);
+        
+        Map<LocalDate, DailyAttendance> attendanceMap = attendances.stream()
+                .collect(Collectors.toMap(DailyAttendance::getAttendanceDate, java.util.function.Function.identity()));
+
+        List<DailyAttendance> attendancesToUpdate = new ArrayList<>();
+        LocalDate currentDate = startDate;
+        while (!currentDate.isAfter(effectiveEndDate)) {
+            DailyAttendance dailyAttendance = attendanceMap.get(currentDate);
+            if (dailyAttendance != null && dailyAttendance.getStatus() == AttendanceStatus.ABSENT) {
+                dailyAttendance.updateStatus(leaveStatus);
+                attendancesToUpdate.add(dailyAttendance);
+                log.info("결근을 휴가로 변경: memberId={}, date={}, {} -> {}",
+                        request.getMemberId(), currentDate, AttendanceStatus.ABSENT, leaveStatus);
+            }
+            currentDate = currentDate.plusDays(1);
+        }
+        if (!attendancesToUpdate.isEmpty()) {
+            dailyAttendanceRepository.saveAll(attendancesToUpdate);
+        }
+    }
+
+    /**
+     * 연장/야간/휴일근무 신청 승인 시 처리
+     * - DailyAttendance 생성/조회
+     * - 근무시간 추가
+     */
+    private void applyWorkRequestToDailyAttendance(Request request) {
+        LocalDate today = LocalDate.now();
+        LocalDate startDate = request.getStartDateTime().toLocalDate();
+        LocalDate endDate = request.getEndDateTime().toLocalDate();
+        
+        // 사후 신청이 아니면 스킵
+        if (startDate.isAfter(today)) {
+            return;
+        }
+        
+        LocalDate effectiveEndDate = endDate.isAfter(today) ? today : endDate;
+        PolicyTypeCode typeCode = request.getPolicy().getPolicyType().getTypeCode();
+        
+        // 근무 시간 계산 (분 단위)
+        long workMinutes = java.time.Duration.between(
+                request.getStartDateTime(),
+                request.getEndDateTime()
+        ).toMinutes();
+
+        List<DailyAttendance> attendances = dailyAttendanceRepository.findAllByMemberIdInAndAttendanceDateBetween(
+                List.of(request.getMemberId()), startDate, effectiveEndDate);
+        
+        Map<LocalDate, DailyAttendance> attendanceMap = attendances.stream()
+                .collect(Collectors.toMap(DailyAttendance::getAttendanceDate, java.util.function.Function.identity()));
+
+        List<DailyAttendance> attendancesToSave = new ArrayList<>();
+        LocalDate currentDate = startDate;
+        while (!currentDate.isAfter(effectiveEndDate)) {
+            final LocalDate dateToProcess = currentDate;
+            final int dailyMinutes = (int) workMinutes;
+            
+            DailyAttendance dailyAttendance = attendanceMap.get(dateToProcess);
+            
+            if (dailyAttendance == null) {
+                dailyAttendance = DailyAttendance.builder()
+                        .memberId(request.getMemberId())
+                        .companyId(request.getPolicy().getCompanyId())
+                        .attendanceDate(dateToProcess)
+                        .status(AttendanceStatus.NORMAL_WORK)
+                        .build();
+                attendancesToSave.add(dailyAttendance);
+            }
+            
+            // 정책 타입에 따라 근무 시간 추가
+            if (typeCode == PolicyTypeCode.OVERTIME) {
+                dailyAttendance.addOvertimeMinutes(dailyMinutes);
+                log.info("사후 연장근무 반영: memberId={}, date={}, minutes={}",
+                        request.getMemberId(), dateToProcess, dailyMinutes);
+            } else if (typeCode == PolicyTypeCode.NIGHT_WORK) {
+                dailyAttendance.addNightWorkMinutes(dailyMinutes);
+                log.info("사후 야간근무 반영: memberId={}, date={}, minutes={}",
+                        request.getMemberId(), dateToProcess, dailyMinutes);
+            } else if (typeCode == PolicyTypeCode.HOLIDAY_WORK) {
+                dailyAttendance.addHolidayWorkMinutes(dailyMinutes);
+                log.info("사후 휴일근무 반영: memberId={}, date={}, minutes={}",
+                        request.getMemberId(), dateToProcess, dailyMinutes);
+            }
+            
+            if (!attendancesToSave.contains(dailyAttendance)) {
+                attendancesToSave.add(dailyAttendance);
+            }
+            
+            currentDate = currentDate.plusDays(1);
+        }
+        
+        if (!attendancesToSave.isEmpty()) {
+            dailyAttendanceRepository.saveAll(attendancesToSave);
+        }
+    }
+
+    /**
+     * PolicyTypeCode를 AttendanceStatus로 매핑
+     */
+    private AttendanceStatus mapPolicyTypeToAttendanceStatus(PolicyTypeCode typeCode, RequestUnit requestUnit) {
+        // 반차는 RequestUnit에 따라 결정
+        if (requestUnit == RequestUnit.HALF_DAY_AM) {
+            return AttendanceStatus.HALF_DAY_AM;
+        } else if (requestUnit == RequestUnit.HALF_DAY_PM) {
+            return AttendanceStatus.HALF_DAY_PM;
+        }
+
+        // 종일 휴가는 PolicyTypeCode에 따라 결정
+        return switch (typeCode) {
+            case ANNUAL_LEAVE -> AttendanceStatus.ANNUAL_LEAVE;
+            case MATERNITY_LEAVE -> AttendanceStatus.MATERNITY_LEAVE;
+            case PATERNITY_LEAVE -> AttendanceStatus.PATERNITY_LEAVE;
+            case CHILDCARE_LEAVE -> AttendanceStatus.CHILDCARE_LEAVE;
+            case FAMILY_CARE_LEAVE -> AttendanceStatus.FAMILY_CARE_LEAVE;
+            case MENSTRUAL_LEAVE -> AttendanceStatus.MENSTRUAL_LEAVE;
+            case BUSINESS_TRIP -> AttendanceStatus.BUSINESS_TRIP;
+            default -> null; // 근무 시간 관련 정책은 휴가로 매핑하지 않음
+        };
+    }
+
+    // === 승인 처리 메서드 (승인 서비스 연동 전 준비) ===
+
+    /**
+     * 신청 승인 처리 (휴가/연장/야간/휴일근무 모두 처리)
+     */
+    public void approveRequest(UUID requestId) {
+        Request request = requestRepository.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("신청 내역을 찾을 수 없습니다."));
+
+        validateApprovalStatus(request);
+
+        PolicyTypeCode typeCode = request.getPolicy().getPolicyType().getTypeCode();
+
+        // 휴가 신청 처리
+        if (request.getPolicy().getPolicyType().isBalanceDeductible()) {
+            // 잔액 차감 (자동승인이 아니었다면 아직 차감 안 된 상태)
+            if (request.getStatus() == RequestStatus.PENDING) {
+                applyLeaveRequestBalance(request);
+            }
+            // 미래 휴가 DailyAttendance 생성
+            createFutureLeaveDailyAttendance(request);
+        }
+        // 연장/야간/휴일근무 처리
+        else if (typeCode == PolicyTypeCode.OVERTIME
+                || typeCode == PolicyTypeCode.NIGHT_WORK
+                || typeCode == PolicyTypeCode.HOLIDAY_WORK) {
+            applyWorkRequestToDailyAttendance(request);
+        }
+        // 출장 처리
+        else if (typeCode == PolicyTypeCode.BUSINESS_TRIP) {
+            // 출장은 DailyAttendance 생성만
+            createFutureLeaveDailyAttendance(request);
+        }
+
+        request.updateStatus(RequestStatus.APPROVED);
+        log.info("신청 승인 완료: requestId={}, memberId={}, type={}", 
+                requestId, request.getMemberId(), typeCode);
+    }
+    
+    /**
+     * 휴가/연차 신청 승인 처리 (하위 호환성 유지)
+     * @deprecated approveRequest() 사용 권장
+     */
+    @Deprecated
+    public void approveLeaveRequest(UUID requestId) {
+        approveRequest(requestId);
+    }
+
+    /**
+     * 신청 거절 처리
+     */
+    public void rejectRequest(UUID requestId, String rejectReason) {
+        Request request = requestRepository.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException("신청 내역을 찾을 수 없습니다."));
+
+        validateRejectionStatus(request);
+
+        // 자동승인으로 이미 차감된 경우 복구
+        if (request.getStatus() == RequestStatus.APPROVED) {
+            restoreBalanceAfterRejection(request);
+            restoreDailyAttendanceAfterRejection(request);
+        }
+
+        request.updateStatus(RequestStatus.REJECTED);
+        log.info("신청 거절 완료: requestId={}, memberId={}", requestId, request.getMemberId());
+    }
+
+    /**
+     * 미래 휴가 DailyAttendance 생성
+     */
+    private void createFutureLeaveDailyAttendance(Request request) {
+        LocalDate startDate = request.getStartDateTime().toLocalDate();
+        LocalDate endDate = request.getEndDateTime().toLocalDate();
+
+        AttendanceStatus leaveStatus = mapPolicyTypeToAttendanceStatus(
+                request.getPolicy().getPolicyType().getTypeCode(),
+                request.getRequestUnit()
+        );
+
+        if (leaveStatus == null) {
+            return;
+        }
+
+        List<DailyAttendance> attendances = dailyAttendanceRepository.findAllByMemberIdInAndAttendanceDateBetween(
+                List.of(request.getMemberId()), startDate, endDate);
+        
+        Map<LocalDate, DailyAttendance> attendanceMap = attendances.stream()
+                .collect(Collectors.toMap(DailyAttendance::getAttendanceDate, java.util.function.Function.identity()));
+
+        List<DailyAttendance> attendancesToSave = new ArrayList<>();
+        LocalDate currentDate = startDate;
+        while (!currentDate.isAfter(endDate)) {
+            DailyAttendance dailyAttendance = attendanceMap.get(currentDate);
+
+            if (dailyAttendance == null) {
+                dailyAttendance = DailyAttendance.builder()
+                        .memberId(request.getMemberId())
+                        .companyId(request.getPolicy().getCompanyId())
+                        .attendanceDate(currentDate)
+                        .status(leaveStatus)
+                        .build();
+            } else {
+                dailyAttendance.updateStatus(leaveStatus);
+            }
+            attendancesToSave.add(dailyAttendance);
+            currentDate = currentDate.plusDays(1);
+        }
+        
+        if (!attendancesToSave.isEmpty()) {
+            dailyAttendanceRepository.saveAll(attendancesToSave);
+        }
+    }
+
+    /**
+     * 거절 시 잔액 복구
+     */
+    private void restoreBalanceAfterRejection(Request request) {
+        if (request.getPolicy() == null || !request.getPolicy().getPolicyType().isBalanceDeductible()) {
+            return;
+        }
+
+        int currentYear = LocalDate.now().getYear();
+        PolicyTypeCode typeCode = request.getPolicy().getPolicyType().getTypeCode();
+
+        MemberBalance balance = memberBalanceRepository
+                .findByMemberIdAndBalanceTypeCodeAndYear(request.getMemberId(), typeCode, currentYear)
+                .orElse(null);
+
+        if (balance == null) {
+            return;
+        }
+
+        double newUsed = Math.max(0, balance.getTotalUsed() - request.getDeductionDays());
+        double newRemaining = Math.min(balance.getTotalGranted(), balance.getRemaining() + request.getDeductionDays());
+
+        MemberBalance updatedBalance = MemberBalance.builder()
+                .id(balance.getId())
+                .memberId(balance.getMemberId())
+                .companyId(balance.getCompanyId())
+                .balanceTypeCode(balance.getBalanceTypeCode())
+                .year(balance.getYear())
+                .totalGranted(balance.getTotalGranted())
+                .totalUsed(newUsed)
+                .remaining(newRemaining)
+                .expirationDate(balance.getExpirationDate())
+                .isPaid(balance.getIsPaid())
+                .build();
+
+        memberBalanceRepository.save(updatedBalance);
+        log.info("잔액 복구 완료: memberId={}, restored={}", request.getMemberId(), request.getDeductionDays());
+    }
+
+    /**
+     * 거절 시 DailyAttendance 복원
+     */
+    private void restoreDailyAttendanceAfterRejection(Request request) {
+        LocalDate today = LocalDate.now();
+        LocalDate startDate = request.getStartDateTime().toLocalDate();
+        LocalDate endDate = request.getEndDateTime().toLocalDate();
+        LocalDate effectiveEndDate = endDate.isAfter(today) ? today : endDate;
+        
+        PolicyTypeCode typeCode = request.getPolicy().getPolicyType().getTypeCode();
+
+        List<DailyAttendance> attendances = dailyAttendanceRepository.findAllByMemberIdInAndAttendanceDateBetween(
+                List.of(request.getMemberId()), startDate, effectiveEndDate);
+        
+        Map<LocalDate, DailyAttendance> attendanceMap = attendances.stream()
+                .collect(Collectors.toMap(DailyAttendance::getAttendanceDate, java.util.function.Function.identity()));
+
+        List<DailyAttendance> attendancesToSave = new ArrayList<>();
+        LocalDate currentDate = startDate;
+        while (!currentDate.isAfter(effectiveEndDate)) {
+            final LocalDate dateToProcess = currentDate;
+            DailyAttendance da = attendanceMap.get(dateToProcess);
+            if (da != null) {
+                // 휴가 신청 복원: 휴가 상태 → 결근
+                if (request.getPolicy().getPolicyType().isBalanceDeductible() 
+                    || typeCode == PolicyTypeCode.BUSINESS_TRIP) {
+                    AttendanceStatus status = da.getStatus();
+                    if (status == AttendanceStatus.ANNUAL_LEAVE 
+                        || status == AttendanceStatus.SICK_LEAVE
+                        || status == AttendanceStatus.MATERNITY_LEAVE
+                        || status == AttendanceStatus.PATERNITY_LEAVE
+                        || status == AttendanceStatus.CHILDCARE_LEAVE
+                        || status == AttendanceStatus.FAMILY_CARE_LEAVE
+                        || status == AttendanceStatus.MENSTRUAL_LEAVE
+                        || status == AttendanceStatus.HALF_DAY_AM
+                        || status == AttendanceStatus.HALF_DAY_PM
+                        || status == AttendanceStatus.UNPAID_LEAVE
+                        || status == AttendanceStatus.BUSINESS_TRIP) {
+                        da.updateStatus(AttendanceStatus.ABSENT);
+                        attendancesToSave.add(da);
+                    }
+                }
+                // 연장/야간/휴일근무 복원: 추가된 시간 차감
+                else if (typeCode == PolicyTypeCode.OVERTIME
+                        || typeCode == PolicyTypeCode.NIGHT_WORK
+                        || typeCode == PolicyTypeCode.HOLIDAY_WORK) {
+                    long workMinutes = java.time.Duration.between(
+                            request.getStartDateTime(),
+                            request.getEndDateTime()
+                    ).toMinutes();
+                    int dailyMinutes = (int) workMinutes;
+                    
+                    // 음수 방지하면서 차감
+                    if (typeCode == PolicyTypeCode.OVERTIME && da.getOvertimeMinutes() != null) {
+                        int newOvertime = Math.max(0, da.getOvertimeMinutes() - dailyMinutes);
+                        // TODO: DailyAttendance에 setter 추가 필요
+                        log.warn("연장근무 복원 필요: memberId={}, date={}, minutes={}", 
+                                request.getMemberId(), dateToProcess, dailyMinutes);
+                    } else if (typeCode == PolicyTypeCode.NIGHT_WORK && da.getNightWorkMinutes() != null) {
+                        log.warn("야간근무 복원 필요: memberId={}, date={}, minutes={}", 
+                                request.getMemberId(), dateToProcess, dailyMinutes);
+                    } else if (typeCode == PolicyTypeCode.HOLIDAY_WORK && da.getHolidayWorkMinutes() != null) {
+                        log.warn("휴일근무 복원 필요: memberId={}, date={}, minutes={}", 
+                                request.getMemberId(), dateToProcess, dailyMinutes);
+                    }
+                }
+            }
+            currentDate = currentDate.plusDays(1);
+        }
+        
+        if (!attendancesToSave.isEmpty()) {
+            dailyAttendanceRepository.saveAll(attendancesToSave);
+        }
+    }
+    private void validateApprovalStatus(Request request) {
+        if (request.getStatus() == RequestStatus.APPROVED) {
+            throw new BusinessException("이미 승인된 신청입니다.");
+        }
+        if (request.getStatus() == RequestStatus.REJECTED) {
+            throw new BusinessException("거절된 신청은 승인할 수 없습니다.");
+        }
+        if (request.getStatus() == RequestStatus.CANCELED) {
+            throw new BusinessException("취소된 신청은 승인할 수 없습니다.");
+        }
+    }
+
+    /**
+     * 거절 가능 상태 검증
+     */
+    private void validateRejectionStatus(Request request) {
+        if (request.getStatus() == RequestStatus.REJECTED) {
+            throw new BusinessException("이미 거절된 신청입니다.");
+        }
+        if (request.getStatus() == RequestStatus.CANCELED) {
+            throw new BusinessException("취소된 신청은 거절할 수 없습니다.");
+        }
+    }
+
+    /**
+     * 주간 연장근무 한도 검증 (근로기준법 제53조)
+     * - 연장근무는 1주일에 12시간(720분)을 초과할 수 없음
+     * - 위반 시 500만원 이하 과태료
+     */
+    private void validateWeeklyOvertimeLimit(UUID memberId, LocalDateTime requestStartTime, LocalDateTime requestEndTime) {
+        // 1. 신청하려는 연장근무 시간 계산 (분 단위)
+        long requestMinutes = java.time.Duration.between(requestStartTime, requestEndTime).toMinutes();
+
+        // 2. 이번 주 범위 계산 (월요일 00:00 ~ 일요일 23:59:59)
+        LocalDate requestDate = requestStartTime.toLocalDate();
+        LocalDate weekStart = requestDate.with(java.time.DayOfWeek.MONDAY);
+        LocalDate weekEnd = weekStart.plusDays(6);
+
+        LocalDateTime weekStartDateTime = weekStart.atStartOfDay();
+        LocalDateTime weekEndDateTime = weekEnd.atTime(23, 59, 59);
+
+        // 3. 이번 주에 이미 승인된/대기 중인 연장근무 신청 조회
+        java.util.List<Request> existingRequests = requestRepository.findApprovedOvertimeRequestsInWeek(
+                memberId,
+                weekStartDateTime,
+                weekEndDateTime
+        );
+
+        // 4. 기존 연장근무 총 시간 계산
+        long totalExistingMinutes = existingRequests.stream()
+                .mapToLong(r -> java.time.Duration.between(r.getStartDateTime(), r.getEndDateTime()).toMinutes())
+                .sum();
+
+        // 5. 신청하려는 시간 + 기존 시간이 720분(12시간)을 초과하는지 확인
+        long totalMinutes = totalExistingMinutes + requestMinutes;
+        final int WEEKLY_OVERTIME_LIMIT_MINUTES = 720; // 근로기준법 제53조: 주 12시간
+
+        if (totalMinutes > WEEKLY_OVERTIME_LIMIT_MINUTES) {
+            double totalHours = totalMinutes / 60.0;
+            double existingHours = totalExistingMinutes / 60.0;
+            double requestHours = requestMinutes / 60.0;
+
+            throw new BusinessException(
+                    String.format("근로기준법 제53조 위반: 주간 연장근무는 12시간을 초과할 수 없습니다.\n" +
+                            "- 이번 주 기존 연장근무: %.1f시간\n" +
+                            "- 신청하려는 시간: %.1f시간\n" +
+                            "- 총 합계: %.1f시간 (한도: 12시간)",
+                            existingHours, requestHours, totalHours)
+            );
+        }
+
+        log.info("주간 연장근무 한도 검증 통과: memberId={}, 기존={}분, 신청={}분, 총={}분 (한도: 720분)",
+                memberId, totalExistingMinutes, requestMinutes, totalMinutes);
+    }
+
+    /**
+     * 연장/야간/휴일근무 허용 여부 검증
+     * StandardWork 정책의 OvertimeRuleDto를 확인하여 허용되지 않으면 예외 발생
+     *
+     * @param standardWorkPolicy 사용자에게 할당된 StandardWork 정책
+     * @param typeCode 신청하려는 근무 타입 (OVERTIME, NIGHT_WORK, HOLIDAY_WORK)
+     */
+    private void validateOvertimeAllowed(Policy standardWorkPolicy, PolicyTypeCode typeCode) {
+        if (standardWorkPolicy == null) {
+            log.warn("StandardWork 정책이 없어 연장근무 허용 여부 검증 불가");
+            throw new BusinessException("기본 근무 정책이 할당되지 않았습니다. 관리자에게 문의하세요.");
+        }
+
+        if (standardWorkPolicy.getRuleDetails() == null || standardWorkPolicy.getRuleDetails().getOvertimeRule() == null) {
+            log.debug("OvertimeRule이 없어 연장근무 허용 여부 검증 스킵");
+            return;
+        }
+
+        com.crewvy.workforce_service.attendance.dto.rule.OvertimeRuleDto overtimeRule =
+                standardWorkPolicy.getRuleDetails().getOvertimeRule();
+
+        // 타입별 허용 여부 확인
+        switch (typeCode) {
+            case OVERTIME:
+                if (!overtimeRule.isAllowOvertime()) {
+                    throw new BusinessException("현재 할당된 근무 정책에서는 연장근무가 허용되지 않습니다.");
+                }
+                break;
+            case NIGHT_WORK:
+                if (!overtimeRule.isAllowNightWork()) {
+                    throw new BusinessException("현재 할당된 근무 정책에서는 야간근무가 허용되지 않습니다.");
+                }
+                break;
+            case HOLIDAY_WORK:
+                if (!overtimeRule.isAllowHolidayWork()) {
+                    throw new BusinessException("현재 할당된 근무 정책에서는 휴일근무가 허용되지 않습니다.");
+                }
+                break;
+            default:
+                // 다른 타입은 검증 안 함
+                break;
+        }
+
+        log.info("연장근무 허용 여부 검증 통과: typeCode={}", typeCode);
+    }
+
+    /**
+     * 정책에서 표준 근무 시간(분) 조회
+     */
+    private Integer getStandardWorkMinutesFromPolicy(Policy policy) {
+        if (policy == null || policy.getRuleDetails() == null || policy.getRuleDetails().getWorkTimeRule() == null) {
+            log.warn("정책에 WorkTimeRule이 없어 기본값 480분을 사용합니다.");
+            return 480; // 기본값: 8시간
+        }
+
+        Integer fixedWorkMinutes = policy.getRuleDetails().getWorkTimeRule().getFixedWorkMinutes();
+        if (fixedWorkMinutes == null || fixedWorkMinutes <= 0) {
+            log.warn("정책의 fixedWorkMinutes가 유효하지 않아 기본값 480분을 사용합니다.");
+            return 480;
+        }
+
+        return fixedWorkMinutes;
+    }
+
+    /**
+     * 정책에서 휴게 시간(분) 조회
+     * - FIXED 모드: fixedBreakStart ~ fixedBreakEnd 시간 차이
+     * - AUTO 모드: defaultBreakMinutesFor8Hours
+     * - MANUAL 모드: 0 (사용자가 직접 기록)
+     */
+    private Integer getBreakMinutesFromPolicy(Policy policy) {
+        if (policy == null || policy.getRuleDetails() == null || policy.getRuleDetails().getBreakRule() == null) {
+            log.debug("정책에 BreakRule이 없어 휴게시간 0으로 처리합니다.");
+            return 0;
+        }
+
+        com.crewvy.workforce_service.attendance.dto.rule.BreakRuleDto breakRule = policy.getRuleDetails().getBreakRule();
+        String breakType = breakRule.getType();
+
+        if ("FIXED".equals(breakType)) {
+            // FIXED: 고정 휴게 시간 계산
+            if (breakRule.getFixedBreakStart() != null && breakRule.getFixedBreakEnd() != null) {
+                try {
+                    String[] startParts = breakRule.getFixedBreakStart().split(":");
+                    String[] endParts = breakRule.getFixedBreakEnd().split(":");
+                    int startMinutes = Integer.parseInt(startParts[0]) * 60 + Integer.parseInt(startParts[1]);
+                    int endMinutes = Integer.parseInt(endParts[0]) * 60 + Integer.parseInt(endParts[1]);
+                    return endMinutes - startMinutes;
+                } catch (Exception e) {
+                    log.error("FIXED 휴게시간 파싱 실패", e);
+                    return 0;
+                }
+            }
+        } else if ("AUTO".equals(breakType)) {
+            // AUTO: 정책에 설정된 기본 휴게시간
+            Integer defaultBreakMinutes = breakRule.getDefaultBreakMinutesFor8Hours();
+            return defaultBreakMinutes != null ? defaultBreakMinutes : 60; // 기본 60분
+        } else if ("MANUAL".equals(breakType)) {
+            // MANUAL: 휴게시간은 사용자가 직접 기록하므로 0
+            return 0;
+        }
+
+        log.debug("알 수 없는 휴게 규칙 타입: {}", breakType);
+        return 0;
+    }
+
+    /**
+     * 정책 타입에 따라 ApprovalDocument를 자동으로 매핑합니다.
+     * @param policyTypeCode 정책 타입 코드
+     * @return 매핑된 ApprovalDocument
+     */
+    private com.crewvy.workforce_service.approval.entity.ApprovalDocument getApprovalDocumentByPolicyType(PolicyTypeCode policyTypeCode) {
+        String documentName = switch(policyTypeCode) {
+            case ANNUAL_LEAVE, MATERNITY_LEAVE, PATERNITY_LEAVE, MENSTRUAL_LEAVE -> "휴가 신청서";
+            case CHILDCARE_LEAVE, FAMILY_CARE_LEAVE -> "휴직 신청서";
+            case BUSINESS_TRIP -> "출장 신청서";
+            default -> throw new BusinessException("해당 정책 타입에 대한 결재 문서가 정의되지 않았습니다: " + policyTypeCode);
+        };
+
+        return approvalDocumentRepository.findByDocumentName(documentName)
+                .orElseThrow(() -> new ResourceNotFoundException("결재 문서를 찾을 수 없습니다: " + documentName));
     }
 }

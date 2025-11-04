@@ -2,10 +2,12 @@ package com.crewvy.workforce_service.salary.dto.request;
 
 import com.crewvy.workforce_service.salary.entity.FixedAllowance;
 import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDate;
 import java.util.UUID;
 
+@Setter
 @Getter
 public class FixedAllowanceCreateReq {
 

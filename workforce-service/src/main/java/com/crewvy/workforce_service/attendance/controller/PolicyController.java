@@ -112,9 +112,9 @@ public class PolicyController {
     @GetMapping("/my-effective-policy")
     public ResponseEntity<ApiResponse<PolicyResponse>> getMyEffectivePolicy(
             @RequestHeader("X-User-UUID") UUID memberId,
-            @RequestHeader("X-User-CompanyId") UUID companyId,
-            @RequestHeader("X-User-OrganizationId") UUID organizationId) {
-        PolicyResponse response = policyService.findMyEffectivePolicy(memberId, companyId, organizationId);
+            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+            @RequestHeader("X-User-CompanyId") UUID companyId) {
+        PolicyResponse response = policyService.findMyEffectivePolicy(memberId, memberPositionId, companyId);
         return new ResponseEntity<>(ApiResponse.success(response, "나의 유효 정책 조회 완료"), HttpStatus.OK);
     }
 

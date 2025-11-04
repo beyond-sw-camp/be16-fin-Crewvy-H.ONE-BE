@@ -16,7 +16,8 @@ public enum NotificationType {
     GOAL("NT006", "개인 목표"),
     GOAL_REQUEST("NT007", "목표 요청"),
     GOAL_EVALUATION("NT008", "개인 평가 상세"),
-    TEAM_EVALUATION("NT009", "팀 평가 상세");
+    TEAM_EVALUATION("NT009", "팀 평가 상세"),
+    RESERVATION("NT010", "예약");
 
     private final String codeValue;
     private final String codeName;
