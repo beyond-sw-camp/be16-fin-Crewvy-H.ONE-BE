@@ -1,10 +1,12 @@
-package com.crewvy.workforce_service.salary.repository;
+package com.crewvy.workforce_service.salary.repository.impl;
 
 import com.crewvy.workforce_service.salary.constant.SalaryStatus;
 import com.crewvy.workforce_service.salary.entity.Salary;
+import com.crewvy.workforce_service.salary.repository.SalaryRepositoryCustom;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -12,8 +14,9 @@ import java.util.UUID;
 
 import static com.crewvy.workforce_service.salary.entity.QSalary.salary;
 
+@Repository
 @RequiredArgsConstructor
-public class SalaryRepositoryCustomImpl implements SalaryRepositoryCustom{
+public class SalaryRepositoryCustomImpl implements SalaryRepositoryCustom {
 
     private final JPAQueryFactory queryFactory;
 
