@@ -71,13 +71,13 @@ public class FixedAllowanceService {
                 companyId);
         List<MemberSalaryListRes> memberList = salaryListResponse != null ? salaryListResponse.getData() : new ArrayList<>();
 
-        List<MemberSalaryListRes> filteredMemberList = memberList.stream()
-                .filter(member -> {
-                    String sabun = member.getSabun();
-                    return sabun != null && !sabun.isEmpty() && Character.isDigit(sabun.charAt(0));
-                }).toList();
+//        List<MemberSalaryListRes> filteredMemberList = memberList.stream()
+//                .filter(member -> {
+//                    String sabun = member.getSabun();
+//                    return sabun != null && !sabun.isEmpty() && Character.isDigit(sabun.charAt(0));
+//                }).toList();
 
-        for (MemberSalaryListRes memberSalaryListRes : filteredMemberList) {
+        for (MemberSalaryListRes memberSalaryListRes : memberList) {
             UUID memberId = memberSalaryListRes.getMemberId();
 
             for (FixedAllowanceCreateAllReq req : listReq) {

@@ -2,7 +2,7 @@ package com.crewvy.workforce_service.salary.service;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.entity.Bool;
-import com.crewvy.common.exception.PermissionDeniedException;
+import com.crewvy.workforce_service.aop.AuthUser;
 import com.crewvy.workforce_service.aop.CheckPermission;
 import com.crewvy.workforce_service.attendance.dto.response.DailyAttendanceRes;
 import com.crewvy.workforce_service.attendance.service.AttendanceService;
@@ -11,7 +11,6 @@ import com.crewvy.workforce_service.feignClient.dto.response.MemberSalaryListRes
 import com.crewvy.workforce_service.salary.config.PayrollProperties;
 import com.crewvy.workforce_service.salary.constant.PayType;
 import com.crewvy.workforce_service.salary.constant.SalaryType;
-import com.crewvy.workforce_service.salary.dto.request.SalaryCalculationReq;
 import com.crewvy.workforce_service.salary.dto.request.SalaryHistoryListReq;
 import com.crewvy.workforce_service.salary.dto.response.FixedAllowanceRes;
 import com.crewvy.workforce_service.salary.dto.response.PayPeriodRes;
@@ -53,19 +52,7 @@ public class SalaryCalculatorService {
 
     // 급여 계산 메서드
     @CheckPermission(resource = "salary", action = "CREATE", scope = "COMPANY")
-    public List<SalaryCalculationRes> calculateSalary(UUID memberPositionId, SalaryCalculationReq request) {
-
-        // 권한 검증
-//        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
-//                "salary", "CREATE", "COMPANY");
-//
-//        if (Boolean.FALSE.equals(hasPermission.getData())) {
-//            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
-//        }
-
-        UUID companyId = request.getCompanyId();
-        YearMonth yearMonth = request.getYearMonth();
-
+    public List<SalaryCalculationRes> calculateSalary(@AuthUser UUID memberPositionId, UUID companyId, YearMonth yearMonth) {
         // 산정 기간 계산
         SalaryPolicy salaryPolicy = salaryPolicyService.getLatestSalaryHistoryForCalculation(companyId);
         PayPeriodRes period =
@@ -105,8 +92,19 @@ public class SalaryCalculatorService {
             // 지급항목 계산
             List<SalaryDetailRes> allowanceList = allowanceMap.getOrDefault(salaryHistory.getMemberId(), new ArrayList<>());
 
+            if (baseSalary.compareTo(BigInteger.ZERO) > 0) {
+                allowanceList.add(
+                        SalaryDetailRes.builder()
+                                .salaryName("기본급")
+                                .salaryType(SalaryType.ALLOWANCE.name())
+                                .amount(baseSalary)
+                                .build()
+                );
+            }
+
             // 고정항목 계산
             List<FixedAllowanceRes> fixedList = fixedAllowanceMap.getOrDefault(salaryHistory.getMemberId(), new ArrayList<>());
+
             // 공제항목 계산
             List<SalaryDetailRes> deductionList = calculateDeductions(
                     companyId, salaryHistory.getMemberId(), baseSalary, workingDays

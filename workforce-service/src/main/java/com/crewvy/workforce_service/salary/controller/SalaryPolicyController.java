@@ -34,7 +34,7 @@ public class SalaryPolicyController {
     
     // 급여 정책 조회
     @GetMapping("/list")
-    public ResponseEntity<?> getSalaryPolicy(@RequestParam UUID companyId) {
+    public ResponseEntity<?> getSalaryPolicy(@RequestHeader("X-User-CompanyId") UUID companyId) {
         SalaryPolicyRes response = salaryPolicyService.getSalaryPolicy(companyId);
         return new ResponseEntity<>(new ApiResponse<>(true, response, "급여 정책 조회 성공")
                 , HttpStatus.OK);
@@ -50,7 +50,8 @@ public class SalaryPolicyController {
 
     // 급여 지급일 계산
     @GetMapping("/payment-date")
-    public ResponseEntity<?> getPaymentDate(@RequestParam UUID companyId, @RequestParam YearMonth yearMonth) {
+    public ResponseEntity<?> getPaymentDate(@RequestHeader("X-User-CompanyId") UUID companyId,
+                                            @RequestParam YearMonth yearMonth) {
         LocalDate paymentDate = salaryPolicyService.getPaymentDate(companyId, yearMonth);
         return new ResponseEntity<>(new ApiResponse<>(true, paymentDate, "급여 지급일 계산 성공")
                 , HttpStatus.OK);

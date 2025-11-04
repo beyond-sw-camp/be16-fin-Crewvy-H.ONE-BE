@@ -24,4 +24,6 @@ public interface SalaryRepository extends JpaRepository<Salary, UUID>, SalaryRep
     List<Salary> findByCompanyIdAndMemberIdOrderByPaymentDateDesc(UUID companyId, UUID memberId);
 
     List<Salary> findByMemberIdInAndPaymentDate(List<UUID> memberIds, LocalDate paymentDate);
+
+    List<Salary> findAllByStatusAndPaymentDateBefore(SalaryStatus salaryStatus, LocalDate paymentDate);
 }

@@ -59,8 +59,8 @@ public class SalaryPolicyService {
 
     // 산정 종료일 계산 (산정 종료일 계산)
     public PayPeriodRes calculatePeriodEndDate(SalaryPolicy salaryPolicy, YearMonth yearMonth) {
-        LocalDate startDate = null;
-        LocalDate endDate = null;
+        LocalDate startDate;
+        LocalDate endDate;
         switch (salaryPolicy.getPeriodType()) {
             case LAST_MONTH_FULL:
                 // yearMonth 기준 전원 말일

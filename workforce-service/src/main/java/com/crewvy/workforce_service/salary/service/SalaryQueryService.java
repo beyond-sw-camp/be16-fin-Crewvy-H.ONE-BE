@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.salary.service;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.exception.PermissionDeniedException;
+import com.crewvy.workforce_service.aop.AuthUser;
 import com.crewvy.workforce_service.aop.CheckPermission;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
@@ -46,15 +47,7 @@ public class SalaryQueryService {
     // 회사 전체 급여 조회
     @Transactional(readOnly = true)
     @CheckPermission(resource = "salary", action = "READ", scope = "COMPANY")
-    public List<SalaryStatusRes> getSalaryListByCompany(UUID memberPositionId, UUID companyId, YearMonth yearMonth) {
-        
-        // 권한 조회
-//        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
-//                "salary", "READ", "COMPANY");
-//
-//        if (Boolean.FALSE.equals(hasPermission.getData())) {
-//            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
-//        }
+    public List<SalaryStatusRes> getSalaryListByCompany(@AuthUser UUID memberPositionId, UUID companyId, YearMonth yearMonth) {
 
         // 급여 지급일 조회
         LocalDate paymentDate = salaryPolicyService.getPaymentDate(companyId, yearMonth);
@@ -95,15 +88,7 @@ public class SalaryQueryService {
 
     @Transactional(readOnly = true)
     @CheckPermission(resource = "salary", action = "READ", scope = "COMPANY")
-    public List<SalaryOutputRes> getSalaryOutputByCompany(UUID memberPositionId, UUID companyId, YearMonth yearMonth) {
-
-        // 권한 조회
-//        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
-//                "salary", "READ", "COMPANY");
-//
-//        if (Boolean.FALSE.equals(hasPermission.getData())) {
-//            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
-//        }
+    public List<SalaryOutputRes> getSalaryOutputByCompany(@AuthUser UUID memberPositionId, UUID companyId, YearMonth yearMonth) {
 
         // 급여 지급일 조회
         LocalDate paymentDate = salaryPolicyService.getPaymentDate(companyId, yearMonth);
@@ -148,16 +133,8 @@ public class SalaryQueryService {
 
     // 회원별 급여 조회
     @Transactional(readOnly = true)
-    @CheckPermission(resource = "salary", action = "READ", scope = "COMPANY")
-    public List<SalaryCalculationRes> getSalaryListByMember(UUID memberPositionId, UUID companyId, UUID memberId) {
-
-        // 권한 조회
-//        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
-//                "salary", "READ", "INDIVIDUAL");
-//
-//        if (Boolean.FALSE.equals(hasPermission.getData())) {
-//            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
-//        }
+    @CheckPermission(resource = "salary", action = "READ", scope = "INDIVIDUAL")
+    public List<SalaryCalculationRes> getSalaryListByMember(@AuthUser UUID memberPositionId, UUID companyId, UUID memberId) {
 
         IdListReq idListReq = new IdListReq();
         idListReq.setUuidList(List.of(memberId));
@@ -193,15 +170,7 @@ public class SalaryQueryService {
     // 월별 공제 내역
     @Transactional(readOnly = true)
     @CheckPermission(resource = "salary", action = "READ", scope = "COMPANY")
-    public List<PayrollDeductionRes> getDeductionList(UUID memberPositionId, UUID companyId, YearMonth yearMonth) {
-
-        // 권한 조회
-//        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
-//                "salary", "READ", "COMPANY");
-//
-//        if (Boolean.FALSE.equals(hasPermission.getData())) {
-//            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
-//        }
+    public List<PayrollDeductionRes> getDeductionList(@AuthUser UUID memberPositionId, UUID companyId, YearMonth yearMonth) {
 
         // 급여 지급일 조회
         LocalDate paymentDate = salaryPolicyService.getPaymentDate(companyId, yearMonth);
@@ -219,13 +188,7 @@ public class SalaryQueryService {
                 memberClient.getSalaryList(memberPositionId, companyId);
         List<MemberSalaryListRes> memberList = salaryListResponse != null ? salaryListResponse.getData() : new ArrayList<>();
 
-        List<MemberSalaryListRes> filteredMemberList = memberList.stream()
-                .filter(member -> {
-                    String sabun = member.getSabun();
-                    return sabun != null && !sabun.isEmpty() && Character.isDigit(sabun.charAt(0));
-                }).toList();
-
-        if (filteredMemberList.isEmpty()) {
+        if (memberList.isEmpty()) {
             return new ArrayList<>();
         }
 
@@ -251,7 +214,7 @@ public class SalaryQueryService {
 
         List<PayrollDeductionRes> responseList = new ArrayList<>();
 
-        for (MemberSalaryListRes member : filteredMemberList) {
+        for (MemberSalaryListRes member : memberList) {
             PayrollDeductionRes payrollDeductionRes = PayrollDeductionRes.builder()
                     .memberId(member.getMemberId())
                     .memberName(member.getMemberName())
@@ -295,24 +258,7 @@ public class SalaryQueryService {
     // 항목별 조회
     @Transactional(readOnly = true)
     @CheckPermission(resource = "salary", action = "READ", scope = "COMPANY")
-    public PayrollItemSummaryRes getPayrollItemSummary(UUID memberPositionId, UUID companyId, YearMonth yearMonth) {
-
-        // 권한 조회
-//        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
-//                "salary", "READ", "COMPANY");
-//
-//        if (Boolean.FALSE.equals(hasPermission.getData())) {
-//            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
-//        }
-
-        // 회원 정보 조회
-        ApiResponse<List<MemberSalaryListRes>> salaryListResponse = memberClient.getSalaryList(memberPositionId, companyId);
-        List<MemberSalaryListRes> memberList = salaryListResponse.getData();
-        List<MemberSalaryListRes> filteredMemberList = memberList.stream()
-                .filter(member -> {
-                    String sabun = member.getSabun();
-                    return sabun != null && !sabun.isEmpty() && Character.isDigit(sabun.charAt(0));
-                }).toList();
+    public PayrollItemSummaryRes getPayrollItemSummary(@AuthUser UUID memberPositionId, UUID companyId, YearMonth yearMonth) {
 
         // 급여 지급일 조회
         LocalDate paymentDate = salaryPolicyService.getPaymentDate(companyId, yearMonth);
@@ -354,15 +300,7 @@ public class SalaryQueryService {
     // 항목별 조회 모달
     @Transactional(readOnly = true)
     @CheckPermission(resource = "salary", action = "READ", scope = "COMPANY")
-    public List<PayrollItemDetailRes> getPayrollItemDetails(UUID memberPositionId, UUID companyId, String name, YearMonth yearMonth) {
-
-        // 권한 조회
-//        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
-//                "salary", "READ", "COMPANY");
-//
-//        if (Boolean.FALSE.equals(hasPermission.getData())) {
-//            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
-//        }
+    public List<PayrollItemDetailRes> getPayrollItemDetails(@AuthUser UUID memberPositionId, UUID companyId, String name, YearMonth yearMonth) {
 
         // 급여 지급일 조회
         LocalDate paymentDate = salaryPolicyService.getPaymentDate(companyId, yearMonth);
@@ -370,13 +308,8 @@ public class SalaryQueryService {
         ApiResponse<List<MemberSalaryListRes>> salaryListResponse =
                 memberClient.getSalaryList(memberPositionId, companyId);
         List<MemberSalaryListRes> memberList = salaryListResponse.getData();
-        List<MemberSalaryListRes> filteredMemberList = memberList.stream()
-                .filter(member -> {
-                    String sabun = member.getSabun();
-                    return sabun != null && !sabun.isEmpty() && Character.isDigit(sabun.charAt(0));
-                }).toList();
 
-        Map<UUID, MemberSalaryListRes> memberMap = filteredMemberList.stream()
+        Map<UUID, MemberSalaryListRes> memberMap = memberList.stream()
                 .collect(Collectors.toMap(MemberSalaryListRes::getMemberId, Function.identity()));
 
         List<UUID> memberIdList = new ArrayList<>(memberMap.keySet());
@@ -413,15 +346,7 @@ public class SalaryQueryService {
 
     // 급여 명세서 출력
     @CheckPermission(resource = "salary", action = "READ", scope = "COMPANY")
-    public List<PayrollStatementRes> getSalaryStatement(UUID memberPositionId, UUID companyId, YearMonth yearMonth) {
-
-        // 권한 조회
-//        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
-//                "salary", "READ", "COMPANY");
-//
-//        if (Boolean.FALSE.equals(hasPermission.getData())) {
-//            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
-//        }
+    public List<PayrollStatementRes> getSalaryStatement(@AuthUser UUID memberPositionId, UUID companyId, YearMonth yearMonth) {
 
         // 급여 지급일 조회
         LocalDate paymentDate = salaryPolicyService.getPaymentDate(companyId, yearMonth);
@@ -429,13 +354,8 @@ public class SalaryQueryService {
         ApiResponse<List<MemberSalaryListRes>> salaryListResponse =
                 memberClient.getSalaryList(memberPositionId, companyId);
         List<MemberSalaryListRes> memberList = salaryListResponse.getData();
-        List<MemberSalaryListRes> filteredMemberList = memberList.stream()
-                .filter(member -> {
-                    String sabun = member.getSabun();
-                    return sabun != null && !sabun.isEmpty() && Character.isDigit(sabun.charAt(0));
-                }).toList();
 
-        Map<UUID, MemberSalaryListRes> memberMap = filteredMemberList.stream()
+        Map<UUID, MemberSalaryListRes> memberMap = memberList.stream()
                 .collect(Collectors.toMap(MemberSalaryListRes::getMemberId, Function.identity()));
         List<UUID> memberIdList = new ArrayList<>(memberMap.keySet());
 
@@ -466,8 +386,7 @@ public class SalaryQueryService {
 
 
         List<PayrollStatementRes> responseList = new ArrayList<>();
-        for (MemberSalaryListRes member : filteredMemberList) {
-
+        for (MemberSalaryListRes member : memberList) {
             Salary salary = salaryByMemberId.get(member.getMemberId());
 
             if (salary == null) {
