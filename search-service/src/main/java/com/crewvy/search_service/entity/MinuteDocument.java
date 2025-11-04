@@ -8,7 +8,9 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.*;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Getter
 @Builder
@@ -20,17 +22,20 @@ import java.util.List;
 public class MinuteDocument {
     @Id
     @Field(type = FieldType.Keyword)
-    private String minuteId;
+    private String videoConferenceId;
 
     @Field(type = FieldType.Text)
-    private String title;
+    private String name;
 
     @Field(type = FieldType.Text)
     private String summary;
 
     @Field(type = FieldType.Keyword)
-    private List<String> memberId;
+    private String hostId;
+
+    @Field(type = FieldType.Keyword)
+    private Set<String> inviteeIdSet = new HashSet<>();
 
     @Field(type = FieldType.Date)
-    private LocalDateTime createDateTime;
+    private LocalDateTime createAt;
 }

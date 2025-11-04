@@ -3,20 +3,22 @@ package com.crewvy.workforce_service.approval.service;
 import com.crewvy.common.S3.S3Uploader;
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.dto.NotificationMessage;
+import com.crewvy.common.event.ApprovalCompletedEvent;
 import com.crewvy.common.exception.BusinessException;
+import com.crewvy.common.exception.SerializationException;
 import com.crewvy.workforce_service.approval.constant.ApprovalState;
 import com.crewvy.workforce_service.approval.constant.LineStatus;
 import com.crewvy.workforce_service.approval.constant.RequirementType;
 import com.crewvy.workforce_service.approval.dto.request.*;
 import com.crewvy.workforce_service.approval.dto.response.*;
 import com.crewvy.workforce_service.approval.entity.*;
-import com.crewvy.workforce_service.approval.event.ApprovalCompletedEvent;
 import com.crewvy.workforce_service.approval.repository.*;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberDto;
 import com.crewvy.workforce_service.feignClient.dto.response.OrganizationNodeDto;
 import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -45,10 +47,10 @@ public class ApprovalService {
     private final ApprovalDocumentRepository approvalDocumentRepository;
     private final ApprovalLineRepository approvalLineRepository;
     private final ApprovalReplyRepository approvalReplyRepository;
+    private final ApprovalSearchOutboxEventRepository approvalSearchOutboxEventRepository;
     private final S3Uploader s3Uploader;
     private final MemberClient memberClient;
     private final ApplicationEventPublisher eventPublisher;
-    private final SearchOutboxEventRepository searchOutboxEventRepository;
     private final ObjectMapper objectMapper;
 
 //    문서 양식 생성
@@ -274,6 +276,7 @@ public class ApprovalService {
                         memberPositionIdList,
                         approval.getCreatedAt()
                 );
+                log.info("이거 뭐라고 뜨니:" + requesterPositionInfo.get(0).getMemberId().toString());
                 eventPublisher.publishEvent(approvalEvent);
             }
         }
@@ -409,6 +412,7 @@ public class ApprovalService {
                         approverIdList,
                         approval.getCreatedAt()
                 );
+                log.info("이건 뭐라고 뜨니:" + requesterPositionInfo.get(0).getMemberId().toString());
                 eventPublisher.publishEvent(approvalEvent);
             }
 
@@ -982,9 +986,9 @@ public class ApprovalService {
                     .aggregateId(event.getApprovalId())
                     .payload(payload)
                     .build();
-            searchOutboxEventRepository.save(outboxEvent);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            throw new RuntimeException("Failed to serialize approval event", e);
+            approvalSearchOutboxEventRepository.save(outboxEvent);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("데이터 직렬화 실패");
         }
     }
 }

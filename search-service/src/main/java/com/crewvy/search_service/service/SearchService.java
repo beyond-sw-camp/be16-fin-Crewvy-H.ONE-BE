@@ -1,10 +1,6 @@
 package com.crewvy.search_service.service;
 
-import com.crewvy.common.event.ApprovalCompletedEvent;
-import com.crewvy.common.event.MemberDeletedEvent;
-import com.crewvy.common.event.MemberSavedEvent;
-import com.crewvy.common.event.OrganizationSavedEvent;
-import com.crewvy.search_service.dto.event.MinuteSavedEvent;
+import com.crewvy.common.event.*;
 import com.crewvy.search_service.dto.response.ApprovalSearchRes;
 import com.crewvy.search_service.dto.response.EmployeeSearchRes;
 import com.crewvy.search_service.dto.response.SearchResult;
@@ -14,7 +10,7 @@ import com.crewvy.search_service.entity.MinuteDocument;
 import com.crewvy.search_service.entity.OrganizationDocument;
 import com.crewvy.search_service.repository.ApprovalSearchRepository;
 import com.crewvy.search_service.repository.MemberSearchRepository;
-import com.crewvy.search_service.repository.MinuteRepository;
+import com.crewvy.search_service.repository.MinuteSearchRepository;
 import com.crewvy.search_service.repository.OrganizationSearchRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -43,7 +39,7 @@ public class SearchService {
     private final MemberSearchRepository memberSearchRepository;
     private final OrganizationSearchRepository organizationSearchRepository;
     private final ApprovalSearchRepository approvalSearchRepository;
-    private final MinuteRepository minuteRepository;
+    private final MinuteSearchRepository minuteSearchRepository;
     private final ElasticsearchOperations elasticsearchOperations;
 
     // 직원 추가
@@ -137,10 +133,6 @@ public class SearchService {
     // 결재 문서 저장
     @KafkaListener(topics = "approval-completed-events", groupId = "search-service-group")
     public void listenApprovalCompletedEvent(ApprovalCompletedEvent event) {
-        if (event.getApprovalId() == null) {
-            log.error("Received ApprovalCompletedEvent with null approvalId. Discarding event: {}", event);
-            return;
-        }
         ApprovalDocument approvalDocument = ApprovalDocument.builder()
                 .approvalId(event.getApprovalId().toString())
                 .memberId(event.getMemberId().toString())
@@ -157,13 +149,14 @@ public class SearchService {
     @KafkaListener(topics = "minute-saved-events", groupId = "search-service-group")
     public void listenMinuteSavedEvent(MinuteSavedEvent event) {
         MinuteDocument minuteDocument = MinuteDocument.builder()
-                .minuteId(event.getMinuteId())
-                .title(event.getTitle())
+                .videoConferenceId(String.valueOf(event.getVideoConferenceId()))
+                .name(event.getName())
                 .summary(event.getSummary())
-                .memberId(event.getMemberId())
-                .createDateTime(event.getCreateDateTime())
+                .hostId(event.getHostId())
+                .inviteeIdSet(event.getInviteeIdSet())
+                .createAt(event.getCreatedAt())
                 .build();
-        minuteRepository.save(minuteDocument);
+        minuteSearchRepository.save(minuteDocument);
     }
 
     // 직원 검색
