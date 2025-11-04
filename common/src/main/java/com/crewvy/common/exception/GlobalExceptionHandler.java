@@ -204,8 +204,16 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(SerializationException.class)
-    protected ResponseEntity<ApiResponse<?>> handleInvalidPolicyRuleException(SerializationException e) {
+    protected ResponseEntity<ApiResponse<?>> handleSerializationException(SerializationException e) {
         log.warn("SerializationException: {}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
+    @ExceptionHandler(AESUtilException.class)
+    protected ResponseEntity<ApiResponse<?>> handleAESUtilException(AESUtilException e) {
+        log.warn("AESUtilException: {}", e.getMessage());
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(e.getMessage()));

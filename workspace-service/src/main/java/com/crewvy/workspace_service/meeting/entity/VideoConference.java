@@ -103,4 +103,8 @@ public class VideoConference extends BaseEntity {
     public void updateScheduledStartTime(LocalDateTime scheduledStartTime) {
         this.scheduledStartTime = scheduledStartTime;
     }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
 }
