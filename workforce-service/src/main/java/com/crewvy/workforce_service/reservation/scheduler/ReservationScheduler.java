@@ -23,7 +23,7 @@ public class ReservationScheduler {
     private final ReservationRepository reservationRepository;
 
     @Transactional
-    @Scheduled(cron = "0 0 9 * * *")
+    @Scheduled(cron = "0 0 1 * * *")
     public void notificationForReservation() {
         // 예약 당일
         LocalDate today = LocalDate.now();
