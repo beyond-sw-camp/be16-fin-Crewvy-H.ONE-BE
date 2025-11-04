@@ -116,15 +116,17 @@ public class VideoConferenceService {
 
         Map<UUID, String> memberName = findMemberName(videoConferencePage.map(VideoConference::getHostId).stream().distinct().toList());
 
-        if (videoConferenceStatus == VideoConferenceStatus.IN_PROGRESS)
+        if (videoConferenceStatus == VideoConferenceStatus.IN_PROGRESS) {
             return videoConferencePage.map(vc -> {
+                int participantsCount = 0;
                 try {
-                    int participantsCount = roomServiceClient.listParticipants(String.valueOf(vc.getId())).execute().body().size();
-                    return VideoConferenceListRes.fromEntityWithParticipantsCnt(vc, memberName.getOrDefault(vc.getHostId(), "알 수 없는 호스트"), participantsCount);
-                } catch (IOException e) {
-                    return VideoConferenceListRes.fromEntityWithParticipantsCnt(vc, memberName.getOrDefault(vc.getHostId(), "알 수 없는 호스트"), 0);
+                    participantsCount = roomServiceClient.listParticipants(String.valueOf(vc.getId())).execute().body().size();
+                } catch (Exception e) {
+                    log.warn("Error getting participants count for video conference {}", vc.getId(), e);
                 }
+                return VideoConferenceListRes.fromEntityWithParticipantsCnt(vc, memberName.getOrDefault(vc.getHostId(), "알 수 없는 호스트"), participantsCount);
             });
+        }
 
 
         return videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatusFetchInvitees(memberId, videoConferenceStatus, pageable)
