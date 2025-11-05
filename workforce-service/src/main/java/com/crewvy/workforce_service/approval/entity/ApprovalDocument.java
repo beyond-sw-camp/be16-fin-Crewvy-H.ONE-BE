@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.approval.entity;
 
 import com.crewvy.common.converter.JsonToMapConverter;
 import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.common.entity.Bool;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -32,5 +33,8 @@ public class ApprovalDocument extends BaseEntity {
     @Builder.Default
     @OneToMany(mappedBy = "approvalDocument", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ApprovalPolicy> policyList = new ArrayList<>();
+
+    @Builder.Default
+    private Bool isDirectCreatable = Bool.TRUE;
 
 }

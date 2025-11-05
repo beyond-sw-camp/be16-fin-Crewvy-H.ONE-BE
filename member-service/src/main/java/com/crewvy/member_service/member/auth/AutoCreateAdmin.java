@@ -59,7 +59,7 @@ public class AutoCreateAdmin implements ApplicationRunner {
 
         List<Permission> permissionList = new ArrayList<>();
 
-        List<String> sysResourceList = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "attendance-policy", "salary", "system");
+        List<String> sysResourceList = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "attendance-policy", "salary", "approval", "system");
         for (String resource : sysResourceList) {
             for (Action action : Action.values()) {
                 Permission sysPermission = Permission.builder()
@@ -72,7 +72,7 @@ public class AutoCreateAdmin implements ApplicationRunner {
             }
         }
 
-        List<String> adminResourceList = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "attendance-policy", "salary");
+        List<String> adminResourceList = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "attendance-policy", "salary", "approval");
         for (String resource : adminResourceList) {
             for (Action action : Action.values()) {
                 Permission adminPermission = Permission.builder()
@@ -112,7 +112,7 @@ public class AutoCreateAdmin implements ApplicationRunner {
             }
         }
 
-        List<String> noneResourceList = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "attendance-policy", "salary");
+        List<String> noneResourceList = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "attendance-policy", "salary", "approval");
         for (String resource : noneResourceList) {
             for (Action action : Action.values()) {
                 Permission nonePermission = Permission.builder()
@@ -164,7 +164,7 @@ public class AutoCreateAdmin implements ApplicationRunner {
         roleRepository.save(systemAdminRole);
 
         List<Permission> systemAdminPermissions = new ArrayList<>();
-        List<String> systemResources = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "attendance-policy", "salary", "system");
+        List<String> systemResources = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "attendance-policy", "salary", "approval", "system");
         List<Action> systemActions = Arrays.asList(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE);
 
         for (String resource : systemResources) {
