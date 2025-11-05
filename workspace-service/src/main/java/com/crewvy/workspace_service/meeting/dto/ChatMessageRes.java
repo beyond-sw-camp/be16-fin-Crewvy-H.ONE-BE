@@ -17,12 +17,12 @@ public class ChatMessageRes {
     private String content;
     private LocalDateTime createdAt;
 
-    public static ChatMessageRes fromEntity(Message message) {
+    public static ChatMessageRes fromEntity(Message message, String name) {
         return ChatMessageRes.builder()
                 .id(message.getId())
                 .senderId(message.getSenderId())
                 .content(message.getContent())
-                .name(message.getId().toString()) // 임시로
+                .name(name)
                 .createdAt(message.getCreatedAt())
                 .build();
     }
