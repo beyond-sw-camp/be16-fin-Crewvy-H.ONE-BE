@@ -385,6 +385,7 @@ public class VideoConferenceService {
         return LiveKitSessionRes.builder()
                 .videoConferenceId(videoConferenceId)
                 .token(token)
+                .title(videoConference.getName())
                 .build();
     }
 

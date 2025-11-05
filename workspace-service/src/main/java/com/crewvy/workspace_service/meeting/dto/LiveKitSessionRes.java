@@ -10,5 +10,6 @@ import java.util.UUID;
 @AllArgsConstructor(access = AccessLevel.PROTECTED)
 public class LiveKitSessionRes {
     private UUID videoConferenceId;
+    private String title;
     private String token;
 }
