@@ -187,13 +187,17 @@ public class SearchService {
 
     // 결재 문서 페이징 검색
     public Page<ApprovalDocument> searchApprovals(String query, String memberPositionId, Pageable pageable) {
-        Query searchQuery = new NativeQueryBuilder()
-                .withQuery(q -> q.bool(b -> b
-                        .must(m -> m.match(ma -> ma.field("title").query(query)))
-                        .filter(f -> f.term(t -> t.field("approverIdList.keyword").value(memberPositionId)))
-                ))
-                .withPageable(pageable)
-                .build();
+        NativeQueryBuilder queryBuilder = new NativeQueryBuilder();
+        queryBuilder.withQuery(q -> {
+            co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery.Builder boolQueryBuilder = new co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery.Builder();
+            if (query != null && !query.trim().isEmpty()) {
+                boolQueryBuilder.must(m -> m.multiMatch(mm -> mm.query(query).fields("title", "titleName", "memberName")));
+            }
+            boolQueryBuilder.filter(f -> f.term(t -> t.field("approverIdList.keyword").value(memberPositionId)));
+            return q.bool(boolQueryBuilder.build());
+        });
+        queryBuilder.withPageable(pageable);
+        Query searchQuery = queryBuilder.build();
         SearchHits<ApprovalDocument> searchHits = elasticsearchOperations.search(searchQuery, ApprovalDocument.class);
         return SearchHitSupport.searchPageFor(searchHits, pageable).map(SearchHit::getContent);
     }
