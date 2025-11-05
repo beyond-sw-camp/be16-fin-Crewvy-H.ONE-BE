@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-import com.crewvy.common.exception.*;
 import com.crewvy.common.aes.AESUtil;
 import com.crewvy.workspace_service.meeting.dto.*;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,8 +17,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.crewvy.common.entity.Bool;
+import com.crewvy.common.exception.*;
+import com.crewvy.workspace_service.feignClient.MemberFeignClient;
+import com.crewvy.workspace_service.feignClient.dto.IdListReq;
+import com.crewvy.workspace_service.feignClient.dto.MemberNameListRes;
 import com.crewvy.workspace_service.meeting.constant.MinuteStatus;
 import com.crewvy.workspace_service.meeting.constant.VideoConferenceStatus;
+import com.crewvy.workspace_service.meeting.dto.*;
 import com.crewvy.workspace_service.meeting.dto.ai.TranscribeRes;
 import com.crewvy.workspace_service.meeting.entity.Message;
 import com.crewvy.workspace_service.meeting.entity.Minute;
@@ -30,21 +34,27 @@ import com.crewvy.workspace_service.meeting.repository.MinuteRepository;
 import com.crewvy.workspace_service.meeting.repository.VideoConferenceRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
-import io.livekit.server.AccessToken;
-import io.livekit.server.EgressServiceClient;
-import io.livekit.server.RoomJoin;
-import io.livekit.server.RoomName;
-import io.livekit.server.RoomServiceClient;
+import io.livekit.server.*;
 import jakarta.persistence.EntityNotFoundException;
 import livekit.LivekitEgress;
 import livekit.LivekitModels.DataPacket.Kind;
 import livekit.LivekitModels.ParticipantInfo;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 import retrofit2.internal.EverythingIsNonNull;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -56,6 +66,7 @@ public class VideoConferenceService {
     private final RoomServiceClient roomServiceClient;
     private final EgressServiceClient egressServiceClient;
     private final LivekitEgress.S3Upload s3Upload;
+    private final MemberFeignClient memberFeignClient;
 
     private final String LIVEKIT_API_KEY;
     private final String LIVEKIT_API_SECRET;
@@ -71,7 +82,9 @@ public class VideoConferenceService {
                                   LivekitEgress.S3Upload s3Upload,
                                   @Value("${livekit.apiKey}") String LIVEKIT_API_KEY,
                                   @Value("${livekit.apiSecret}") String LIVEKIT_API_SECRET,
-                                  MinuteRepository minuteRepository, AESUtil aesUtil) {
+                                  MinuteRepository minuteRepository, 
+                                  AESUtil aesUtil,
+                                  MemberFeignClient memberFeignClient) {
         this.videoConferenceRepository = videoConferenceRepository;
         this.objectMapper = objectMapper;
         this.messageRepository = messageRepository;
@@ -82,6 +95,7 @@ public class VideoConferenceService {
         this.LIVEKIT_API_SECRET = LIVEKIT_API_SECRET;
         this.minuteRepository = minuteRepository;
         this.aesUtil = aesUtil;
+        this.memberFeignClient = memberFeignClient;
     }
 
     public LiveKitSessionRes createVideoConference(UUID memberId, String memberName, VideoConferenceCreateReq videoConferenceCreateReq) {
@@ -116,8 +130,26 @@ public class VideoConferenceService {
     }
 
     public Page<VideoConferenceListRes> findAllMyVideoConference(UUID memberId, VideoConferenceStatus videoConferenceStatus, Pageable pageable) {
+        Page<VideoConference> videoConferencePage = videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatusFetchInvitees(memberId, videoConferenceStatus, pageable);
+
+
+        Map<UUID, String> memberName = findMemberName(videoConferencePage.map(VideoConference::getHostId).stream().distinct().toList());
+
+        if (videoConferenceStatus == VideoConferenceStatus.IN_PROGRESS) {
+            return videoConferencePage.map(vc -> {
+                int participantsCount = 0;
+                try {
+                    participantsCount = roomServiceClient.listParticipants(String.valueOf(vc.getId())).execute().body().size();
+                } catch (Exception e) {
+                    log.warn("Error getting participants count for video conference {}", vc.getId(), e);
+                }
+                return VideoConferenceListRes.fromEntityWithParticipantsCnt(vc, memberName.getOrDefault(vc.getHostId(), "알 수 없는 호스트"), participantsCount);
+            });
+        }
+
+
         return videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatusFetchInvitees(memberId, videoConferenceStatus, pageable)
-                .map(VideoConferenceListRes::fromEntity);
+                .map(vc -> VideoConferenceListRes.fromEntity(vc, memberName.getOrDefault(vc.getHostId(), "알 수 없는 호스트")));
     }
 
     public LiveKitSessionRes joinVideoConference(UUID memberId, String memberName, UUID videoConferenceId) {
@@ -235,8 +267,14 @@ public class VideoConferenceService {
         if (!res.isSuccessful() || ParticipantInfo.State.DISCONNECTED == Objects.requireNonNull(res.body()).getState())
             throw new EntityNotFoundException("참여 중인 화상회의가 아닙니다.");
 
-        return messageRepository.findByVideoConference(videoConference, pageable)
-                .map(ChatMessageRes::fromEntity);
+//        return messageRepository.findByVideoConference(videoConference, pageable)
+//                .map(ChatMessageRes::fromEntity);
+
+        Page<Message> messagePage = messageRepository.findByVideoConference(videoConference, pageable);
+
+        Map<UUID, String> memberNameMap = findMemberName(messagePage.map(Message::getSenderId).stream().distinct().toList());
+
+        return messagePage.map((message) -> ChatMessageRes.fromEntity(message, memberNameMap.getOrDefault(message.getSenderId(), "알 수 없는 사용자")));
     }
 
     public VideoConferenceUpdateRes updateVideoConference(UUID memberId, UUID videoConferenceId, VideoConferenceUpdateReq videoConferenceUpdateReq) {
@@ -417,6 +455,23 @@ public class VideoConferenceService {
         log.info("Create token for video conference " + participantName);
         return token.toJwt();
     }
+
+    private Map<UUID, String> findMemberName(List<UUID> idList) {
+        if (idList.isEmpty()) return Collections.emptyMap();
+
+        IdListReq idListReq = new IdListReq();
+        idListReq.setUuidList(idList);
+
+        // member-service 에서 UUID를 하나 보내야하도록 구현되어있어서
+        List<MemberNameListRes> memberNameList = memberFeignClient.getNameList(UUID.randomUUID(), idListReq).getData();
+
+        return memberNameList.stream()
+                .collect(Collectors.toMap(
+                        MemberNameListRes::getMemberId,
+                        MemberNameListRes::getName
+                ));
+    }
+
 
     @KafkaListener(
             containerFactory = "meetingKafkaListenerContainerFactory",
