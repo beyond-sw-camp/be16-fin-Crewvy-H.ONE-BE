@@ -45,6 +45,15 @@ public class ApprovalController {
         );
     }
 
+    @GetMapping("/get-document-direct-list")
+    public ResponseEntity<?> getDocumentDirectList() {
+        List<DocumentResponseDto> documents = approvalService.getDocumentDirectList();
+        return new ResponseEntity<>(
+                ApiResponse.success(documents, "양식 리스트 조회"),
+                HttpStatus.OK
+        );
+    }
+
     @PostMapping("/create-approval")
     public ResponseEntity<?> createApproval(@RequestBody CreateApprovalDto dto,
                                             @RequestHeader("X-User-MemberPositionId") UUID memberPositionId

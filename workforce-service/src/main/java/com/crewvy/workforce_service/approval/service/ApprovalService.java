@@ -4,6 +4,7 @@ import com.crewvy.common.S3.S3Uploader;
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.dto.NotificationMessage;
 import com.crewvy.common.dto.ScheduleDto;
+import com.crewvy.common.entity.Bool;
 import com.crewvy.common.exception.BusinessException;
 import com.crewvy.workforce_service.approval.constant.ApprovalState;
 import com.crewvy.workforce_service.approval.constant.LineStatus;
@@ -203,10 +204,25 @@ public class ApprovalService {
         return null;
     }
 
-//    문서 양식 리스트 조회
+//    문서 양식 리스트 전체 조회
     @Transactional(readOnly = true)
     public List<DocumentResponseDto> getDocumentList() {
         List<ApprovalDocument> documentList = approvalDocumentRepository.findAll();
+        List<DocumentResponseDto> dtoList = new ArrayList<>();
+        for(ApprovalDocument a : documentList) {
+            DocumentResponseDto dto = DocumentResponseDto.builder()
+                    .documentId(a.getId())
+                    .documentName(a.getDocumentName())
+                    .build();
+            dtoList.add(dto);
+        }
+        return dtoList;
+    }
+
+//    문서 양식 리스트 조회
+    @Transactional(readOnly = true)
+    public List<DocumentResponseDto> getDocumentDirectList() {
+        List<ApprovalDocument> documentList = approvalDocumentRepository.findByIsDirectCreatable(Bool.TRUE);
         List<DocumentResponseDto> dtoList = new ArrayList<>();
         for(ApprovalDocument a : documentList) {
             DocumentResponseDto dto = DocumentResponseDto.builder()
