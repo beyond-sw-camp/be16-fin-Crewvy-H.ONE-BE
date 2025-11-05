@@ -1,5 +1,21 @@
 package com.crewvy.workspace_service.meeting.service;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
+
+import com.crewvy.common.aes.AESUtil;
+import com.crewvy.workspace_service.meeting.dto.*;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.crewvy.common.entity.Bool;
 import com.crewvy.common.exception.*;
 import com.crewvy.workspace_service.feignClient.MemberFeignClient;
@@ -55,6 +71,7 @@ public class VideoConferenceService {
     private final String LIVEKIT_API_KEY;
     private final String LIVEKIT_API_SECRET;
     private final MinuteRepository minuteRepository;
+    private final AESUtil aesUtil;
 
     public VideoConferenceService(VideoConferenceRepository videoConferenceRepository,
                                   LiveKitWebhookService liveKitWebhookService,
@@ -65,7 +82,8 @@ public class VideoConferenceService {
                                   LivekitEgress.S3Upload s3Upload,
                                   @Value("${livekit.apiKey}") String LIVEKIT_API_KEY,
                                   @Value("${livekit.apiSecret}") String LIVEKIT_API_SECRET,
-                                  MinuteRepository minuteRepository,
+                                  MinuteRepository minuteRepository, 
+                                  AESUtil aesUtil,
                                   MemberFeignClient memberFeignClient) {
         this.videoConferenceRepository = videoConferenceRepository;
         this.objectMapper = objectMapper;
@@ -76,6 +94,7 @@ public class VideoConferenceService {
         this.LIVEKIT_API_KEY = LIVEKIT_API_KEY;
         this.LIVEKIT_API_SECRET = LIVEKIT_API_SECRET;
         this.minuteRepository = minuteRepository;
+        this.aesUtil = aesUtil;
         this.memberFeignClient = memberFeignClient;
     }
 
@@ -303,6 +322,70 @@ public class VideoConferenceService {
         if (videoConference.getRecording().getMinute() == null) throw new EntityNotFoundException("회의록이 존재하지 않습니다.");
 
         return MinuteRes.fromEntity(videoConference);
+    }
+
+    public VideoConferencePasswordRes findPassword(UUID memberId, UUID videoConferenceId) {
+        VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId).orElseThrow(() -> new EntityNotFoundException("회의록이 존재하지 않습니다."));
+
+        if (videoConference.getStatus() != VideoConferenceStatus.IN_PROGRESS)
+            throw new VideoConferenceNotInProgressException("진행 중인 화상회의가 아닙니다.");
+
+        if (videoConference.getVideoConferenceInviteeSet().stream().map(VideoConferenceInvitee::getMemberId).noneMatch(memberId::equals))
+            throw new UserNotInvitedException("초대 받지 않은 화상회의입니다.");
+
+        String password = videoConference.getPassword();
+
+        if (password == null) {
+            password = UUID.randomUUID().toString();
+            videoConference.setPassword(password);
+        }
+
+        VideoConferencePasswordRes passwordRes = null;
+        try {
+            passwordRes = VideoConferencePasswordRes.builder()
+                    .id(aesUtil.encrypt(videoConferenceId.toString()))
+                    .password(aesUtil.encrypt(password))
+                    .build();
+        } catch (Exception e) {
+            throw new AESUtilException(e.getMessage());
+        }
+
+        return passwordRes;
+    }
+
+    public LiveKitSessionRes joinVideoConferenceWithPassword(UUID memberId, String memberName, VideoConferenceJoinReq videoConferenceJoinReq) {
+        UUID videoConferenceId = null;
+        String password = null;
+        try {
+            videoConferenceId = UUID.fromString(aesUtil.decrypt(videoConferenceJoinReq.getId()));
+            password = aesUtil.decrypt(videoConferenceJoinReq.getPassword());
+        } catch (Exception e) {
+            throw new AESUtilException("화상회의 참여에 실패했습니다.");
+        }
+
+        VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId).orElseThrow(() -> new IllegalArgumentException("아이디 또는 비밀번호가 유효하지 않습니다."));
+
+        if (videoConference.getPassword() == null || !videoConference.getPassword().equals(password))
+            throw new IllegalArgumentException("아이디 또는 비밀번호가 유효하지 않습니다.");
+
+        if (videoConference.getStatus() != VideoConferenceStatus.IN_PROGRESS)
+            throw new VideoConferenceNotInProgressException("진행 중인 화상회의가 아닙니다.");
+
+        Response<ParticipantInfo> res;
+        try {
+            res = roomServiceClient.getParticipant(videoConferenceId.toString(), memberId.toString()).execute();
+        } catch (IOException e) {
+            throw new LiveKitClientException("화상회의 통신 실패" + e.getMessage());
+        }
+        if (res.isSuccessful()) throw new UserAlreadyJoinedException("이미 참여 중인 화상회의 입니다.");
+
+        videoConference.getVideoConferenceInviteeSet().add(VideoConferenceInvitee.builder().memberId(memberId).videoConference(videoConference).build());
+        String token = createToken(videoConferenceId, memberId, memberName);
+
+        return LiveKitSessionRes.builder()
+                .videoConferenceId(videoConferenceId)
+                .token(token)
+                .build();
     }
 
     private void addInvitee(VideoConference videoConference, List<UUID> inviteeIdList) {
