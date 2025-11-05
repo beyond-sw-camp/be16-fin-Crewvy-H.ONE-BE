@@ -14,21 +14,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface ApprovalRepository extends JpaRepository<Approval, UUID> {
-    List<Approval> findByMemberPositionIdAndState(UUID memberId, ApprovalState state);
-    List<Approval> findByMemberPositionIdAndStateIn(UUID memberId, List<ApprovalState> stateList);
-
-    List<Approval> findByState(ApprovalState approvalState);
-
-    List<Approval> findByStateIn(List<ApprovalState> stateList);
-
-    int countByState(ApprovalState approvalState);
-
+public interface ApprovalRepository extends JpaRepository<Approval, UUID>, ApprovalRepositoryCustom {
     int countByMemberPositionIdAndState(UUID memberId, ApprovalState approvalState);
 
     int countByMemberPositionIdAndStateIn(UUID memberId, List<ApprovalState> stateList);
-
-    int countByStateIn(List<ApprovalState> stateList);
 
     @Query("SELECT a FROM Approval a " +
             "JOIN FETCH a.approvalDocument " +
