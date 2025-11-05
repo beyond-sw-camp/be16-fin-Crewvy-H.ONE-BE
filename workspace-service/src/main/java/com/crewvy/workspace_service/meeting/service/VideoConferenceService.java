@@ -7,8 +7,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 import com.crewvy.common.aes.AESUtil;
+import com.crewvy.common.dto.NotificationMessage;
+import com.crewvy.common.dto.ScheduleDeleteDto;
+import com.crewvy.common.dto.ScheduleDto;
 import com.crewvy.workspace_service.meeting.dto.*;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -58,6 +62,7 @@ public class VideoConferenceService {
     private final EgressServiceClient egressServiceClient;
     private final LivekitEgress.S3Upload s3Upload;
     private final MemberFeignClient memberFeignClient;
+    private final ApplicationEventPublisher eventPublisher;
 
     private final String LIVEKIT_API_KEY;
     private final String LIVEKIT_API_SECRET;
@@ -73,9 +78,9 @@ public class VideoConferenceService {
                                   LivekitEgress.S3Upload s3Upload,
                                   @Value("${livekit.apiKey}") String LIVEKIT_API_KEY,
                                   @Value("${livekit.apiSecret}") String LIVEKIT_API_SECRET,
-                                  MinuteRepository minuteRepository, 
+                                  MinuteRepository minuteRepository,
                                   AESUtil aesUtil,
-                                  MemberFeignClient memberFeignClient) {
+                                  MemberFeignClient memberFeignClient, ApplicationEventPublisher eventPublisher) {
         this.videoConferenceRepository = videoConferenceRepository;
         this.objectMapper = objectMapper;
         this.messageRepository = messageRepository;
@@ -87,6 +92,7 @@ public class VideoConferenceService {
         this.minuteRepository = minuteRepository;
         this.aesUtil = aesUtil;
         this.memberFeignClient = memberFeignClient;
+        this.eventPublisher = eventPublisher;
     }
 
     public LiveKitSessionRes createVideoConference(UUID memberId, String memberName, VideoConferenceCreateReq videoConferenceCreateReq) {
@@ -112,10 +118,36 @@ public class VideoConferenceService {
 
     public VideoConferenceBookRes bookVideoConference(UUID memberId, VideoConferenceCreateReq videoConferenceCreateReq) {
         VideoConference videoConference = videoConferenceCreateReq.toEntity(memberId);
-        videoConferenceRepository.save(videoConference);
+
 
         videoConferenceCreateReq.getInviteeIdList().add(memberId);
         addInvitee(videoConference, videoConferenceCreateReq.getInviteeIdList());
+
+        videoConferenceRepository.save(videoConference);
+
+        for(VideoConferenceInvitee invitee : videoConference.getVideoConferenceInviteeSet()) {
+            ScheduleDto schedule = ScheduleDto.builder()
+                    .memberId(invitee.getMemberId())
+                    .originId(invitee.getId())
+                    .title(videoConference.getName())
+                    .contents(videoConference.getDescription())
+                    .startDate(videoConference.getScheduledStartTime())
+                    .type("CT001")
+                    .build();
+
+            eventPublisher.publishEvent(schedule);
+
+            if(!invitee.getMemberId().equals(memberId)) {
+                NotificationMessage message = NotificationMessage.builder()
+                        .memberId(invitee.getMemberId())
+                        .targetId(videoConference.getId())
+                        .notificationType("NT001")
+                        .content("화상회의 : " + videoConference.getName() + "에 초대되었습니다.")
+                        .build();
+
+                eventPublisher.publishEvent(message);
+            }
+        }
 
         return VideoConferenceBookRes.fromEntity(videoConference);
     }
@@ -313,6 +345,14 @@ public class VideoConferenceService {
 
         // TODO : soft-delete?
         videoConferenceRepository.delete(videoConference);
+
+        for(VideoConferenceInvitee invitee : videoConference.getVideoConferenceInviteeSet()) {
+            ScheduleDeleteDto scheduleDelete = ScheduleDeleteDto.builder()
+                    .originId(invitee.getId())
+                    .build();
+
+            eventPublisher.publishEvent(scheduleDelete);
+        }
     }
 
     public MinuteRes findMinute(UUID videoConferenceId) {
