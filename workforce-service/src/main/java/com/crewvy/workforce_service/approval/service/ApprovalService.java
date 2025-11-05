@@ -12,15 +12,11 @@ import com.crewvy.workforce_service.approval.constant.RequirementType;
 import com.crewvy.workforce_service.approval.dto.request.*;
 import com.crewvy.workforce_service.approval.dto.response.*;
 import com.crewvy.workforce_service.approval.entity.*;
-import com.crewvy.workforce_service.approval.repository.ApprovalDocumentRepository;
-import com.crewvy.workforce_service.approval.repository.ApprovalLineRepository;
-import com.crewvy.workforce_service.approval.repository.ApprovalReplyRepository;
-import com.crewvy.workforce_service.approval.repository.ApprovalRepository;
+import com.crewvy.workforce_service.approval.event.ApprovalCompletedEvent;
+import com.crewvy.workforce_service.approval.repository.*;
 import com.crewvy.workforce_service.attendance.constant.RequestStatus;
 import com.crewvy.workforce_service.attendance.entity.Request;
 import com.crewvy.workforce_service.attendance.repository.RequestRepository;
-import com.crewvy.workforce_service.approval.event.ApprovalCompletedEvent;
-import com.crewvy.workforce_service.approval.repository.*;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberDto;
@@ -349,7 +345,7 @@ public class ApprovalService {
                     ScheduleDto schedule = ScheduleDto.builder()
                             .originId(request.getId())
                             .type("CT003")
-                            .title(request.getPolicy().getPolicyType().getTypeName())
+                            .title(request.getRequestUnit().getCodeName())
                             .contents(request.getReason())
                             .startDate(request.getStartDateTime())
                             .endDate(request.getEndDateTime())
@@ -519,7 +515,7 @@ public class ApprovalService {
                     ScheduleDto schedule = ScheduleDto.builder()
                             .originId(request.get().getId())
                             .type("CT003")
-                            .title(request.get().getPolicy().getPolicyType().getTypeName())
+                            .title(request.get().getRequestUnit().getCodeName())
                             .contents(request.get().getReason())
                             .startDate(request.get().getStartDateTime())
                             .endDate(request.get().getEndDateTime())
