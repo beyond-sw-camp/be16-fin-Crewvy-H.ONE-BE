@@ -193,7 +193,7 @@ public class SearchService {
             if (query != null && !query.trim().isEmpty()) {
                 boolQueryBuilder.must(m -> m.multiMatch(mm -> mm.query(query).fields("title", "titleName", "memberName")));
             }
-            boolQueryBuilder.filter(f -> f.term(t -> t.field("approverIdList.keyword").value(memberPositionId)));
+            boolQueryBuilder.filter(f -> f.term(t -> t.field("approverIdList").value(memberPositionId)));
             return q.bool(boolQueryBuilder.build());
         });
         queryBuilder.withPageable(pageable);

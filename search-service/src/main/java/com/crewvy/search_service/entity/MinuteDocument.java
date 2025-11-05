@@ -34,6 +34,7 @@ public class MinuteDocument {
     private String hostId;
 
     @Field(type = FieldType.Keyword)
+    @Builder.Default
     private Set<String> inviteeIdSet = new HashSet<>();
 
     @Field(type = FieldType.Date)

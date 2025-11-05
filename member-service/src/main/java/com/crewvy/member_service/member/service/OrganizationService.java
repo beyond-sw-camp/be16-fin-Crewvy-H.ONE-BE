@@ -122,13 +122,11 @@ public class OrganizationService {
         Member member = memberRepository.findById(memberId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 계정입니다."));
         Company company = member.getCompany();
 
-        // Fetch all organizations for the company, including their member positions and members
         List<Organization> organizations = organizationRepository.findByCompanyOrderByDisplayOrderAsc(company);
         List<MemberPosition> allMemberPositions = memberPositionRepository.findByCompany(company);
 
-        // Build the tree structure
         return organizations.stream()
-                .filter(o -> o.getParent() == null) // Find root organizations
+                .filter(o -> o.getParent() == null)
                 .map(o -> new OrganizationTreeWithMembersRes(o, allMemberPositions))
                 .collect(Collectors.toList());
     }
