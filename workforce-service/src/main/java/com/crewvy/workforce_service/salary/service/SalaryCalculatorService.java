@@ -52,7 +52,8 @@ public class SalaryCalculatorService {
 
     // 급여 계산 메서드
     @CheckPermission(resource = "salary", action = "CREATE", scope = "COMPANY")
-    public List<SalaryCalculationRes> calculateSalary(@AuthUser UUID memberPositionId, UUID companyId, YearMonth yearMonth) {
+    public List<SalaryCalculationRes> calculateSalary(@AuthUser UUID memberPositionId,
+                                                      UUID companyId, YearMonth yearMonth) {
         // 산정 기간 계산
         SalaryPolicy salaryPolicy = salaryPolicyService.getLatestSalaryHistoryForCalculation(companyId);
         PayPeriodRes period =
@@ -68,7 +69,8 @@ public class SalaryCalculatorService {
         // 회원 정보 조회
         ApiResponse<List<MemberSalaryListRes>> salaryListResponse =
                 memberClient.getSalaryList(memberPositionId, companyId);
-        List<MemberSalaryListRes> salaryList = salaryListResponse != null ? salaryListResponse.getData() : new ArrayList<>();
+        List<MemberSalaryListRes> salaryList
+                = salaryListResponse != null ? salaryListResponse.getData() : new ArrayList<>();
 
         Map<UUID, MemberSalaryListRes> salaryMap = salaryList.stream()
                 .collect(Collectors.toMap(MemberSalaryListRes::getMemberId, s -> s));
@@ -90,7 +92,8 @@ public class SalaryCalculatorService {
             BigInteger baseSalary = BigInteger.valueOf(salaryHistory.getBaseSalary());
 
             // 지급항목 계산
-            List<SalaryDetailRes> allowanceList = allowanceMap.getOrDefault(salaryHistory.getMemberId(), new ArrayList<>());
+            List<SalaryDetailRes> allowanceList
+                    = allowanceMap.getOrDefault(salaryHistory.getMemberId(), new ArrayList<>());
 
             if (baseSalary.compareTo(BigInteger.ZERO) > 0) {
                 allowanceList.add(
@@ -103,7 +106,8 @@ public class SalaryCalculatorService {
             }
 
             // 고정항목 계산
-            List<FixedAllowanceRes> fixedList = fixedAllowanceMap.getOrDefault(salaryHistory.getMemberId(), new ArrayList<>());
+            List<FixedAllowanceRes> fixedList
+                    = fixedAllowanceMap.getOrDefault(salaryHistory.getMemberId(), new ArrayList<>());
 
             // 공제항목 계산
             List<SalaryDetailRes> deductionList = calculateDeductions(
@@ -163,7 +167,8 @@ public class SalaryCalculatorService {
     }
 
     // 지급항목 계산
-    private Map<UUID, List<SalaryDetailRes>> calculateAllowances(UUID companyId, LocalDate startDate, LocalDate endDate) {
+    private Map<UUID, List<SalaryDetailRes>> calculateAllowances(UUID companyId,
+                                                                 LocalDate startDate, LocalDate endDate) {
         Map<UUID, List<SalaryDetailRes>> allowanceMap = new HashMap<>();
 
         List<PayrollItem> payrollItemList =
