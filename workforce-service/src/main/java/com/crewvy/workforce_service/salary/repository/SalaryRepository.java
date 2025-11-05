@@ -3,8 +3,6 @@ package com.crewvy.workforce_service.salary.repository;
 import com.crewvy.workforce_service.salary.constant.SalaryStatus;
 import com.crewvy.workforce_service.salary.entity.Salary;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
@@ -25,5 +23,5 @@ public interface SalaryRepository extends JpaRepository<Salary, UUID>, SalaryRep
 
     List<Salary> findByMemberIdInAndPaymentDate(List<UUID> memberIds, LocalDate paymentDate);
 
-    List<Salary> findAllByStatusAndPaymentDateBefore(SalaryStatus salaryStatus, LocalDate paymentDate);
+    List<Salary> findAllBySalaryStatusAndPaymentDateBefore(SalaryStatus salaryStatus, LocalDate paymentDate);
 }

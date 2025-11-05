@@ -177,7 +177,6 @@ public class SalaryQueryService {
 
         // 공제 항목 조회
         List<PayrollItem> payrollDeductionList = payrollItemService.getDeduction(memberPositionId, companyId);
-        log.error(payrollDeductionList.toString());
         Set<String> deductionNames = payrollDeductionList.stream()
                 .map(PayrollItem::getName)
                 .collect(Collectors.toSet());

@@ -19,12 +19,12 @@ public class SalaryPaymentScheduler {
 
     private final SalaryRepository salaryRepository;
 
-    @Scheduled(cron = "0 0 4 * * ?")
+    @Scheduled(cron = "0 0 10 * * ?")
     @Transactional
     public void simulatePaymentCompletion() {
         LocalDate today = LocalDate.now();
 
-        List<Salary> targets = salaryRepository.findAllByStatusAndPaymentDateBefore(
+        List<Salary> targets = salaryRepository.findAllBySalaryStatusAndPaymentDateBefore(
                 SalaryStatus.PENDING,
                 today
         );
