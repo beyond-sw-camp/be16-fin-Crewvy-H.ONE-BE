@@ -23,7 +23,6 @@ import com.crewvy.workspace_service.feignClient.dto.IdListReq;
 import com.crewvy.workspace_service.feignClient.dto.MemberNameListRes;
 import com.crewvy.workspace_service.meeting.constant.MinuteStatus;
 import com.crewvy.workspace_service.meeting.constant.VideoConferenceStatus;
-import com.crewvy.workspace_service.meeting.dto.*;
 import com.crewvy.workspace_service.meeting.dto.ai.TranscribeRes;
 import com.crewvy.workspace_service.meeting.entity.Message;
 import com.crewvy.workspace_service.meeting.entity.Minute;
@@ -40,19 +39,11 @@ import livekit.LivekitEgress;
 import livekit.LivekitModels.DataPacket.Kind;
 import livekit.LivekitModels.ParticipantInfo;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.support.Acknowledgment;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 import retrofit2.internal.EverythingIsNonNull;
 
-import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -132,8 +123,13 @@ public class VideoConferenceService {
     public Page<VideoConferenceListRes> findAllMyVideoConference(UUID memberId, VideoConferenceStatus videoConferenceStatus, Pageable pageable) {
         Page<VideoConference> videoConferencePage = videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatusFetchInvitees(memberId, videoConferenceStatus, pageable);
 
+        List<UUID> idList = new ArrayList<>(videoConferencePage.map(VideoConference::getHostId).toList());
 
-        Map<UUID, String> memberName = findMemberName(videoConferencePage.map(VideoConference::getHostId).stream().distinct().toList());
+        if (videoConferenceStatus == VideoConferenceStatus.WAITING) {
+            videoConferencePage.forEach(vc -> idList.addAll(vc.getVideoConferenceInviteeSet().stream().map(VideoConferenceInvitee::getMemberId).toList()));
+        }
+
+        Map<UUID, String> memberName = findMemberName(idList.stream().distinct().toList());
 
         if (videoConferenceStatus == VideoConferenceStatus.IN_PROGRESS) {
             return videoConferencePage.map(vc -> {
@@ -148,8 +144,12 @@ public class VideoConferenceService {
         }
 
 
-        return videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatusFetchInvitees(memberId, videoConferenceStatus, pageable)
-                .map(vc -> VideoConferenceListRes.fromEntity(vc, memberName.getOrDefault(vc.getHostId(), "알 수 없는 호스트")));
+        return videoConferencePage
+                .map(vc -> VideoConferenceListRes.fromEntity(
+                        vc,
+                        memberName.getOrDefault(vc.getHostId(), "알 수 없는 호스트"),
+                        vc.getVideoConferenceInviteeSet().stream().map(vci -> VideoConferenceInviteeRes.fromEntity(vci, memberName.getOrDefault(vci.getMemberId(), "알 수 없는 참여자"))).toList())
+                );
     }
 
     public LiveKitSessionRes joinVideoConference(UUID memberId, String memberName, UUID videoConferenceId) {
@@ -385,6 +385,7 @@ public class VideoConferenceService {
         return LiveKitSessionRes.builder()
                 .videoConferenceId(videoConferenceId)
                 .token(token)
+                .title(videoConference.getName())
                 .build();
     }
 
