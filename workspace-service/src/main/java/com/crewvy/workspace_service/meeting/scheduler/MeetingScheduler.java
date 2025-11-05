@@ -33,20 +33,14 @@ public class MeetingScheduler {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime after15Minutes = now.plusMinutes(1);
         videoConferenceRepository.findWithInviteesByScheduledStartTimeBetweenAndStatus(now, after15Minutes, VideoConferenceStatus.WAITING)
-                .forEach(videoConference -> {
-                    log.info("!!!!!!!!vcvcvcvcvc - {}", videoConference.getName());
-                    videoConference.getVideoConferenceInviteeSet().forEach(invitee -> {
-                        log.info("!!!!!sendScheduledMeetingNotifications - {}", invitee.getId());
-                        NotificationMessage message = NotificationMessage.builder()
-                                .memberId(invitee.getMemberId())
-                                .targetId(videoConference.getId())
-                                .notificationType("NT002")
-                                .content("화상회의 : 잠시 후 (" + videoConference.getScheduledStartTime().toString() +") " + videoConference.getName() + "가 예정되어 있습니다.")
-                                        .build();
-                        log.info("!!!!!!!!vcvcvcvcvc - {}", message.getContent());
-
-                        eventPublisher.publishEvent(message);
-                    });
-                });
+                .forEach(videoConference -> videoConference.getVideoConferenceInviteeSet().forEach(invitee -> {
+                    NotificationMessage message = NotificationMessage.builder()
+                            .memberId(invitee.getMemberId())
+                            .targetId(videoConference.getId())
+                            .notificationType("NT002")
+                            .content("화상회의 : 잠시 후 (" + videoConference.getScheduledStartTime().toString() +") " + videoConference.getName() + "가 예정되어 있습니다.")
+                                    .build();
+                    eventPublisher.publishEvent(message);
+                }));
     }
 }
