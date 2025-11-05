@@ -7,8 +7,10 @@ import java.util.Objects;
 import java.util.UUID;
 
 import com.crewvy.common.aes.AESUtil;
+import com.crewvy.common.dto.NotificationMessage;
 import com.crewvy.workspace_service.meeting.dto.*;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -63,6 +65,7 @@ public class VideoConferenceService {
     private final String LIVEKIT_API_SECRET;
     private final MinuteRepository minuteRepository;
     private final AESUtil aesUtil;
+    private final ApplicationEventPublisher eventPublisher;
 
     public VideoConferenceService(VideoConferenceRepository videoConferenceRepository,
                                   LiveKitWebhookService liveKitWebhookService,
@@ -73,9 +76,9 @@ public class VideoConferenceService {
                                   LivekitEgress.S3Upload s3Upload,
                                   @Value("${livekit.apiKey}") String LIVEKIT_API_KEY,
                                   @Value("${livekit.apiSecret}") String LIVEKIT_API_SECRET,
-                                  MinuteRepository minuteRepository, 
+                                  MinuteRepository minuteRepository,
                                   AESUtil aesUtil,
-                                  MemberFeignClient memberFeignClient) {
+                                  MemberFeignClient memberFeignClient, ApplicationEventPublisher eventPublisher) {
         this.videoConferenceRepository = videoConferenceRepository;
         this.objectMapper = objectMapper;
         this.messageRepository = messageRepository;
@@ -87,6 +90,7 @@ public class VideoConferenceService {
         this.minuteRepository = minuteRepository;
         this.aesUtil = aesUtil;
         this.memberFeignClient = memberFeignClient;
+        this.eventPublisher = eventPublisher;
     }
 
     public LiveKitSessionRes createVideoConference(UUID memberId, String memberName, VideoConferenceCreateReq videoConferenceCreateReq) {
@@ -292,8 +296,39 @@ public class VideoConferenceService {
         if (videoConferenceUpdateReq.getIsRecording() != null)
             videoConference.updateIsRecording(Bool.fromBoolean(videoConferenceUpdateReq.getIsRecording()));
 
-        if (videoConferenceUpdateReq.getScheduledStartTime() != null)
+        if (videoConferenceUpdateReq.getScheduledStartTime() != null && !videoConferenceUpdateReq.getScheduledStartTime().isEqual(videoConference.getScheduledStartTime())) {
             videoConference.updateScheduledStartTime(videoConferenceUpdateReq.getScheduledStartTime());
+
+            // 여전히 초대자 목록에 포함되어 있는 유저들에게 회의 예정 시간 변경 알림
+            videoConferenceUpdateReq.getInviteeIdList().forEach(inviteeId -> {
+                if (inviteeId.equals(memberId)) return;
+
+                if (videoConference.getVideoConferenceInviteeSet().stream().anyMatch(invitee -> inviteeId.equals(invitee.getMemberId()))) {
+                    NotificationMessage message = NotificationMessage.builder()
+                            .memberId(inviteeId)
+                            .targetId(videoConference.getId())
+                            .notificationType("NT000")
+                            .content("화상회의 : " + videoConference.getName() + "의 예정 시간이 " + videoConference.getScheduledStartTime() + "으로 변경되었습니다.")
+                            .build();
+
+                    eventPublisher.publishEvent(message);
+                }
+            });
+        }
+
+        // 새로 추가된 유저들에게 초대 알림
+        videoConferenceUpdateReq.getInviteeIdList().stream().distinct().forEach(inviteeId -> {
+            if (videoConference.getVideoConferenceInviteeSet().stream().noneMatch(invitee -> inviteeId.equals(invitee.getMemberId()))) {
+                NotificationMessage message = NotificationMessage.builder()
+                        .memberId(inviteeId)
+                        .targetId(videoConference.getId())
+                        .notificationType("NT001")
+                        .content("화상회의 : " + videoConference.getName() + "에 초대되었습니다.")
+                        .build();
+
+                eventPublisher.publishEvent(message);
+            }
+        });
 
         videoConference.getVideoConferenceInviteeSet().clear();
         videoConferenceUpdateReq.getInviteeIdList().add(memberId);

@@ -8,6 +8,7 @@ import java.util.Arrays;
 @Getter
 @AllArgsConstructor
 public enum NotificationType {
+    VIDEO_CONFERENCE_CHANGED("NT000", "예약된 화상회의 정보 변경"),
     VIDEO_CONFERENCE_INVITE("NT001", "화상회의초대"),
     VIDEO_CONFERENCE_REMIND("NT002", "잠시 후 회의 시작"),
     POST_NEW_COMMENT("NT003", "새로운 댓글"),
