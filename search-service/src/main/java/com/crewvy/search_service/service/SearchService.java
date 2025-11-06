@@ -23,6 +23,7 @@ import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHitSupport;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.query.Query;
+import org.springframework.data.elasticsearch.core.query.UpdateQuery;
 import org.springframework.data.elasticsearch.core.suggest.Completion;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
@@ -130,6 +131,13 @@ public class SearchService {
                 () -> new EntityNotFoundException("존재하지 않는 직원입니다.")));
     }
 
+    // 조직 삭제
+    @KafkaListener(topics = "organization-deleted-events", groupId = "search-service-group")
+    public void listenOrganizationDeletedEvent(OrganizationDeletedEvent event) {
+        organizationSearchRepository.delete(organizationSearchRepository.findById(event.getOrganizationId().toString())
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 조직입니다.")));
+    }
+
     // 결재 문서 저장
     @KafkaListener(topics = "approval-completed-events", groupId = "search-service-group")
     public void listenApprovalCompletedEvent(ApprovalCompletedEvent event) {
@@ -157,6 +165,41 @@ public class SearchService {
                 .createAt(event.getCreatedAt())
                 .build();
         minuteSearchRepository.save(minuteDocument);
+    }
+
+    // 직책 이름 변경
+    @KafkaListener(topics = "position-name-changed-events", groupId = "search-service-group")
+    public void listenPositionNameChangedEvent(PositionNameChangedEvent event) {
+        log.info("Received PositionNameChangedEvent: oldPositionName={}, newPositionName={}, companyId={}",
+                event.getOldPositionName(), event.getNewPositionName(), event.getCompanyId());
+
+        // 1. 쿼리 빌더: oldPositionName을 포함하고 companyId에 해당하는 MemberDocument를 찾습니다.
+        org.springframework.data.elasticsearch.core.query.Query searchQuery = new NativeQueryBuilder()
+                .withQuery(q -> q.bool(b -> b
+                        .must(m -> m.term(t -> t.field("companyId.keyword").value(event.getCompanyId())))
+                        .must(m -> m.term(t -> t.field("titleName.keyword").value(event.getOldPositionName())))
+                )).build();
+
+        // 2. 스크립트: titleName 리스트에서 oldPositionName을 newPositionName으로 교체합니다.
+        //    titleName은 List<String>이므로, 스크립트를 사용하여 리스트 내의 값을 변경해야 합니다.
+        String painlessScript = "if (ctx._source.titleName != null) { " +
+                "  for (int i = 0; i < ctx._source.titleName.size(); i++) { " +
+                "    if (ctx._source.titleName.get(i).equals(\'" + event.getOldPositionName() + "\')) { " +
+                "      ctx._source.titleName.set(i, \'" + event.getNewPositionName() + "\'); " +
+                "    } " +
+                "  } " +
+                "}";
+
+        // 3. UpdateQuery 생성
+        UpdateQuery updateQuery = UpdateQuery.builder(searchQuery)
+                .withScript(painlessScript)
+                .build();
+
+        // 4. UpdateByQuery 실행
+        elasticsearchOperations.updateByQuery(updateQuery, elasticsearchOperations.getIndexCoordinatesFor(MemberDocument.class));
+
+        log.info("Completed updating MemberDocuments for position name change from {} to {} for companyId {}",
+                event.getOldPositionName(), event.getNewPositionName(), event.getCompanyId());
     }
 
     // 직원 검색

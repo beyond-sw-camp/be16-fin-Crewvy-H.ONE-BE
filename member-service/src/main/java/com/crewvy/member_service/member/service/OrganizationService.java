@@ -1,5 +1,7 @@
 package com.crewvy.member_service.member.service;
 
+import com.crewvy.common.event.MemberDeletedEvent;
+import com.crewvy.common.event.OrganizationDeletedEvent;
 import com.crewvy.common.event.OrganizationSavedEvent;
 import com.crewvy.common.exception.PermissionDeniedException;
 import com.crewvy.common.exception.SerializationException;
@@ -201,7 +203,22 @@ public class OrganizationService {
         }
 
         organizationRepository.delete(organization);
-        eventPublisher.publishEvent(new OrganizationChangedEvent(organizationId));
+
+        try {
+            OrganizationDeletedEvent event = OrganizationDeletedEvent.builder()
+                    .organizationId(organization.getId())
+                    .build();
+            String payload = objectMapper.writeValueAsString(event);
+
+            SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
+                    .topic("organization-deleted-events")
+                    .aggregateId(organization.getId())
+                    .payload(payload)
+                    .build();
+            searchOutboxEventRepository.save(searchOutbox);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("데이터 직렬화 실패");
+        }
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)

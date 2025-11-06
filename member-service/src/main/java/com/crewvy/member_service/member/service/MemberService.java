@@ -4,6 +4,7 @@ import com.crewvy.common.entity.Bool;
 import com.crewvy.common.event.MemberDeletedEvent;
 import com.crewvy.common.event.MemberSavedEvent;
 import com.crewvy.common.event.OrganizationSavedEvent;
+import com.crewvy.common.event.PositionNameChangedEvent;
 import com.crewvy.common.exception.PermissionDeniedException;
 import com.crewvy.common.exception.SerializationException;
 import com.crewvy.common.passwordgenerater.PasswordGenerator;
@@ -634,8 +635,28 @@ public class MemberService {
         Title title = titleRepository.findById(titleId).orElseThrow(()
                 -> new IllegalArgumentException("존재하지 않는 직책입니다."));
 
+        String oldTitleName = title.getName(); // 이전 직책명 캡처
         title.updateName(updateTitleReq.getName());
         titleRepository.save(title);
+
+        // 직책 이름 변경 이벤트 발행
+        try {
+            PositionNameChangedEvent event = new PositionNameChangedEvent(
+                    oldTitleName,
+                    updateTitleReq.getName(),
+                    title.getCompany().getId().toString()
+            );
+            String payload = objectMapper.writeValueAsString(event);
+
+            SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
+                    .topic("position-name-changed-events")
+                    .aggregateId(title.getId())
+                    .payload(payload)
+                    .build();
+            searchOutboxEventRepository.save(searchOutbox);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("데이터 직렬화 실패");
+        }
     }
 
     // 직책 순서 변경
