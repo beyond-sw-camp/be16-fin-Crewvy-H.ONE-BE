@@ -12,7 +12,7 @@ on:
 jobs:
   build-and-deploy:
     name: Build, Push, and Deploy
-    runs-on: crewvy-runnerdeploy-x785n-mfgh6
+    runs-on: [self-hosted, linux, ARM64]
 
     steps:
       # 1. 소스 코드 체크아웃
