@@ -4,7 +4,8 @@ name: CI/CD for Workforce Service
 # 워크플로우가 트리거될 이벤트를 정의합니다.
 on:
   push:
-    branches: [ "feature/154-deploy" ] # main 브랜치에 push될 때 실행됩니다.
+    branches:
+      - feature/154-deploy
     paths:
       - 'workforce-service/**' # workforce-service 디렉터리에 변경이 있을 때
       - 'common/**'          # common 디렉터리에 변경이 있을 때
