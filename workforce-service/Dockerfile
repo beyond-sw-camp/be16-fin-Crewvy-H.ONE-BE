@@ -14,7 +14,6 @@ RUN chmod +x ./gradlew
 # Gradle Wrapper를 사용하여 'workforce-service' 하위 프로젝트를 빌드합니다.
 RUN ./gradlew :workforce-service:bootJar -x test
 
-
 # 2단계: 실제 실행을 위한 가벼운 최종 이미지 생성
 # eclipse-temurin의 JRE 이미지를 사용하여 이미지 크기를 최소화합니다.
 FROM eclipse-temurin:17-jre-alpine
