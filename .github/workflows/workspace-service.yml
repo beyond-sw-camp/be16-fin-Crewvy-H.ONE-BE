@@ -52,7 +52,7 @@ jobs:
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_SHA \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
             -f ./workspace-service/Dockerfile \
-            .
+            ./workspace-service
           
           echo "Pushing image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_SHA

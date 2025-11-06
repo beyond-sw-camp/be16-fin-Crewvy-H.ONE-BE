@@ -45,7 +45,7 @@ jobs:
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_SHA \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
             -f ./apigateway/Dockerfile \
-            .
+            ./apigateway
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_SHA
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 

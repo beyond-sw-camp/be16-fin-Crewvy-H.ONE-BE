@@ -13,7 +13,6 @@ import torch
 import json
 from service.ax4_service import generate_summary
 
-
 logger = logging.getLogger(__name__)
 load_dotenv()
 
