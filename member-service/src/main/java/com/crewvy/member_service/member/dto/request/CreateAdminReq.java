@@ -35,6 +35,7 @@ public class CreateAdminReq {
     @NotEmpty(message = "사업자 등록번호를 입력해 주세요.")
     private String businessNumber;
 
+
     public Member toEntity(String encodePassword, Company company){
         return Member.builder()
                 .email(this.email)

@@ -17,6 +17,7 @@ import java.util.UUID;
 public class CalendarController {
     private final CalendarService calendarService;
 
+
     @GetMapping("/find-my-schedule")
     public ResponseEntity<?> findMySchedule(@RequestHeader("X-User-UUID") UUID memberId,
                                             @RequestParam String searchType,
