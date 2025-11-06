@@ -28,7 +28,7 @@ public class PayrollItemController {
     // 급여 항목 목록 조회
     @GetMapping("/list")
     public ResponseEntity<?> getPayrollItems(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                             @RequestParam UUID companyId) {
+                                             @RequestHeader("X-User-CompanyId") UUID companyId) {
         List<PayrollItemRes> response = payrollItemService.getPayrollItemList(memberPositionId, companyId);
         return new ResponseEntity<>(new ApiResponse<>(true, response, "목록 조회 성공"), HttpStatus.OK);
     }
@@ -36,7 +36,7 @@ public class PayrollItemController {
     // 급여 항목 타입별 목록 조회
     @GetMapping("/list/type")
     public ResponseEntity<?> getPayrollItemsByType(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                                   @RequestParam UUID companyId,
+                                                   @RequestHeader("X-User-CompanyId") UUID companyId,
                                                    @RequestParam SalaryType salaryType) {
         List<PayrollItemRes> response = payrollItemService.getPayrollItemsByType(memberPositionId,
                 companyId,
@@ -80,7 +80,7 @@ public class PayrollItemController {
     // 고정 수당 항목 조회
     @GetMapping("/fixed-allowance")
     public ResponseEntity<?> deletePayrollItems(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                                @RequestParam UUID companyId) {
+                                                @RequestHeader("X-User-CompanyId") UUID companyId) {
         List<PayrollItemFixedRes> fixedAllowanceList = payrollItemService.getFixedAllowanceHistory(memberPositionId,
                 companyId);
         return new ResponseEntity<>(
@@ -91,7 +91,7 @@ public class PayrollItemController {
     // 공제 항목 조회
     @GetMapping("/deduction")
     public ResponseEntity<?> getDeduction(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                          @RequestParam UUID companyId) {
+                                          @RequestHeader("X-User-CompanyId") UUID companyId) {
         List<PayrollItem> deductionList = payrollItemService.getDeduction(memberPositionId, companyId);
         List<String> deductionNames = deductionList.stream()
                 .map(PayrollItem::getName)

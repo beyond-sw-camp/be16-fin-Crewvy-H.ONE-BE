@@ -2,6 +2,8 @@ package com.crewvy.workforce_service.salary.service;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.exception.PermissionDeniedException;
+import com.crewvy.workforce_service.aop.AuthUser;
+import com.crewvy.workforce_service.aop.CheckPermission;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberSalaryListRes;
 import com.crewvy.workforce_service.salary.dto.request.SalaryHistoryListReq;
@@ -11,6 +13,7 @@ import com.crewvy.workforce_service.salary.entity.SalaryHistory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -26,24 +29,13 @@ public class SalaryConfigService {
     private final FixedAllowanceService fixedAllowanceService;
     private final MemberClient memberClient;
 
-    public List<SalaryConfigRes> getSalaryConfigRes(UUID memberPositionId, UUID companyId) {
-
-        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
-                "salary", "READ", "COMPANY");
-
-        if (Boolean.FALSE.equals(hasPermission.getData())) {
-            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
-        }
+    @Transactional(readOnly = true)
+    @CheckPermission(resource = "salary", action = "READ", scope = "COMPANY")
+    public List<SalaryConfigRes> getSalaryConfigRes(@AuthUser UUID memberPositionId, UUID companyId) {
 
         ApiResponse<List<MemberSalaryListRes>> salaryListResponse = memberClient.getSalaryList(memberPositionId,
                 companyId);
         List<MemberSalaryListRes> memberList = salaryListResponse != null ? salaryListResponse.getData() : new ArrayList<>();
-
-        List<MemberSalaryListRes> filteredMemberList = memberList.stream()
-                .filter(member -> {
-                    String sabun = member.getSabun();
-                    return sabun != null && !sabun.isEmpty() && Character.isDigit(sabun.charAt(0));
-                }).toList();
 
         // 기본급 조회
         YearMonth yearMonth = YearMonth.of(LocalDate.now().getYear(), LocalDate.now().getMonth());
@@ -62,7 +54,7 @@ public class SalaryConfigService {
         Map<UUID, List<FixedAllowanceRes>> fixedAllowanceResMap = fixedAllowanceResList.stream()
                 .collect(Collectors.groupingBy(FixedAllowanceRes::getMemberId));
 
-        return filteredMemberList.stream().map(memberSalaryListRes -> {
+        return memberList.stream().map(memberSalaryListRes -> {
             UUID memberId = memberSalaryListRes.getMemberId();
 
             SalaryHistory salaryHistory = salaryHistoryMap.get(memberId);

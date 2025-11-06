@@ -33,4 +33,6 @@ public interface PayrollItemRepository extends JpaRepository<PayrollItem, UUID>,
             SalaryType salaryType,
             Bool isTaxable
     );
+
+    boolean existsByName(String name);
 }
