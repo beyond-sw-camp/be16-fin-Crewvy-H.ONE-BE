@@ -169,7 +169,7 @@ public class AttendanceBatchJobConfig {
                 .pageSize(CHUNK_SIZE)
                 .queryString("SELECT r FROM Request r " +
                              "WHERE r.status = :status " +
-                             "AND r.policy IS NOT NULL AND r.policy.policyType.isBalanceDeductible = true " +
+                             "AND r.policy IS NOT NULL AND r.policy.policyTypeCode.isBalanceDeductible = true " +
                              "AND r.endDateTime >= :start AND r.startDateTime <= :end")
                 .parameterValues(Map.of("status", RequestStatus.APPROVED, "start", startOfDay, "end", endOfDay))
                 .build();
@@ -211,10 +211,10 @@ public class AttendanceBatchJobConfig {
 
 
     /**
-     * Request의 PolicyType을 AttendanceStatus로 매핑
+     * Request의 PolicyTypeCode를 AttendanceStatus로 매핑
      */
     private AttendanceStatus mapPolicyTypeToAttendanceStatus(Request request) {
-        return switch (request.getPolicy().getPolicyType().getTypeCode()) {
+        return switch (request.getPolicy().getPolicyTypeCode()) {
             case ANNUAL_LEAVE -> AttendanceStatus.ANNUAL_LEAVE;
             case MATERNITY_LEAVE -> AttendanceStatus.MATERNITY_LEAVE;
             case PATERNITY_LEAVE -> AttendanceStatus.PATERNITY_LEAVE;
@@ -308,17 +308,20 @@ public class AttendanceBatchJobConfig {
 
     /**
      * 연차 자동 발생 Tasklet
-     * 매월 1일 또는 매년 1월 1일에 실행하여 직원들에게 연차 발생
+     * - 스케줄러에서 매월 1일 실행 (cron: "0 0 3 1 * *")
+     * - 1년 미만 근로자: 월별 연차 발생 (Kafka 이벤트 기반 초기 발생 + 배치 안전망)
+     * - 1년 이상 근로자: 매년 1월 1일 연차 발생
+     * - 수동 실행 시에도 날짜 체크 없이 실행 (테스트 목적)
      */
     @Bean
     @Transactional
     public Tasklet annualLeaveAccrualTasklet() {
         return (contribution, chunkContext) -> {
-            LocalDate today = LocalDate.now();
-            log.info(">>> [연차 자동 발생 배치 시작] 실행 날짜: {}", today);
+            LocalDate referenceDate = LocalDate.now();
+            log.info(">>> [연차 자동 발생 배치 시작] 실행 날짜: {}", referenceDate);
 
             try {
-                // 1. 모든 회사 ID 조회 (개선)
+                // 1. 모든 회사 ID 조회
                 List<UUID> companyIds = policyRepository.findDistinctCompanyIds();
 
                 log.info(">>> 연차 발생 대상 회사 수: {}", companyIds.size());
@@ -334,14 +337,12 @@ public class AttendanceBatchJobConfig {
 
                 for (UUID companyId : companyIds) {
                     try {
-                        // 매월 1일: 1년 미만 근로자 월별 연차 발생
-                        if (today.getDayOfMonth() == 1) {
-                            annualLeaveAccrualService.monthlyAccrualForFirstYearEmployees(companyId, today);
-                        }
+                        // 1. 1년 미만 근로자 월별 연차 발생 (매월 1일)
+                        annualLeaveAccrualService.monthlyAccrualForFirstYearEmployees(companyId, referenceDate);
 
-                        // 매년 1월 1일: 전체 직원 연차 발생 (1년 이상 근로자 포함)
-                        if (today.getMonthValue() == 1 && today.getDayOfMonth() == 1) {
-                            annualLeaveAccrualService.accrueAnnualLeaveForCompany(companyId, today);
+                        // 2. 1년 이상 근로자 연차 발생 (1월 1일만)
+                        if (referenceDate.getMonthValue() == 1 && referenceDate.getDayOfMonth() == 1) {
+                            annualLeaveAccrualService.accrueAnnualLeaveForCompany(companyId, referenceDate);
                         }
 
                         successCompanyCount++;
