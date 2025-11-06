@@ -1,23 +1,31 @@
 # Use an official Python runtime as a parent image
-FROM python:3.10
+FROM python:3.10 as builder
 
-# Set the working directory in the container
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential
+ 
 WORKDIR /app
 
-# Copy the dependencies file to the working directory
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
 COPY requirements.txt .
 
-# Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the content of the local src directory to the working directory
+FROM python:3.10
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ffmpeg && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=builder /opt/venv /opt/venv
+
 COPY . .
 
-# Expose the port the app runs on
-ENV WHISPERX_DEVICE=cuda
-ENV WHISPERX_COMPUTE_TYPE=float16
+ENV PATH="/opt/venv/bin:$PATH"
 
-EXPOSE 8000
+EXPOSE 8080
 
-# Specify the command to run on container startup
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
