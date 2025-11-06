@@ -30,13 +30,48 @@ spec:
         - name: DB_HOST
           valueFrom:
             secretKeyRef:
-              name: workspace-service-secrets
+              name: hone-secrets
               key: DB_HOST
+        - name: DB_ID
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: DB_ID
         - name: DB_PW
           valueFrom:
             secretKeyRef:
-              name: workspace-service-secrets
+              name: hone-secrets
               key: DB_PW
+        - name: ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: ACCESS_KEY
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: SECRET_KEY
+        - name: S3_BUCKET
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: S3_BUCKET
+        - name: APIKEY
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: APIKEY
+        - name: LIVE_API_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: LIVE_API_SECRET
+        - name: AES_KEY
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: AES_KEY
 
         readinessProbe:
           httpGet:

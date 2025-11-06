@@ -27,11 +27,11 @@ spec:
             memory: "250Mi"
         env:
         # TODO: apigateway에 필요한 환경 변수들을 여기에 정의해야 합니다.
-        - name: JWT_SECRET_KEY
+        - name: SECRET_KEY_AT
           valueFrom:
             secretKeyRef:
-              name: apigateway-secrets
-              key: JWT_SECRET_KEY
+              name: hone-secrets
+              key: SECRET_KEY_AT
 
         readinessProbe:
           httpGet:

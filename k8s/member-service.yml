@@ -29,13 +29,48 @@ spec:
         - name: DB_HOST
           valueFrom:
             secretKeyRef:
-              name: member-service-secrets
+              name: hone-secrets
               key: DB_HOST
+        - name: DB_ID
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: DB_ID
         - name: DB_PW
           valueFrom:
             secretKeyRef:
-              name: member-service-secrets
+              name: hone-secrets
               key: DB_PW
+        - name: MAIL_PORT
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: MAIL_PORT
+        - name: MAIL_ID
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: MAIL_ID
+        - name: MAIL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: MAIL_PASSWORD
+        - name: BUSINESS_NUMBER
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: BUSINESS_NUMBER
+        - name: SECRET_KEY_AT
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: SECRET_KEY_AT
+        - name: SECRET_KEY_RT
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: SECRET_KEY_RT
 
         readinessProbe:
           httpGet:
