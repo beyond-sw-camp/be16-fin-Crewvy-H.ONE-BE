@@ -40,6 +40,7 @@ spring:
     registration:
       number: ${BUSINESS_NUMBER}
 
+
 jwt:
   expirationAt: 30
   secretKeyAt: ${SECRET_KEY_AT}
