@@ -1,0 +1,62 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+  application:
+    name: workforce-service
+  redis:
+    host: redis-service
+    port: 6379
+  datasource:
+    driver-class-name: org.mariadb.jdbc.Driver
+    url: jdbc:mariadb://${DB_HOST}:3306/h_one?serverTimezone=Asia/Seoul
+    username: ${DB_ID}
+    password: ${DB_PW}
+  jpa:
+    database: mysql
+    database-platform: org.hibernate.dialect.MariaDBDialect
+    generate-ddl: true
+    hibernate:
+      ddl-auto: update
+    show_sql: true
+  kafka:
+    enabled: true
+    bootstrap-servers: kafka-service:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: workforce-member-event-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        spring.json.trusted-packages: "*"
+      listener:
+        missing-topics-fatal: false  # 토픽 없다고 실패하는 거 막아줌
+  batch:
+    job:
+      enabled: false
+    jdbc:
+      initialize-schema: always
+
+cloud:
+  aws:
+    credentials:
+      access-key: ${ACCESS_KEY}
+      secret-key: ${SECRET_KEY}
+    region:
+      static: ap-northeast-2
+    s3:
+      enabled: true
+      bucket: ${S3_BUCKET}
+
+feign:
+  client:
+    member-service:
+      url: http://member-service
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
