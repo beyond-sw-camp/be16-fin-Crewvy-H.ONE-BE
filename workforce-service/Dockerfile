@@ -16,7 +16,7 @@ RUN gradle :workforce-service:bootJar -x test
 
 # 2단계: 실제 실행을 위한 가벼운 최종 이미지 생성
 # JRE(Java Runtime Environment)만 포함된 이미지를 사용하여 이미지 크기를 최소화합니다.
-FROM openjdk:17-jre-slim
+FROM openjdk:17-jre-alpine
 
 # 애플리케이션 작업 디렉터리 설정
 WORKDIR /app

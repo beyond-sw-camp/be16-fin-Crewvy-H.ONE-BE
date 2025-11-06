@@ -27,7 +27,6 @@ public class JwtTokenFilter implements GlobalFilter {
     private String secretKeyAt;
     private Key atKey;
 
-
     @PostConstruct
     public void init() {
         byte[] atByte = java.util.Base64.getDecoder().decode(secretKeyAt);
