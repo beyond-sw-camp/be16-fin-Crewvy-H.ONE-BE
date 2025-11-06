@@ -21,6 +21,6 @@ WORKDIR /app
 
 # 빌드 단계(build stage)에서 생성된 JAR 파일을 최종 이미지로 복사합니다.
 COPY --from=build /app/search-service/build/libs/*.jar app.jar
-
+ 
 # 'prod' 프로파일로 애플리케이션을 실행합니다.
 ENTRYPOINT ["java", "-jar", "app.jar", "--spring.profiles.active=prod"]

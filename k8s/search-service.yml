@@ -23,22 +23,22 @@ spec:
         - name: ELASTIC_HOST
           valueFrom:
             secretKeyRef:
-              name: hone-secret
+              name: hone-secrets
               key: ELASTIC_HOST
         - name: DB_HOST
           valueFrom:
             secretKeyRef:
-              name: hone-secret
+              name: hone-secrets
               key: DB_HOST
         - name: DB_ID
           valueFrom:
             secretKeyRef:
-              name: hone-secret
+              name: hone-secrets
               key: DB_ID
         - name: DB_PW
           valueFrom:
             secretKeyRef:
-              name: hone-secret
+              name: hone-secrets
               key: DB_PW
 
         readinessProbe:
