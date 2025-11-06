@@ -1,4 +1,4 @@
-FROM openjdk:17-jdk-alpine AS stage1
+FROM eclipse-temurin:17-jdk-jammy AS stage1
 
 WORKDIR /app
 
@@ -10,7 +10,7 @@ COPY gradlew .
 RUN chmod +x gradlew
 RUN ./gradlew bootJar
 
-FROM openjdk:17-jdk-alpine
+FROM eclipse-temurin:17-jdk-jammy
 WORKDIR /app
 COPY --from=stage1 /app/build/libs/*.jar app.jar
 
