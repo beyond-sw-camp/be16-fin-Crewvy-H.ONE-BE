@@ -1,18 +1,17 @@
-package com.crewvy.workforce_service.salary.dto.request;
+package com.crewvy.workspace_service.feignClient.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.YearMonth;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class SalaryCalculationReq {
-    private UUID companyId;
-    private YearMonth yearMonth;
+public class IdListReq {
+    private List<UUID> uuidList;
 }

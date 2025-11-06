@@ -1188,7 +1188,7 @@ public class MemberService {
                 .build();
         roleRepository.save(adminRole);
 
-        List<String> resources = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "attendance-policy", "salary");
+        List<String> resources = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "attendance-policy", "salary", "approval");
         List<Action> actions = Arrays.asList(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE);
 
         List<RolePermission> permissions = resources.stream()

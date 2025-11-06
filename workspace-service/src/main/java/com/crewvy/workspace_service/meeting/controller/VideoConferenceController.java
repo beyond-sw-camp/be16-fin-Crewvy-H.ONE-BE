@@ -21,7 +21,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -133,6 +132,22 @@ public class VideoConferenceController {
     public ResponseEntity<?> findMinute(@PathVariable UUID videoConferenceId) {
         MinuteRes res = videoConferenceService.findMinute(videoConferenceId);
         return new ResponseEntity<>(ApiResponse.success(res, "회의록 조회 성공"), HttpStatus.OK);
+    }
+
+    @PostMapping("/{videoConferenceId}/passwords")
+    public ResponseEntity<?> findPassword(@RequestHeader("X-User-UUID") UUID memberId,
+                                           @PathVariable UUID videoConferenceId) {
+        VideoConferencePasswordRes res = videoConferenceService.findPassword(memberId, videoConferenceId);
+        return new ResponseEntity<>(ApiResponse.success(res, "화상회의 비밀번호 발급 또는 조회 성공"), HttpStatus.OK);
+    }
+
+    @PostMapping("/join")
+    public ResponseEntity<?> join(@RequestHeader("X-User-UUID") UUID memberId,
+                                  @RequestHeader("X-User-Name") String name,
+                                  @RequestBody VideoConferenceJoinReq videoConferenceJoinReq) {
+        String decodedName = URLDecoder.decode(name, StandardCharsets.UTF_8);
+        LiveKitSessionRes res = videoConferenceService.joinVideoConferenceWithPassword(memberId, decodedName, videoConferenceJoinReq);
+        return new ResponseEntity<>(ApiResponse.success(res, "화상회의 참여 성공"), HttpStatus.OK);
     }
 
     @PostMapping("/test/{recordingId}")

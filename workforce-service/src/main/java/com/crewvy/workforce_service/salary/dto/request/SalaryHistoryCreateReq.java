@@ -16,14 +16,16 @@ import java.util.UUID;
 @AllArgsConstructor
 public class SalaryHistoryCreateReq {
 
+    private UUID id;
     private UUID memberId;
     private PayType payType;
     private int baseSalary;
     private int customaryWage;
     private LocalDate effectiveDate;
 
-    public SalaryHistory toEntity() {
+    public SalaryHistory toEntity(UUID companyId) {
         return SalaryHistory.builder()
+                .companyId(companyId)
                 .memberId(memberId)
                 .payType(payType)
                 .baseSalary(baseSalary)

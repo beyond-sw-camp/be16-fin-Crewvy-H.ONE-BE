@@ -22,8 +22,8 @@ public interface CalendarRepository extends JpaRepository<Calendar, UUID> {
     @Query("SELECT c FROM Calendar c " +
             "WHERE c.memberId = :memberId " +
             "AND c.isDeleted = :isDeleted " +
-            "AND c.startDate <= :periodEnd " +  // 이벤트 시작일이 조회 기간의 끝보다 전이거나 같고
-            "AND c.endDate >= :periodStart")   // 이벤트 종료일이 조회 기간의 시작보다 뒤거나 같으면
+            "AND c.startDate <= :periodEnd " +
+            "AND (c.endDate >= :periodStart OR c.endDate IS NULL)")
     List<Calendar> findOverlappingEvents(
             @Param("memberId") UUID memberId,
             @Param("isDeleted") Bool isDeleted,

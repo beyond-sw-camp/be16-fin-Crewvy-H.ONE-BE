@@ -1,8 +1,15 @@
 package com.crewvy.workspace_service.meeting.service;
 
+import com.crewvy.common.aes.AESUtil;
+import com.crewvy.common.dto.NotificationMessage;
+import com.crewvy.common.dto.ScheduleDeleteDto;
+import com.crewvy.common.dto.ScheduleDto;
 import com.crewvy.common.entity.Bool;
 import com.crewvy.common.event.MinuteSavedEvent;
 import com.crewvy.common.exception.*;
+import com.crewvy.workspace_service.feignClient.MemberFeignClient;
+import com.crewvy.workspace_service.feignClient.dto.IdListReq;
+import com.crewvy.workspace_service.feignClient.dto.MemberNameListRes;
 import com.crewvy.workspace_service.meeting.constant.MinuteStatus;
 import com.crewvy.workspace_service.meeting.constant.VideoConferenceStatus;
 import com.crewvy.workspace_service.meeting.dto.*;
@@ -37,10 +44,7 @@ import retrofit2.Response;
 import retrofit2.internal.EverythingIsNonNull;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -53,12 +57,14 @@ public class VideoConferenceService {
     private final RoomServiceClient roomServiceClient;
     private final EgressServiceClient egressServiceClient;
     private final LivekitEgress.S3Upload s3Upload;
+    private final MemberFeignClient memberFeignClient;
+    private final ApplicationEventPublisher eventPublisher;
 
     private final String LIVEKIT_API_KEY;
     private final String LIVEKIT_API_SECRET;
     private final MinuteRepository minuteRepository;
+    private final AESUtil aesUtil;
     private final MinuteSearchOutboxEventRepository minuteSearchOutboxEventRepository;
-    private final ApplicationEventPublisher eventPublisher;
 
     public VideoConferenceService(VideoConferenceRepository videoConferenceRepository,
                                   LiveKitWebhookService liveKitWebhookService,
@@ -69,7 +75,9 @@ public class VideoConferenceService {
                                   LivekitEgress.S3Upload s3Upload,
                                   @Value("${livekit.apiKey}") String LIVEKIT_API_KEY,
                                   @Value("${livekit.apiSecret}") String LIVEKIT_API_SECRET,
-                                  MinuteRepository minuteRepository, MinuteSearchOutboxEventRepository minuteSearchOutboxEventRepository, ApplicationEventPublisher eventPublisher) {
+                                  MinuteRepository minuteRepository,
+                                  AESUtil aesUtil,
+                                  MemberFeignClient memberFeignClient, ApplicationEventPublisher eventPublisher, MinuteSearchOutboxEventRepository minuteSearchOutboxEventRepository) {
         this.videoConferenceRepository = videoConferenceRepository;
         this.objectMapper = objectMapper;
         this.messageRepository = messageRepository;
@@ -79,8 +87,10 @@ public class VideoConferenceService {
         this.LIVEKIT_API_KEY = LIVEKIT_API_KEY;
         this.LIVEKIT_API_SECRET = LIVEKIT_API_SECRET;
         this.minuteRepository = minuteRepository;
-        this.minuteSearchOutboxEventRepository = minuteSearchOutboxEventRepository;
+        this.aesUtil = aesUtil;
+        this.memberFeignClient = memberFeignClient;
         this.eventPublisher = eventPublisher;
+        this.minuteSearchOutboxEventRepository = minuteSearchOutboxEventRepository;
     }
 
     public LiveKitSessionRes createVideoConference(UUID memberId, String memberName, VideoConferenceCreateReq videoConferenceCreateReq) {
@@ -106,17 +116,70 @@ public class VideoConferenceService {
 
     public VideoConferenceBookRes bookVideoConference(UUID memberId, VideoConferenceCreateReq videoConferenceCreateReq) {
         VideoConference videoConference = videoConferenceCreateReq.toEntity(memberId);
-        videoConferenceRepository.save(videoConference);
+
 
         videoConferenceCreateReq.getInviteeIdList().add(memberId);
         addInvitee(videoConference, videoConferenceCreateReq.getInviteeIdList());
+
+        videoConferenceRepository.save(videoConference);
+
+        for(VideoConferenceInvitee invitee : videoConference.getVideoConferenceInviteeSet()) {
+            ScheduleDto schedule = ScheduleDto.builder()
+                    .memberId(invitee.getMemberId())
+                    .originId(invitee.getId())
+                    .title(videoConference.getName())
+                    .contents(videoConference.getDescription())
+                    .startDate(videoConference.getScheduledStartTime())
+                    .type("CT001")
+                    .build();
+
+            eventPublisher.publishEvent(schedule);
+
+            if(!invitee.getMemberId().equals(memberId)) {
+                NotificationMessage message = NotificationMessage.builder()
+                        .memberId(invitee.getMemberId())
+                        .targetId(videoConference.getId())
+                        .notificationType("NT001")
+                        .content("화상회의 : " + videoConference.getName() + "에 초대되었습니다.")
+                        .build();
+
+                eventPublisher.publishEvent(message);
+            }
+        }
 
         return VideoConferenceBookRes.fromEntity(videoConference);
     }
 
     public Page<VideoConferenceListRes> findAllMyVideoConference(UUID memberId, VideoConferenceStatus videoConferenceStatus, Pageable pageable) {
-        return videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatusFetchInvitees(memberId, videoConferenceStatus, pageable)
-                .map(VideoConferenceListRes::fromEntity);
+        Page<VideoConference> videoConferencePage = videoConferenceRepository.findByVideoConferenceInviteeList_MemberIdAndStatusFetchInvitees(memberId, videoConferenceStatus, pageable);
+
+        List<UUID> idList = new ArrayList<>(videoConferencePage.map(VideoConference::getHostId).toList());
+
+        if (videoConferenceStatus == VideoConferenceStatus.WAITING) {
+            videoConferencePage.forEach(vc -> idList.addAll(vc.getVideoConferenceInviteeSet().stream().map(VideoConferenceInvitee::getMemberId).toList()));
+        }
+
+        Map<UUID, String> memberName = findMemberName(idList.stream().distinct().toList());
+
+        if (videoConferenceStatus == VideoConferenceStatus.IN_PROGRESS) {
+            return videoConferencePage.map(vc -> {
+                int participantsCount = 0;
+                try {
+                    participantsCount = roomServiceClient.listParticipants(String.valueOf(vc.getId())).execute().body().size();
+                } catch (Exception e) {
+                    log.warn("Error getting participants count for video conference {}", vc.getId(), e);
+                }
+                return VideoConferenceListRes.fromEntityWithParticipantsCnt(vc, memberName.getOrDefault(vc.getHostId(), "알 수 없는 호스트"), participantsCount);
+            });
+        }
+
+
+        return videoConferencePage
+                .map(vc -> VideoConferenceListRes.fromEntity(
+                        vc,
+                        memberName.getOrDefault(vc.getHostId(), "알 수 없는 호스트"),
+                        vc.getVideoConferenceInviteeSet().stream().map(vci -> VideoConferenceInviteeRes.fromEntity(vci, memberName.getOrDefault(vci.getMemberId(), "알 수 없는 참여자"))).toList())
+                );
     }
 
     public LiveKitSessionRes joinVideoConference(UUID memberId, String memberName, UUID videoConferenceId) {
@@ -234,8 +297,14 @@ public class VideoConferenceService {
         if (!res.isSuccessful() || ParticipantInfo.State.DISCONNECTED == Objects.requireNonNull(res.body()).getState())
             throw new EntityNotFoundException("참여 중인 화상회의가 아닙니다.");
 
-        return messageRepository.findByVideoConference(videoConference, pageable)
-                .map(ChatMessageRes::fromEntity);
+//        return messageRepository.findByVideoConference(videoConference, pageable)
+//                .map(ChatMessageRes::fromEntity);
+
+        Page<Message> messagePage = messageRepository.findByVideoConference(videoConference, pageable);
+
+        Map<UUID, String> memberNameMap = findMemberName(messagePage.map(Message::getSenderId).stream().distinct().toList());
+
+        return messagePage.map((message) -> ChatMessageRes.fromEntity(message, memberNameMap.getOrDefault(message.getSenderId(), "알 수 없는 사용자")));
     }
 
     public VideoConferenceUpdateRes updateVideoConference(UUID memberId, UUID videoConferenceId, VideoConferenceUpdateReq videoConferenceUpdateReq) {
@@ -274,6 +343,14 @@ public class VideoConferenceService {
 
         // TODO : soft-delete?
         videoConferenceRepository.delete(videoConference);
+
+        for(VideoConferenceInvitee invitee : videoConference.getVideoConferenceInviteeSet()) {
+            ScheduleDeleteDto scheduleDelete = ScheduleDeleteDto.builder()
+                    .originId(invitee.getId())
+                    .build();
+
+            eventPublisher.publishEvent(scheduleDelete);
+        }
     }
 
     public MinuteRes findMinute(UUID videoConferenceId) {
@@ -283,6 +360,71 @@ public class VideoConferenceService {
         if (videoConference.getRecording().getMinute() == null) throw new EntityNotFoundException("회의록이 존재하지 않습니다.");
 
         return MinuteRes.fromEntity(videoConference);
+    }
+
+    public VideoConferencePasswordRes findPassword(UUID memberId, UUID videoConferenceId) {
+        VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId).orElseThrow(() -> new EntityNotFoundException("회의록이 존재하지 않습니다."));
+
+        if (videoConference.getStatus() != VideoConferenceStatus.IN_PROGRESS)
+            throw new VideoConferenceNotInProgressException("진행 중인 화상회의가 아닙니다.");
+
+        if (videoConference.getVideoConferenceInviteeSet().stream().map(VideoConferenceInvitee::getMemberId).noneMatch(memberId::equals))
+            throw new UserNotInvitedException("초대 받지 않은 화상회의입니다.");
+
+        String password = videoConference.getPassword();
+
+        if (password == null) {
+            password = UUID.randomUUID().toString();
+            videoConference.setPassword(password);
+        }
+
+        VideoConferencePasswordRes passwordRes = null;
+        try {
+            passwordRes = VideoConferencePasswordRes.builder()
+                    .id(aesUtil.encrypt(videoConferenceId.toString()))
+                    .password(aesUtil.encrypt(password))
+                    .build();
+        } catch (Exception e) {
+            throw new AESUtilException(e.getMessage());
+        }
+
+        return passwordRes;
+    }
+
+    public LiveKitSessionRes joinVideoConferenceWithPassword(UUID memberId, String memberName, VideoConferenceJoinReq videoConferenceJoinReq) {
+        UUID videoConferenceId = null;
+        String password = null;
+        try {
+            videoConferenceId = UUID.fromString(aesUtil.decrypt(videoConferenceJoinReq.getId()));
+            password = aesUtil.decrypt(videoConferenceJoinReq.getPassword());
+        } catch (Exception e) {
+            throw new AESUtilException("화상회의 참여에 실패했습니다.");
+        }
+
+        VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId).orElseThrow(() -> new IllegalArgumentException("아이디 또는 비밀번호가 유효하지 않습니다."));
+
+        if (videoConference.getPassword() == null || !videoConference.getPassword().equals(password))
+            throw new IllegalArgumentException("아이디 또는 비밀번호가 유효하지 않습니다.");
+
+        if (videoConference.getStatus() != VideoConferenceStatus.IN_PROGRESS)
+            throw new VideoConferenceNotInProgressException("진행 중인 화상회의가 아닙니다.");
+
+        Response<ParticipantInfo> res;
+        try {
+            res = roomServiceClient.getParticipant(videoConferenceId.toString(), memberId.toString()).execute();
+        } catch (IOException e) {
+            throw new LiveKitClientException("화상회의 통신 실패" + e.getMessage());
+        }
+        if (res.isSuccessful()) throw new UserAlreadyJoinedException("이미 참여 중인 화상회의 입니다.");
+
+        videoConference.getVideoConferenceInviteeSet().add(VideoConferenceInvitee.builder().memberId(memberId).videoConference(videoConference).build());
+        String token = createToken(videoConferenceId, memberId, memberName);
+
+        return LiveKitSessionRes.builder()
+                .videoConferenceId(videoConferenceId)
+                .token(token)
+                .title(videoConference.getName())
+                .build();
     }
 
     private void addInvitee(VideoConference videoConference, List<UUID> inviteeIdList) {
@@ -352,6 +494,23 @@ public class VideoConferenceService {
         log.info("Create token for video conference " + participantName);
         return token.toJwt();
     }
+
+    private Map<UUID, String> findMemberName(List<UUID> idList) {
+        if (idList.isEmpty()) return Collections.emptyMap();
+
+        IdListReq idListReq = new IdListReq();
+        idListReq.setUuidList(idList);
+
+        // member-service 에서 UUID를 하나 보내야하도록 구현되어있어서
+        List<MemberNameListRes> memberNameList = memberFeignClient.getNameList(UUID.randomUUID(), idListReq).getData();
+
+        return memberNameList.stream()
+                .collect(Collectors.toMap(
+                        MemberNameListRes::getMemberId,
+                        MemberNameListRes::getName
+                ));
+    }
+
 
     @KafkaListener(
             containerFactory = "meetingKafkaListenerContainerFactory",

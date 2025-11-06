@@ -31,7 +31,7 @@ public class FixedAllowanceController {
 
     @PutMapping("/update-all")
     public ResponseEntity<?> createAllFixedAllowance(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                                     @RequestParam UUID companyId,
+                                                     @RequestHeader("X-User-CompanyId") UUID companyId,
                                                      @RequestBody List<FixedAllowanceCreateAllReq> listReq) {
         fixedAllowanceService.saveAllFixedAllowance(memberPositionId, companyId, listReq);
         return new ResponseEntity<>(new ApiResponse<>(true, null, "고정 수당 일괄 저장 성공")

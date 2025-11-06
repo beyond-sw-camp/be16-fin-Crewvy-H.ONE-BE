@@ -22,8 +22,8 @@ public class SalaryConfigController {
 
     // 급여 계약 정보 조회
     @GetMapping("/list")
-    public ResponseEntity<?> getSalaryConfigList(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                                 @RequestParam UUID companyId) {
+    public ResponseEntity<?> getSalaryConfigList(@RequestHeader("X-User-CompanyId") UUID companyId,
+                                                 @RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
         List<SalaryConfigRes> salaryConfigResList = salaryConfigService.getSalaryConfigRes(memberPositionId,
                 companyId);
         return new ResponseEntity<>(
