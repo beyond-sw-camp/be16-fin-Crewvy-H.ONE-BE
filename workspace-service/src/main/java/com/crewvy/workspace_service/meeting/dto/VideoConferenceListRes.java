@@ -2,7 +2,6 @@ package com.crewvy.workspace_service.meeting.dto;
 
 import com.crewvy.workspace_service.meeting.entity.Recording;
 import com.crewvy.workspace_service.meeting.entity.VideoConference;
-import com.crewvy.workspace_service.meeting.entity.VideoConferenceInvitee;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -24,28 +23,53 @@ public class VideoConferenceListRes {
     private LocalDateTime actualStartTime;
     private String status;
     private Boolean isRecording;
-    private List<UUID> inviteeIdList;
+    private List<VideoConferenceInviteeRes> inviteeList;
     private String recordingUrl;
     private Boolean hasMinute;
+    private Integer participantsCnt;
 
-    public static VideoConferenceListRes fromEntity(VideoConference videoConference) {
+    public static VideoConferenceListRes fromEntity(VideoConference videoConference, String hostName, List<VideoConferenceInviteeRes> inviteeList) {
         Optional<Recording> optionalRecording = Optional.ofNullable(videoConference.getRecording());
 
         return VideoConferenceListRes.builder()
                 .id(videoConference.getId())
                 .hostId(videoConference.getHostId())
+                .hostName(hostName)
                 .name(videoConference.getName())
                 .description(videoConference.getDescription())
                 .scheduledStartTime(videoConference.getScheduledStartTime())
                 .actualStartTime(videoConference.getActualStartTime())
                 .status(videoConference.getStatus().getCodeName())
                 .isRecording(videoConference.getIsRecording().toBoolean())
-                .inviteeIdList(videoConference.getVideoConferenceInviteeSet().stream().map(VideoConferenceInvitee::getMemberId).toList())
+                .inviteeList(inviteeList)
                 .recordingUrl(optionalRecording
                         .map(Recording::getUrl)
                         .orElse(null))
                 .hasMinute(optionalRecording
                         .map(Recording::getMinute).isPresent())
+                .build();
+    }
+
+    public static VideoConferenceListRes fromEntityWithParticipantsCnt(VideoConference videoConference, String hostName, int participantsCnt) {
+        Optional<Recording> optionalRecording = Optional.ofNullable(videoConference.getRecording());
+
+        return VideoConferenceListRes.builder()
+                .id(videoConference.getId())
+                .hostId(videoConference.getHostId())
+                .hostName(hostName)
+                .name(videoConference.getName())
+                .description(videoConference.getDescription())
+                .scheduledStartTime(videoConference.getScheduledStartTime())
+                .actualStartTime(videoConference.getActualStartTime())
+                .status(videoConference.getStatus().getCodeName())
+                .isRecording(videoConference.getIsRecording().toBoolean())
+//                .inviteeIdList(videoConference.getVideoConferenceInviteeSet().stream().map(VideoConferenceInvitee::getMemberId).toList())
+                .recordingUrl(optionalRecording
+                        .map(Recording::getUrl)
+                        .orElse(null))
+                .hasMinute(optionalRecording
+                        .map(Recording::getMinute).isPresent())
+                .participantsCnt(participantsCnt)
                 .build();
     }
 }

@@ -44,7 +44,8 @@ public class PolicyService {
     public PolicyResponse createPolicy(UUID memberpositionId, UUID companyId, UUID organizationId, PolicyCreateRequest request) {
 //        checkPermissionOrThrow(memberpositionId, "CREATE", "COMPANY", "회사 정책 생성 권한이 없습니다.");
 
-        PolicyType policyType = policyTypeRepository.findByCompanyIdAndTypeCode(companyId, request.getTypeCode())
+//        PolicyType policyType = policyTypeRepository.findByCompanyIdAndTypeCode(companyId, request.getTypeCode())
+        PolicyType policyType =  policyTypeRepository.findByTypeCode(request.getTypeCode())
                 .orElseThrow(() -> new ResourceNotFoundException("해당 회사에 존재하지 않는 정책 유형입니다."));
 
         // 법정 필수 유급 휴가 검증
@@ -92,7 +93,8 @@ public class PolicyService {
                 .orElseThrow(() -> new ResourceNotFoundException("ID에 해당하는 정책을 찾을 수 없습니다: " + policyId));
 
         // 2. PolicyType이 존재하는지 확인
-        PolicyType policyType = policyTypeRepository.findByCompanyIdAndTypeCode(policy.getCompanyId(), request.getTypeCode())
+//        PolicyType policyType = policyTypeRepository.findByCompanyIdAndTypeCode(policy.getCompanyId(), request.getTypeCode())
+        PolicyType policyType = policyTypeRepository.findByTypeCode(request.getTypeCode())
                 .orElseThrow(() -> new ResourceNotFoundException("존재하지 않는 정책 유형입니다."));
 
         // 3. 법정 필수 유급 휴가 검증
@@ -150,7 +152,8 @@ public class PolicyService {
     public List<PolicyTypeResponse> findPolicyTypesByCompany(UUID memberpositionId, UUID companyId) {
         checkPermission(memberpositionId, "attendance", "READ", "COMPANY");
 
-        List<PolicyType> policyTypes = policyTypeRepository.findByCompanyId(companyId);
+//        List<PolicyType> policyTypes = policyTypeRepository.findByCompanyId(companyId);
+        List<PolicyType> policyTypes = policyTypeRepository.findAll();
         return policyTypes.stream().map(PolicyTypeResponse::new).collect(Collectors.toList());
     }
 

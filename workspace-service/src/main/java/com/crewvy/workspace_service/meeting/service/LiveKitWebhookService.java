@@ -57,12 +57,12 @@ public class LiveKitWebhookService {
     }
 
     private void handleRoomStarted(WebhookEvent event) {
-        log.info("LiveKit-Webhook(room_started) - {}", event.getRoom());
+//        // log.info("LiveKit-Webhook(room_started) - {}", event.getRoom());
     }
 
 
     private void handleRoomFinished(WebhookEvent event) {
-        log.info("LiveKit_Webhook(room_finished) - {}", event.getRoom());
+//        // log.info("LiveKit_Webhook(room_finished) - {}", event.getRoom());
 
         VideoConference videoConference = videoConferenceRepository.findById(UUID.fromString(event.getRoom().getName()))
                 .orElseThrow(() -> new EntityNotFoundException("회의를 찾을 수 없습니다."));
@@ -71,42 +71,42 @@ public class LiveKitWebhookService {
     }
 
     private void handleParticipantJoined(WebhookEvent event) {
-        log.info("LiveKit_Webhook(participant_joined) - {}", event.getRoom());
-        log.info("LiveKit_Webhook(participant_joined) - {}", event.getParticipant());
+//        // log.info("LiveKit_Webhook(participant_joined) - {}", event.getRoom());
+//        // log.info("LiveKit_Webhook(participant_joined) - {}", event.getParticipant());
     }
 
     private void handleParticipantLeft(WebhookEvent event) {
-        log.info("LiveKit_Webhook(participant_left) - {}", event.getRoom());
-        log.info("LiveKit_Webhook(participant_left) - {}", event.getParticipant());
+        // log.info("LiveKit_Webhook(participant_left) - {}", event.getRoom());
+        // log.info("LiveKit_Webhook(participant_left) - {}", event.getParticipant());
     }
 
     private void handleParticipantConnectionAborted(WebhookEvent event) {
-        log.info("LiveKit_Webhook(participant_connection_aborted) - {}", event.getRoom());
-        log.info("LiveKit_Webhook(participant_connection_aborted) - {}", event.getParticipant());
+        // log.info("LiveKit_Webhook(participant_connection_aborted) - {}", event.getRoom());
+        // log.info("LiveKit_Webhook(participant_connection_aborted) - {}", event.getParticipant());
     }
 
     private void handleTrackPublished(WebhookEvent event) {
-        log.info("LiveKit_Webhook(track_published) - {}", event.getRoom());
-        log.info("LiveKit_Webhook(track_published) - {}", event.getParticipant());
-        log.info("LiveKit_Webhook(track_published) - {}", event.getTrack());
+        // log.info("LiveKit_Webhook(track_published) - {}", event.getRoom());
+        // log.info("LiveKit_Webhook(track_published) - {}", event.getParticipant());
+        // log.info("LiveKit_Webhook(track_published) - {}", event.getTrack());
     }
 
     private void handleTrackUnpublished(WebhookEvent event) {
-        log.info("LiveKit_Webhook(track_unpublished) - {}", event.getRoom());
-        log.info("LiveKit_Webhook(track_unpublished) - {}", event.getParticipant());
-        log.info("LiveKit_Webhook(track_unpublished) - {}", event.getTrack());
+        // log.info("LiveKit_Webhook(track_unpublished) - {}", event.getRoom());
+        // log.info("LiveKit_Webhook(track_unpublished) - {}", event.getParticipant());
+        // log.info("LiveKit_Webhook(track_unpublished) - {}", event.getTrack());
     }
 
     private void handleEgressStarted(WebhookEvent event) {
-        log.info("LiveKit_Webhook(egress_started) - {}", event.getEgressInfo());
+        // log.info("LiveKit_Webhook(egress_started) - {}", event.getEgressInfo());
     }
 
     private void handleEgressUpdated(WebhookEvent event) {
-        log.info("LiveKit_Webhook(egress_updated) - {}", event.getEgressInfo());
+        // log.info("LiveKit_Webhook(egress_updated) - {}", event.getEgressInfo());
     }
 
     private void handleEgressEnded(WebhookEvent event) {
-        log.info("LiveKit_Webhook(egress_ended) - {}", event.getEgressInfo());
+        // log.info("LiveKit_Webhook(egress_ended) - {}", event.getEgressInfo());
         if (event.getEgressInfo().getStatus() != EgressStatus.EGRESS_COMPLETE) return;
 
         FileInfo fileInfo = event.getEgressInfo().getFileResults(0);
@@ -123,7 +123,7 @@ public class LiveKitWebhookService {
         try {
             data = objectMapper.writeValueAsString(transcribeReq);
         } catch (JsonProcessingException e) {
-            log.error(e.getMessage());
+            // log.error(e.getMessage());
             throw new RuntimeException("오류 발생");
         }
 
@@ -131,10 +131,10 @@ public class LiveKitWebhookService {
     }
 
     private void handleIngressStarted(WebhookEvent event) {
-        log.info("LiveKit_Webhook(ingress_started) - {}", event.getIngressInfo());
+        // log.info("LiveKit_Webhook(ingress_started) - {}", event.getIngressInfo());
     }
 
     private void handleIngressEnded(WebhookEvent event) {
-        log.info("LiveKit_Webhook(ingress_ended) - {}", event.getIngressInfo());
+        // log.info("LiveKit_Webhook(ingress_ended) - {}", event.getIngressInfo());
     }
 }

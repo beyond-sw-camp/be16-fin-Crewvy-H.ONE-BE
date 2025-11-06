@@ -75,6 +75,8 @@ public class JwtTokenFilter implements GlobalFilter {
             String companyId = claims.get("companyId", String.class);
             String name = claims.get("name", String.class);
 
+            log.info("Extracted MemberPositionId: {}", memberPositionId);
+
             ServerWebExchange serverWebExchange = exchange.mutate()
                     .request(r -> r
                             .header("X-User-UUID", memberId)
