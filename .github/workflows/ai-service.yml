@@ -12,7 +12,7 @@ on:
 jobs:
   build-and-deploy:
     name: Build, Push, and Deploy
-    runs-on: ubuntu-latest
+    runs-on: crewvy-runnerdeploy-x785n-mfgh6
 
     steps:
       # 1. 소스 코드 체크아웃
