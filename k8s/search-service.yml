@@ -27,11 +27,26 @@ spec:
             memory: "250Mi"
         env:
         # TODO: search-service에 필요한 환경 변수들을 여기에 정의해야 합니다.
-        - name: ELASTICSEARCH_HOST
+        - name: ELASTIC_HOST
           valueFrom:
-            configMapKeyRef:
-              name: search-service-config
-              key: ELASTICSEARCH_HOST
+            secretKeyRef:
+              name: hone-secret
+              key: ELASTIC_HOST
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: hone-secret
+              key: DB_HOST
+        - name: DB_ID
+          valueFrom:
+            secretKeyRef:
+              name: hone-secret
+              key: DB_ID
+        - name: DB_PW
+          valueFrom:
+            secretKeyRef:
+              name: hone-secret
+              key: DB_PW
 
         readinessProbe:
           httpGet:

@@ -35,6 +35,11 @@ spec:
             secretKeyRef:
               name: hone-secrets
               key: DB_HOST
+        - name: DB_ID
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: DB_ID
         - name: DB_PW
           valueFrom:
             secretKeyRef:

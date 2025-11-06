@@ -11,10 +11,9 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList; // ArrayList import 추가
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -27,134 +26,67 @@ public class ApprovalDocumentInitializer implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) throws Exception {
-        log.info("=== 기본 결재 문서 데이터 생성 시작 ===");
+        log.info("=== 기본 결재 문서 데이터 검사 및 생성 시작 ===");
 
-        String ddlAuto = environment.getProperty("spring.jpa.hibernate.ddl-auto");
-        if (!("create".equals(ddlAuto) || "create-drop".equals(ddlAuto))) {
-            log.info("=== ddl-auto가 create/create-drop가 아니므로 건너<0xEB><0x9C><0x90>니다. ===");
-            return;
+        // 1. ddl-auto 체크 로직을 제거합니다.
+
+        // 2. DB에서 현재 저장된 모든 문서 이름을 조회합니다. (1번의 쿼리로 처리)
+        Set<String> existingDocNames = documentRepository.findAll().stream()
+                .map(ApprovalDocument::getDocumentName)
+                .collect(Collectors.toSet());
+
+        if (existingDocNames.isEmpty()) {
+            log.info("=== 기존 문서가 없습니다. 전체 초기 생성을 진행합니다. ===");
+        } else {
+            log.info("=== 기존 문서 {}건 확인. 누락된 문서만 추가합니다. ===", existingDocNames.size());
         }
 
-        if (documentRepository.count() == 0) {
+        // 3. 헬퍼 메서드를 사용하여, Set에 이름이 없으면 생성합니다.
 
-            // --- 근태 관련 문서들 ---
-            // --- 1. 휴가 신청서 ---
-            Map<String, Object> leaveMetadata = createLeaveRequestMetadata(); // 메서드로 분리
-            ApprovalDocument leaveDoc = ApprovalDocument.builder()
-                    .documentName("휴가 신청서")
-                    .metadata(leaveMetadata)
-                    .isDirectCreatable(Bool.FALSE)
+        // --- 근태 관련 문서들 ---
+        createDocIfNotExist(existingDocNames, "휴가 신청서", this::createLeaveRequestMetadata, Bool.FALSE);
+        createDocIfNotExist(existingDocNames, "출장 신청서", this::createBusinessTripMetadata, Bool.FALSE);
+        createDocIfNotExist(existingDocNames, "휴직 신청서", this::createLeaveOfAbsenceMetadata, Bool.FALSE);
+        createDocIfNotExist(existingDocNames, "추가근무 신청서", this::createOvertimeRequestTemplate, Bool.FALSE);
+
+        // --- (다른 기본 문서들 추가) ---
+        createDocIfNotExist(existingDocNames, "지출결의서", this::createExpenseReportTemplate, Bool.TRUE);
+        createDocIfNotExist(existingDocNames, "구매품의서", this::createPurchaseRequestTemplate, Bool.TRUE);
+        createDocIfNotExist(existingDocNames, "기안서(일반 품의)", this::createGeneralProposalTemplate, Bool.TRUE);
+        createDocIfNotExist(existingDocNames, "업무 협조 요청서", this::createWorkRequestTemplate, Bool.TRUE);
+        createDocIfNotExist(existingDocNames, "증명서 발급 신청서", this::createCertificateRequestTemplate, Bool.TRUE);
+        createDocIfNotExist(existingDocNames, "채용 품의서", this::createRecruitmentRequestTemplate, Bool.TRUE);
+        createDocIfNotExist(existingDocNames, "계정 및 권한 신청서", this::createAccountRequestTemplate, Bool.TRUE);
+
+        log.info("=== 기본 결재 문서 데이터 검사 및 생성 완료 ===");
+    }
+
+    /**
+     * DB에 문서 이름이 존재하지 않을 경우에만 문서를 생성하는 헬퍼 메서드
+     *
+     * @param existingNames      DB에 이미 존재하는 문서 이름 Set
+     * @param documentName       생성할 문서 이름
+     * @param metadataSupplier   문서의 metadata를 생성하는 함수 (실제 생성 시에만 호출됨)
+     * @param isDirectCreatable  직접 생성 가능 여부
+     */
+    private void createDocIfNotExist(Set<String> existingNames,
+                                     String documentName,
+                                     Supplier<Map<String, Object>> metadataSupplier,
+                                     Bool isDirectCreatable) {
+
+        // Set에 이름이 포함되어 있는지 확인 (O(1)의 빠른 속도)
+        if (!existingNames.contains(documentName)) {
+            // 존재하지 않을 때만 metadata 생성 및 DB 저장 수행
+            Map<String, Object> metadata = metadataSupplier.get();
+
+            ApprovalDocument doc = ApprovalDocument.builder()
+                    .documentName(documentName)
+                    .metadata(metadata)
+                    .isDirectCreatable(isDirectCreatable)
                     .build();
-            documentRepository.save(leaveDoc);
-            log.info("근태관련 문서 생성: {}", leaveDoc.getDocumentName());
 
-            // --- 2. 출장 신청서 ---
-            Map<String, Object> tripMetadata = createBusinessTripMetadata();
-            ApprovalDocument tripDoc = ApprovalDocument.builder()
-                    .documentName("출장 신청서")
-                    .metadata(tripMetadata)
-                    .isDirectCreatable(Bool.FALSE)
-                    .build();
-            documentRepository.save(tripDoc);
-            log.info("근태관련 문서 생성: {}", tripDoc.getDocumentName());
-
-            // --- 3. 휴직 신청서 ---
-            Map<String, Object> leaveAbsenceMetadata = createLeaveOfAbsenceMetadata();
-            ApprovalDocument leaveAbsenceDoc = ApprovalDocument.builder()
-                    .documentName("휴직 신청서")
-                    .metadata(leaveAbsenceMetadata)
-                    .isDirectCreatable(Bool.FALSE)
-                    .build();
-            documentRepository.save(leaveAbsenceDoc);
-            log.info("근태관련 문서 생성: {}", leaveAbsenceDoc.getDocumentName());
-
-            // --- 4. 추가근무 신청서 ---
-            Map<String, Object> overTimeMetadata = createOvertimeRequestTemplate();
-            ApprovalDocument overTimeDoc = ApprovalDocument.builder()
-                    .documentName("추가근무 신청서")
-                    .metadata(overTimeMetadata)
-                    .isDirectCreatable(Bool.FALSE)
-                    .build();
-            documentRepository.save(overTimeDoc);
-            log.info("근태관련 문서 생성: {}", overTimeDoc.getDocumentName());
-
-            log.info("=== 근태관련 결재 문서 생성 완료 ===");
-
-            // --- (다른 기본 문서들 추가) ---
-
-            // --- 5. 지출결의서 ---
-            Map<String, Object> expenseReportMetadata = createExpenseReportTemplate();
-            ApprovalDocument expenseReportDoc = ApprovalDocument.builder()
-                    .documentName("지출결의서")
-                    .metadata(expenseReportMetadata)
-                    .isDirectCreatable(Bool.TRUE)
-                    .build();
-            documentRepository.save(expenseReportDoc);
-            log.info("기본 문서 생성: {}", expenseReportDoc.getDocumentName());
-
-            // --- 6. 구매품의서 ---
-            Map<String, Object> purchaseRequestMetadata = createPurchaseRequestTemplate();
-            ApprovalDocument purchaseRequestDoc = ApprovalDocument.builder()
-                    .documentName("구매품의서")
-                    .metadata(purchaseRequestMetadata)
-                    .isDirectCreatable(Bool.TRUE)
-                    .build();
-            documentRepository.save(purchaseRequestDoc);
-            log.info("기본 문서 생성: {}", purchaseRequestDoc.getDocumentName());
-
-            // --- 7. 기안서(일반 품의) ---
-            Map<String, Object> generalProposalMetadata = createGeneralProposalTemplate();
-            ApprovalDocument generalProposalDoc = ApprovalDocument.builder()
-                    .documentName("기안서(일반 품의)")
-                    .metadata(generalProposalMetadata)
-                    .isDirectCreatable(Bool.TRUE)
-                    .build();
-            documentRepository.save(generalProposalDoc);
-            log.info("기본 문서 생성: {}", generalProposalDoc.getDocumentName());
-
-            // --- 8. 업무 협조 요청서 ---
-            Map<String, Object> workRequestMetadata = createWorkRequestTemplate();
-            ApprovalDocument workRequestDoc = ApprovalDocument.builder()
-                    .documentName("업무 협조 요청서")
-                    .metadata(workRequestMetadata)
-                    .isDirectCreatable(Bool.TRUE)
-                    .build();
-            documentRepository.save(workRequestDoc);
-            log.info("기본 문서 생성: {}", workRequestDoc.getDocumentName());
-
-            // --- 9. 증명서 발급 신청서 ---
-            Map<String, Object> certificateRequestMetadata = createCertificateRequestTemplate();
-            ApprovalDocument certificateRequestDoc = ApprovalDocument.builder()
-                    .documentName("증명서 발급 신청서")
-                    .metadata(certificateRequestMetadata)
-                    .isDirectCreatable(Bool.TRUE)
-                    .build();
-            documentRepository.save(certificateRequestDoc);
-            log.info("기본 문서 생성: {}", certificateRequestDoc.getDocumentName());
-
-            // --- 10. 채용 품의서 ---
-            Map<String, Object> recruitmentRequestMetadata = createRecruitmentRequestTemplate();
-            ApprovalDocument recruitmentRequestDoc = ApprovalDocument.builder()
-                    .documentName("채용 품의서")
-                    .metadata(recruitmentRequestMetadata)
-                    .isDirectCreatable(Bool.TRUE)
-                    .build();
-            documentRepository.save(recruitmentRequestDoc);
-            log.info("기본 문서 생성: {}", recruitmentRequestDoc.getDocumentName());
-
-            // --- 11. 계정 및 권한 신청서 ---
-            Map<String, Object> accountRequestMetadata = createAccountRequestTemplate();
-            ApprovalDocument accountRequestDoc = ApprovalDocument.builder()
-                    .documentName("계정 및 권한 신청서")
-                    .metadata(accountRequestMetadata)
-                    .isDirectCreatable(Bool.TRUE)
-                    .build();
-            documentRepository.save(accountRequestDoc);
-            log.info("기본 문서 생성: {}", accountRequestDoc.getDocumentName());
-
-            log.info("=== 기본 결재 문서 생성 완료 ===");
-        } else {
-            log.info("=== 이미 결재 문서가 존재하여 건너<0xEB><0x9C><0x90>니다. ===");
+            documentRepository.save(doc);
+            log.info("=== 신규 기본 문서 생성 완료: {} ===", documentName);
         }
     }
 
