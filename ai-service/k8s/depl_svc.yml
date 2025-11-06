@@ -26,22 +26,22 @@ spec:
         - name: S3_BUCKET
           valueFrom:
             secretKeyRef:
-              name: ai-service-secrets
+              name: hone-secrets
               key: S3_BUCKET
         - name: ACCESS_KEY
           valueFrom:
             secretKeyRef:
-              name: ai-service-secrets
+              name: hone-secrets
               key: ACCESS_KEY
         - name: SECRET_KEY
           valueFrom:
             secretKeyRef:
-              name: ai-service-secrets
+              name: hone-secrets
               key: SECRET_KEY
         - name: HUGGINGFACE_TOKEN
           valueFrom:
             secretKeyRef:
-              name: ai-service-secrets
+              name: hone-secrets
               key: HUGGINGFACE_TOKEN
         # 컨테이너 상태 확인을 통해 롤링업데이트 최적화 
         readinessProbe:
