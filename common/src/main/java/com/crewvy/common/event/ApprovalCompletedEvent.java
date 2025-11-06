@@ -24,6 +24,7 @@ public class ApprovalCompletedEvent implements Serializable {
     private String title;
     private String titleName;
     private String memberName;
+    @Builder.Default
     private List<String> approvalLineList = new ArrayList<>();
     @JsonProperty("createDateTime")
     private LocalDateTime createdAt;
