@@ -5,7 +5,6 @@ WORKDIR /app
 COPY gradle gradle
 COPY src src
 COPY build.gradle .
-COPY ../settings.gradle .
 COPY gradlew .
 RUN chmod +x gradlew
 RUN ./gradlew bootJar
