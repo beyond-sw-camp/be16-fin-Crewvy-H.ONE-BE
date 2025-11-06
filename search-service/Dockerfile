@@ -1,16 +1,18 @@
-FROM eclipse-temurin:17-jdk-jammy AS stage1
+FROM eclipse-temurin:17-jdk-jammy AS builder
 
 WORKDIR /app
 
-COPY gradle gradle
-COPY src src
-COPY build.gradle .
-COPY gradlew .
-RUN chmod +x gradlew
-RUN ./gradlew bootJar
+# 루트 기준으로 모든 모듈 복사
+COPY . .
 
+# 빌드 (apigateway만 빌드)
+RUN ./gradlew :search-service:bootJar
+
+# 실행용 이미지
 FROM eclipse-temurin:17-jdk-jammy
 WORKDIR /app
-COPY --from=stage1 /app/build/libs/*.jar app.jar
+
+# 빌드 결과만 복사
+COPY --from=builder /app/search-service/build/libs/*.jar app.jar
 
 ENTRYPOINT ["java", "-Dspring.profiles.active=prod", "-jar", "app.jar"]
