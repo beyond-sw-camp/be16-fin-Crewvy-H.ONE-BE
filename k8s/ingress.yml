@@ -17,7 +17,7 @@ spec:
   tls:
   - hosts:
     - "server.crewvy.cloud"
-    secretName: server.crewvy.cloud-tls # Certificate의 secretName
+    secretName: server-crewvy-cloud-tls # Certificate의 secretName
   rules:
   - host: server.crewvy.cloud  # 설정하려는 도메인 이름.
     http:
