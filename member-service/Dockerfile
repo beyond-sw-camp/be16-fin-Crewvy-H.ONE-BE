@@ -11,7 +11,7 @@ COPY . .
 RUN chmod +x ./gradlew
 
 # Gradle Wrapper를 사용하여 'member-service' 하위 프로젝트를 빌드합니다.
-RUN ./gradlew :member-service:bootJar -x test
+RUN ./gradlew :member-service:bootJar -x test --stacktrace
 
 
 # 2단계: 실제 실행을 위한 가벼운 최종 이미지 생성

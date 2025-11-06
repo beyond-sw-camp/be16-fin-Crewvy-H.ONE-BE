@@ -5,7 +5,7 @@ metadata:
   name: workforce-service-deployment
   # namespace: your-namespace # 필요 시 네임스페이스를 지정합니다.
 spec:
-  replicas: 2 # 초기 복제본 수를 1로 설정합니다.
+  replicas: 1 # 초기 복제본 수를 1로 설정합니다.
   selector:
     matchLabels:
       app: workforce-service # 이 디플로이먼트가 관리할 파드를 찾는 라벨입니다.
