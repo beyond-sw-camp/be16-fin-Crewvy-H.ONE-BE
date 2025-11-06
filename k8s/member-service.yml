@@ -17,13 +17,6 @@ spec:
         image: IMAGE_PLACEHOLDER
         ports:
         - containerPort: 8080
-        resources:
-          limits:
-            cpu: "1"
-            memory: "500Mi"
-          requests: 
-            cpu: "0.5"
-            memory: "250Mi"
         env:
         # TODO: member-service에 필요한 환경 변수들을 여기에 정의해야 합니다.
         - name: DB_HOST
