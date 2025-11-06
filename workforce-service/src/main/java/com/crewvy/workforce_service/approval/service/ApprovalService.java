@@ -22,6 +22,7 @@ import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberDto;
 import com.crewvy.workforce_service.feignClient.dto.response.OrganizationNodeDto;
 import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
+import com.crewvy.workforce_service.feignClient.dto.response.TitleRes;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -56,6 +57,7 @@ public class ApprovalService {
     private final SearchOutboxEventRepository searchOutboxEventRepository;
     private final ObjectMapper objectMapper;
     private final RequestRepository requestRepository;
+    private final ApprovalPolicyRepository approvalPolicyRepository;
 
 //    문서 양식 생성
     public UUID uploadDocument(UploadDocumentDto dto) {
@@ -87,13 +89,18 @@ public class ApprovalService {
         // 3. 각 정책을 해석하여 '순서(lineIndex)'와 '찾아야 할 결재자 ID'를 Pair로 묶어 저장합니다.
         List<Pair<Integer, UUID>> resolvedPolicies = new ArrayList<>();
         for (ApprovalPolicy policy : document.getPolicyList()) {
+            // 1. null로 즉시 초기화 (컴파일 에러 해결)
             UUID approverId;
+
             if (policy.getRequirementType() == RequirementType.TITLE) {
-                approverId = findApproverByTitle(orgTree, memberPositionId, policy.getRequirementId());
-            } else { // MEMBER_POSITION 또는 ROLE
+                Optional<UUID> approverIdOptional = findApproverByTitle(orgTree, memberPositionId, policy.getRequirementId());
+
+                approverId = approverIdOptional.orElse(null);
+            } else {
                 approverId = policy.getRequirementId();
             }
 
+            // 3. approverId가 null이 아닌 경우 (값을 찾았거나, else 블록을 탄 경우)
             if (approverId != null) {
                 resolvedPolicies.add(Pair.of(policy.getLineIndex(), approverId));
             }
@@ -155,31 +162,31 @@ public class ApprovalService {
                 .build();
     }
 
-    private UUID findApproverByTitle(List<OrganizationNodeDto> orgTree, UUID myMemberPositionId, UUID requiredTitleId) {
-        // 1. 먼저 조직도 전체에서 '나'의 위치와 경로를 찾습니다.
+    private Optional<UUID> findApproverByTitle(List<OrganizationNodeDto> orgTree, UUID myMemberPositionId, UUID requiredTitleId) {
+        // 1. '나'의 위치와 경로 찾기 (동일)
         List<OrganizationNodeDto> pathToMe = findPathToMember(orgTree, myMemberPositionId);
 
         if (pathToMe == null || pathToMe.isEmpty()) {
-            throw new EntityNotFoundException("요청자를 조직도에서 찾을 수 없습니다.");
+            throw new EntityNotFoundException("요청자를 조직도에서 찾을 수 없습니다."); // 이것은 유지 (로직 수행 전제조건)
         }
 
-        // 2. '나'와 가장 가까운 조직(팀)부터 상위 조직으로 거슬러 올라가며 탐색합니다.
+        // 2. '나'의 조직부터 상위로 올라가며 탐색 (동일)
         for (int i = pathToMe.size() - 1; i >= 0; i--) {
             OrganizationNodeDto currentOrg = pathToMe.get(i);
 
-            // 3. 현재 조직의 멤버들 중에서 필요한 직책(titleId)을 가진 사람을 찾습니다.
-            Optional<MemberDto> foundApprover = currentOrg.getMembers().stream() // .members() -> .getMembers()
-                    .filter(member -> requiredTitleId.equals(member.getTitleId())) // .titleId() -> .getTitleId()
+            // 3. 현재 조직에서 직책이 일치하는 멤버 찾기 (동일)
+            Optional<MemberDto> foundApprover = currentOrg.getMembers().stream()
+                    .filter(member -> requiredTitleId.equals(member.getTitleId()))
                     .findFirst();
 
             if (foundApprover.isPresent()) {
-                // 4. 찾았으면, 그 사람의 memberPositionId를 즉시 반환하고 종료합니다.
-                return foundApprover.get().getMemberPositionId(); // .memberPositionId() -> .getMemberPositionId()
+                // 4. 찾았으면 Optional.of(...)로 감싸서 반환
+                return Optional.of(foundApprover.get().getMemberPositionId());
             }
         }
 
-        // 5. 최상위 조직까지 올라갔는데도 못 찾은 경우
-        throw new BusinessException("해당 직책을 가진 상위 결재자를 찾을 수 없습니다.");
+        // 5. 최상위까지 못 찾은 경우, 예외 대신 Optional.empty() 반환
+        return Optional.empty();
     }
 
     private List<OrganizationNodeDto> findPathToMember(List<OrganizationNodeDto> nodes, UUID targetMemberPositionId) {
@@ -1081,6 +1088,54 @@ public class ApprovalService {
 
             document.getPolicyList().addAll(newPolicies);
         }
+    }
+
+//    문서 정책 조회
+    public List<PolicyResDto> getPolicies(UUID documentId, UUID memberId, UUID memberPositionId) {
+        List<ApprovalPolicy> policies = approvalPolicyRepository.findByApprovalDocument_Id(documentId);
+
+        IdListReq idListReq = new IdListReq(policies.stream().filter(a->a.getRequirementType()
+                .equals(RequirementType.MEMBER_POSITION)).map(ApprovalPolicy::getRequirementId).toList());
+
+        List<PositionDto> position = memberClient.getPositionList(memberPositionId, idListReq).getData();
+        Map<UUID, PositionDto> positionMap = new HashMap<>();
+        if(!position.isEmpty()) {
+            positionMap = position.stream().collect(Collectors.toMap(PositionDto::getMemberPositionId, pos -> pos));
+        }
+        else {
+            positionMap = Collections.emptyMap();
+        }
+
+        List<TitleRes> titles = memberClient.getTitle(memberId, memberPositionId).getData();
+        Map<UUID, TitleRes> titleMap = new HashMap<>();
+        if(!titles.isEmpty()) {
+            titleMap = titles.stream().collect(Collectors.toMap(TitleRes::getId, pos -> pos));
+        }
+        else {
+            titleMap = Collections.emptyMap();
+        }
+
+
+        List<PolicyResDto> dtoList = new ArrayList<>();
+        for(ApprovalPolicy p : policies) {
+            String name;
+            if(p.getRequirementType().equals(RequirementType.MEMBER_POSITION)) {
+                name = positionMap.get(p.getRequirementId()).getMemberName();
+                name += "(" + positionMap.get(p.getRequirementId()).getTitleName() + ")";
+            }
+            else {
+                name = titleMap.get(p.getRequirementId()).getName();
+            }
+            PolicyResDto dto = PolicyResDto.builder()
+                    .requirementType(p.getRequirementType())
+                    .requirementId(p.getRequirementId())
+                    .name(name)
+                    .lineIndex(p.getLineIndex())
+                    .build();
+            dtoList.add(dto);
+        }
+
+        return dtoList;
     }
 
     // 결재 데이터 변경이 완료된 후 Elasticsearch 동기화를 위한 이벤트 저장
