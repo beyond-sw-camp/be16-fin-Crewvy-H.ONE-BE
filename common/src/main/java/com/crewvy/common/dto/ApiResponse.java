@@ -12,6 +12,7 @@ public class ApiResponse<T> {
     private final T data;
     private final String message;
 
+
     @JsonCreator
     public ApiResponse(
             @JsonProperty("success") boolean success,
