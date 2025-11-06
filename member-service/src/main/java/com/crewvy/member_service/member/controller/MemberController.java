@@ -402,4 +402,27 @@ public class MemberController {
         return new ResponseEntity<>(ApiResponse.success(
                 memberService.getMyPermissions(memberPositionId), "내 권한 목록 조회 성공"), HttpStatus.OK);
     }
+
+    // 연차 발생 계산용 회원 고용 정보 조회 (companyId로 조회)
+    @GetMapping("/employment-info")
+    public ResponseEntity<?> getEmploymentInfo(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                                @RequestParam UUID companyId) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.getEmploymentInfo(memberPositionId, companyId), "고용 정보 조회 성공"), HttpStatus.OK);
+    }
+
+    // 내부 전용: 회원 고용 정보 조회 (시스템 배치/내부 작업용 - 권한 체크 없음)
+    @GetMapping("/internal/company/{companyId}/employment-info")
+    public ResponseEntity<?> getEmploymentInfoInternal(@PathVariable UUID companyId) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.getEmploymentInfoInternal(companyId), "고용 정보 조회 성공"), HttpStatus.OK);
+    }
+
+    // 내부 전용: 단일 회원 고용 정보 조회 (Kafka 이벤트/내부 작업용 - 권한 체크 없음)
+    @GetMapping("/internal/member/{memberId}/employment-info")
+    public ResponseEntity<?> getMemberEmploymentInfoInternal(@PathVariable UUID memberId) {
+        return new ResponseEntity<>(ApiResponse.success(
+                memberService.getMemberEmploymentInfoInternal(memberId), "회원 고용 정보 조회 성공"), HttpStatus.OK);
+    }
+
 }

@@ -28,4 +28,7 @@ public interface MemberRepository extends JpaRepository<Member, UUID> {
 
     @Query("SELECT COUNT(DISTINCT mp.member) FROM MemberPosition mp WHERE mp.organization.id = :organizationId")
     long countByOrganizationId(@Param("organizationId") UUID organizationId);
+
+    @Query("SELECT m FROM Member m WHERE m.company.id = :companyId")
+    List<Member> findByCompanyId(@Param("companyId") UUID companyId);
 }

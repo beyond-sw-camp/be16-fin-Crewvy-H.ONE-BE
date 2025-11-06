@@ -52,4 +52,30 @@ public class MemberBalance extends BaseEntity {
 
     @Column(name = "is_paid", nullable = false)
     private Boolean isPaid;
+
+    @Column(name = "is_usable", nullable = false)
+    @Builder.Default
+    private Boolean isUsable = true; // 사용 가능 여부 (정책 할당 활성 상태와 연동)
+
+    /**
+     * 잔액 사용 중단 (정책 할당 비활성화/삭제 시)
+     */
+    public void suspend() {
+        this.isUsable = false;
+    }
+
+    /**
+     * 잔액 사용 재개 (정책 할당 재활성화 시)
+     */
+    public void activate() {
+        this.isUsable = true;
+    }
+
+    /**
+     * 추가 일수 부여 (관리자 수동 부여 시)
+     */
+    public void grantAdditional(Double days) {
+        this.totalGranted += days;
+        this.remaining += days;
+    }
 }
