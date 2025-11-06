@@ -4,7 +4,7 @@ name: CI/CD for AI Service
 # 워크플로우가 트리거될 이벤트를 정의합니다.
 on:
   push:
-    branches: [ "qwer" ]
+    branches: [ "feature/154-deploy" ]
     paths:
       - 'ai-service/**' # ai-service 디렉터리에 변경이 있을 때
 
