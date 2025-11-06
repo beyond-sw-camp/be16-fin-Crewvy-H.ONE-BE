@@ -53,7 +53,4 @@ spring:
           uri: lb://workspace-service
 
 jwt:
-  expirationAt: 1000
   secretKeyAt: ${SECRET_KEY_AT}
-  expirationRt: 10000
-  secretKeyRt: ${SECRET_KEY_RT}
