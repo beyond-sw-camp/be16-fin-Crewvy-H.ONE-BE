@@ -11,7 +11,7 @@ RUN gradle :member-service:bootJar -x test
 
 
 # 2단계: 실제 실행을 위한 가벼운 최종 이미지 생성
-FROM openjdk:17-jre-alpine
+FROM openjdk:17-jdk-alpine
 
 WORKDIR /app
 
