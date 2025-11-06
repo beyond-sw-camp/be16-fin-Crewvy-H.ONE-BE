@@ -61,7 +61,7 @@ public class LeaveRequestResponse {
         if (request.getPolicy() != null) {
             policyId = request.getPolicy().getId();
             policyName = request.getPolicy().getName();
-            policyTypeName = request.getPolicy().getPolicyType().getTypeName();
+            policyTypeName = request.getPolicy().getPolicyTypeCode().getCodeName();
         }
 
         UUID documentId = (request.getApprovalDocument() != null) ? request.getApprovalDocument().getId() : null;

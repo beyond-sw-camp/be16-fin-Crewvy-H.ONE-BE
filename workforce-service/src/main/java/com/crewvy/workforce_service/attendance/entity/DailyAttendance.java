@@ -252,16 +252,17 @@ public class DailyAttendance extends BaseEntity {
 
         LocalDateTime standardClockIn = this.attendanceDate.atTime(standardHour, standardMinute);
 
-        // 지각 허용 시간 적용
-        if (latenessGraceMinutes != null && latenessGraceMinutes > 0) {
-            standardClockIn = standardClockIn.plusMinutes(latenessGraceMinutes);
-        }
-
-        // 출근 시각이 기준보다 늦으면 지각
+        // 정규 출근시간 기준으로 지각 시간 계산 (허용 시간과 무관하게 항상 계산)
         if (this.firstClockIn.isAfter(standardClockIn)) {
-            this.isLate = true;
             Duration lateDuration = Duration.between(standardClockIn, this.firstClockIn);
             this.lateMinutes = (int) lateDuration.toMinutes();
+
+            // 허용 시간 초과 여부만 isLate에 반영 (급여 차감 기준)
+            if (latenessGraceMinutes == null || latenessGraceMinutes == 0 || this.lateMinutes > latenessGraceMinutes) {
+                this.isLate = true;  // 허용 시간 초과 → 급여 차감 대상
+            } else {
+                this.isLate = false; // 허용 시간 내 → 급여 차감 안 함
+            }
         } else {
             this.isLate = false;
             this.lateMinutes = 0;
@@ -285,16 +286,17 @@ public class DailyAttendance extends BaseEntity {
 
         LocalDateTime standardClockOut = this.attendanceDate.atTime(standardHour, standardMinute);
 
-        // 조퇴 허용 시간 적용 (퇴근 시각보다 이 시간만큼 일찍 퇴근해도 조퇴 아님)
-        if (earlyLeaveGraceMinutes != null && earlyLeaveGraceMinutes > 0) {
-            standardClockOut = standardClockOut.minusMinutes(earlyLeaveGraceMinutes);
-        }
-
-        // 퇴근 시각이 기준보다 이르면 조퇴
+        // 정규 퇴근시간 기준으로 조퇴 시간 계산 (허용 시간과 무관하게 항상 계산)
         if (this.lastClockOut.isBefore(standardClockOut)) {
-            this.isEarlyLeave = true;
             Duration earlyDuration = Duration.between(this.lastClockOut, standardClockOut);
             this.earlyLeaveMinutes = (int) earlyDuration.toMinutes();
+
+            // 허용 시간 초과 여부만 isEarlyLeave에 반영 (급여 차감 기준)
+            if (earlyLeaveGraceMinutes == null || earlyLeaveGraceMinutes == 0 || this.earlyLeaveMinutes > earlyLeaveGraceMinutes) {
+                this.isEarlyLeave = true;  // 허용 시간 초과 → 급여 차감 대상
+            } else {
+                this.isEarlyLeave = false; // 허용 시간 내 → 급여 차감 안 함
+            }
         } else {
             this.isEarlyLeave = false;
             this.earlyLeaveMinutes = 0;

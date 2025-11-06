@@ -22,4 +22,5 @@ public class MemberBalanceSummaryRes {
     private Double totalUsed;
     private Double remainingBalance;
     private Boolean isPaid;
+    private Boolean isUsable;           // 사용 가능 여부
 }

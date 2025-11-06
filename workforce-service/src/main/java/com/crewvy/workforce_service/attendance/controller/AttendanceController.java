@@ -14,10 +14,14 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -107,15 +111,22 @@ public class AttendanceController {
     }
 
     /**
-     * 팀원 근태 현황 조회 (오늘 날짜 기준)
+     * 팀원 근태 현황 조회 (날짜 범위 지정 가능, 페이징 지원)
+     * @param startDate 시작 날짜 (optional, 기본값: 오늘)
+     * @param endDate 종료 날짜 (optional, 기본값: 오늘)
+     * @param pageable 페이징 정보 (page, size, sort)
      */
     @GetMapping("/team/status")
-    public ResponseEntity<ApiResponse<List<TeamMemberAttendanceRes>>> getTeamAttendanceStatus(
+    public ResponseEntity<ApiResponse<Page<TeamMemberAttendanceRes>>> getTeamAttendanceStatus(
             @RequestHeader("X-User-UUID") UUID memberId,
             @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-            @RequestHeader("X-User-CompanyId") UUID companyId) {
+            @RequestHeader("X-User-CompanyId") UUID companyId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            Pageable pageable) {
 
-        List<TeamMemberAttendanceRes> response = attendanceService.getTeamAttendanceStatus(memberId, memberPositionId, companyId);
+        Page<TeamMemberAttendanceRes> response = attendanceService.getTeamAttendanceStatus(
+                memberId, memberPositionId, companyId, startDate, endDate, pageable);
         return new ResponseEntity<>(ApiResponse.success(response, "팀원 근태 현황 조회 완료"), HttpStatus.OK);
     }
 

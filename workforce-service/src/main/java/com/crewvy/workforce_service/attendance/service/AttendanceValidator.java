@@ -186,80 +186,35 @@ public class AttendanceValidator {
     }
 
     /**
-     * 출근 시각 범위 검증 (정책의 workStartTime ~ workEndTime 내에서만 출근 가능)
+     * 출근 시각 범위 검증
+     * - 야간 근무 시간대(22:00 ~ 06:00) 차단 (일반 근무와 야간 근무 혼동 방지)
+     * - 그 외 시간대는 출근 허용 (조기 출근 가능)
      */
     public void validateClockInTimeRange(LocalDateTime clockInTime, Policy policy) {
-        if (policy == null || policy.getRuleDetails() == null) {
-            return;
-        }
-
-        WorkTimeRuleDto workTimeRule = policy.getRuleDetails().getWorkTimeRule();
-        if (workTimeRule == null || workTimeRule.getWorkStartTime() == null || workTimeRule.getWorkEndTime() == null) {
-            return;
-        }
-
         LocalTime time = clockInTime.toLocalTime();
 
-        // 정책의 출퇴근 가능 시간 범위
-        LocalTime workStart = safeParseTime(workTimeRule.getWorkStartTime());
-        LocalTime workEnd = safeParseTime(workTimeRule.getWorkEndTime());
+        // 야간 시간대 차단 (22:00 ~ 06:00)
+        LocalTime nightStart = LocalTime.of(22, 0);
+        LocalTime nightEnd = LocalTime.of(6, 0);
 
-        // workEnd가 자정을 넘어가는 경우 (예: 18:00 ~ 02:00)
-        if (workEnd.isBefore(workStart)) {
-            // 자정 이전 또는 자정 이후 허용
-            if (time.isBefore(workStart) && time.isAfter(workEnd)) {
-                throw new BusinessException(
-                        String.format("출근 가능 시간이 아닙니다. (허용 시간: %s ~ 익일 %s)",
-                                workTimeRule.getWorkStartTime(), workTimeRule.getWorkEndTime())
-                );
-            }
-        } else {
-            // 정상적인 시간 범위 (예: 07:00 ~ 19:00)
-            if (time.isBefore(workStart) || time.isAfter(workEnd)) {
-                throw new BusinessException(
-                        String.format("출근 가능 시간이 아닙니다. (허용 시간: %s ~ %s)",
-                                workTimeRule.getWorkStartTime(), workTimeRule.getWorkEndTime())
-                );
-            }
+        // 22:00 이후 또는 06:00 이전이면 야간 시간대
+        if (time.isAfter(nightStart) || time.isBefore(nightEnd)) {
+            throw new BusinessException(
+                    "야간 시간대(22:00 ~ 06:00)에는 일반 출근이 불가능합니다. 야간 근무 신청을 이용해주세요."
+            );
         }
+
+        // 그 외 시간대는 모두 출근 허용 (06:00 ~ 22:00)
     }
 
     /**
-     * 퇴근 시각 범위 검증 (정책의 workStartTime ~ workEndTime 내에서만 퇴근 가능)
+     * 퇴근 시각 범위 검증
+     * - 출근 후라면 언제든 퇴근 가능 (시간 제약 없음)
      */
     public void validateClockOutTimeRange(LocalDateTime clockOutTime, Policy policy) {
-        if (policy == null || policy.getRuleDetails() == null) {
-            return;
-        }
-
-        WorkTimeRuleDto workTimeRule = policy.getRuleDetails().getWorkTimeRule();
-        if (workTimeRule == null || workTimeRule.getWorkStartTime() == null || workTimeRule.getWorkEndTime() == null) {
-            return;
-        }
-
-        LocalTime time = clockOutTime.toLocalTime();
-
-        // 정책의 출퇴근 가능 시간 범위
-        LocalTime workStart = safeParseTime(workTimeRule.getWorkStartTime());
-        LocalTime workEnd = safeParseTime(workTimeRule.getWorkEndTime());
-
-        // workEnd가 자정을 넘어가는 경우
-        if (workEnd.isBefore(workStart)) {
-            if (time.isBefore(workStart) && time.isAfter(workEnd)) {
-                throw new BusinessException(
-                        String.format("퇴근 가능 시간이 아닙니다. (허용 시간: %s ~ 익일 %s)",
-                                workTimeRule.getWorkStartTime(), workTimeRule.getWorkEndTime())
-                );
-            }
-        } else {
-            // 정상적인 시간 범위
-            if (time.isBefore(workStart) || time.isAfter(workEnd)) {
-                throw new BusinessException(
-                        String.format("퇴근 가능 시간이 아닙니다. (허용 시간: %s ~ %s)",
-                                workTimeRule.getWorkStartTime(), workTimeRule.getWorkEndTime())
-                );
-            }
-        }
+        // 퇴근은 시간 제약 없이 항상 허용
+        // 조퇴 여부는 checkEarlyLeave()에서 별도로 판단
+        return;
     }
 
     /**

@@ -245,8 +245,22 @@ public class AutoCreateAdmin implements ApplicationRunner {
 
         Grade employeeGrade = gradeRepository.save(Grade.builder().name("사원").company(company).build());
 
-        // 일반 직원 10명 생성 및 배정
-        List<String> names = Arrays.asList("김민준", "이서준", "박도윤", "최시우", "정하준", "강지호", "윤은우", "임선우", "한유찬", "오이안");
+        // 일반 직원 10명 생성 및 배정 (연차 테스트용 다양한 입사일 설정)
+        List<String> names = Arrays.asList("김신규", "박월급", "이반월", "정삼년", "최오년", "황칠년", "문휴가", "서퇴근", "한유찬", "오이안");
+        // 입사일 시나리오: 1개월, 9개월, 9개월, 3년, 5년, 7년, 2년, 20개월, 현재, 현재
+        List<LocalDate> joinDates = Arrays.asList(
+                LocalDate.now().minusMonths(1),    // 김신규: 신규 입사자
+                LocalDate.now().minusMonths(9),    // 박월급: 1년 미만 - 월별 발생 정상
+                LocalDate.now().minusMonths(9),    // 이반월: 1년 미만 - 출근율 테스트용
+                LocalDate.now().minusYears(3),     // 정삼년: 3년차 - 가산 1일
+                LocalDate.now().minusYears(5),     // 최오년: 5년차 - 가산 3일
+                LocalDate.now().minusYears(7),     // 황칠년: 7년차 - 가산 6일
+                LocalDate.now().minusYears(2),     // 문휴가: 2년차 - 분할연차 테스트
+                LocalDate.now().minusMonths(20),   // 서퇴근: 1년 10개월 - 반차/사후신청 테스트
+                LocalDate.now(),                   // 한유찬: 신규
+                LocalDate.now()                    // 오이안: 신규
+        );
+
         for (int i = 0; i < names.size(); i++) {
             UUID teamId = (i < 5) ? hrTeamId : devTeamId;
             String sabun = String.format("2025%04d", i + 1);
@@ -263,7 +277,7 @@ public class AutoCreateAdmin implements ApplicationRunner {
                     .employmentType(EmploymentType.FULL.getCodeValue())
                     .sabun(sabun)
                     .phoneNumber(phoneNumber)
-                    .joinDate(LocalDate.now())
+                    .joinDate(joinDates.get(i))
                     .address("서울시 강남구 테헤란로 " + (100 + i) + "번길")
                     .bank("국민은행")
                     .bankAccount("123456-78-" + String.format("%05d", i + 1))
