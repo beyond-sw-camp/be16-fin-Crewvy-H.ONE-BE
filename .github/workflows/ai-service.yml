@@ -12,7 +12,7 @@ on:
 jobs:
   build-and-deploy:
     name: Build, Push, and Deploy
-    runs-on: [self-hosted, linux, ARM64]
+    runs-on: [self-hosted, linux, X64]
 
     steps:
       # 1. 소스 코드 체크아웃
