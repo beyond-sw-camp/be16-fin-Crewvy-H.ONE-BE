@@ -20,11 +20,11 @@ spec:
         - containerPort: 8080
         env:
         # TODO: search-service에 필요한 환경 변수들을 여기에 정의해야 합니다.
-        - name: ELASTIC_HOST
-          valueFrom:
-            secretKeyRef:
-              name: hone-secrets
-              key: ELASTIC_HOST
+        # - name: ELASTIC_HOST
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: hone-secrets
+        #       key: ELASTIC_HOST
         - name: DB_HOST
           valueFrom:
             secretKeyRef:
