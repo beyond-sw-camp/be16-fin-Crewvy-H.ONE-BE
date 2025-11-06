@@ -38,7 +38,7 @@ dependencies {
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
 	// Eureka
-	implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+//	implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
 
 	// DB Driver
 	runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
