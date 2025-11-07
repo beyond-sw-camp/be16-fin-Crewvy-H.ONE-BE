@@ -49,6 +49,7 @@ spec:
             port: 8080
           initialDelaySeconds: 20
           periodSeconds: 15
+          timeoutSeconds: 10
 
         livenessProbe:
           httpGet:
@@ -56,6 +57,7 @@ spec:
             port: 8080
           initialDelaySeconds: 40
           periodSeconds: 15
+          timeoutSeconds: 10
 
 ---
 apiVersion: v1

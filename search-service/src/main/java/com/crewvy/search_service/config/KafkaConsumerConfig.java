@@ -25,6 +25,7 @@ public class KafkaConsumerConfig {
     @Value("${spring.kafka.consumer.group-id}")
     private String groupId;
 
+
     private final ObjectMapper objectMapper;
 
     public KafkaConsumerConfig(ObjectMapper objectMapper) {
