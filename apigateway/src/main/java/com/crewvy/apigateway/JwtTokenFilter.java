@@ -53,6 +53,7 @@ public class JwtTokenFilter implements GlobalFilter {
         System.out.println("UrlPath: " + urlPath);
 
         if (ALLOWED_PATH.contains((urlPath))) {
+            System.out.println("멤버로 보내는지");
             return chain.filter(exchange);
         }
 
