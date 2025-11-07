@@ -14,6 +14,8 @@ spec:
       labels:
         app: workforce-service # 파드에 붙여줄 라벨입니다. Service가 이 라벨을 사용합니다.
     spec:
+      nodeSelector:
+        eks.amazonaws.com/nodegroup: hone-nodes
       containers:
       - name: workforce-service # 컨테이너의 이름을 지정합니다.
         # 이미지 주소입니다. CI/CD 파이프라인이 이 부분을 최신 버전으로 업데이트합니다.

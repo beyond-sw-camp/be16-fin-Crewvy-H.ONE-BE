@@ -12,6 +12,8 @@ spec:
       labels:
         app: member-service
     spec:
+      nodeSelector:
+        eks.amazonaws.com/nodegroup: hone-nodes
       containers:
       - name: member-service
         image: IMAGE_PLACEHOLDER

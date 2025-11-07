@@ -13,6 +13,8 @@ spec:
       labels:
         app: search-service
     spec:
+      nodeSelector:
+        eks.amazonaws.com/nodegroup: hone-nodes
       containers:
       - name: search-service
         image: IMAGE_PLACEHOLDER
