@@ -21,7 +21,8 @@ public class SecurityConfig {
                         "/member/login",
                         "/member/doLogin",
                         "/member/create-admin",
-                        "/member/check-email"
+                        "/member/check-email",
+                        "/actuator/**"
                 ).permitAll()
                 .anyRequest().authenticated();
         return http.build();
