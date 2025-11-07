@@ -52,13 +52,17 @@ cloud:
 feign:
   client:
     member-service:
-      url:
+      url: http://member-service
 
 livekit:
-  host: http://localhost:7880/
+  host: https://openvidu.crewvy.cloud:7880/
   apiKey: ${APIKEY}
   apiSecret: ${LIVE_API_SECRET}
 
 aes:
   enabled: true
   key: ${AES_KEY}
+
+eureka:
+  client:
+    enabled: false

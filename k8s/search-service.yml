@@ -13,6 +13,8 @@ spec:
       labels:
         app: search-service
     spec:
+      nodeSelector:
+        eks.amazonaws.com/nodegroup: hone-nodes
       containers:
       - name: search-service
         image: IMAGE_PLACEHOLDER
@@ -27,25 +29,25 @@ spec:
             memory: "250Mi"
         env:
         # TODO: search-service에 필요한 환경 변수들을 여기에 정의해야 합니다.
-        - name: ELASTIC_HOST
-          valueFrom:
-            secretKeyRef:
-              name: hone-secret
-              key: ELASTIC_HOST
+          # - name: ELASTIC_HOST
+          #   valueFrom:
+          #     secretKeyRef:
+          #       name: hone-secrets
+          #       key: ELASTIC_HOST
         - name: DB_HOST
           valueFrom:
             secretKeyRef:
-              name: hone-secret
+              name: hone-secrets
               key: DB_HOST
         - name: DB_ID
           valueFrom:
             secretKeyRef:
-              name: hone-secret
+              name: hone-secrets
               key: DB_ID
         - name: DB_PW
           valueFrom:
             secretKeyRef:
-              name: hone-secret
+              name: hone-secrets
               key: DB_PW
 
         readinessProbe:
@@ -54,6 +56,7 @@ spec:
             port: 8080
           initialDelaySeconds: 20
           periodSeconds: 15
+          timeoutSeconds: 10
 
         livenessProbe:
           httpGet:
@@ -61,6 +64,7 @@ spec:
             port: 8080
           initialDelaySeconds: 40
           periodSeconds: 15
+          timeoutSeconds: 10
 
 ---
 apiVersion: v1
