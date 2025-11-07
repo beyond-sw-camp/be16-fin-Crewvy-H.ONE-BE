@@ -79,7 +79,209 @@
 
 ---
 
-## 5. 산출물
+## 5. 기술 스택
+  ### FRONT
+
+  ---
+ <img src="https://img.shields.io/badge/vuedotjs-4FC08D?style=for-the-badge&logo=vuedotjs&logoColor=white">
+ <img src="https://img.shields.io/badge/vuetify-1867C0?style=for-the-badge&logo=vuetify&logoColor=white">
+ <img src="https://img.shields.io/badge/axios-5A29E4?style=for-the-badge&logo=axios&logoColor=white">
+ <img src="https://img.shields.io/badge/javascript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black">
+ <img src="https://img.shields.io/badge/html5-E34F26?style=for-the-badge&logo=html5&logoColor=white">
+ <img src="https://img.shields.io/badge/css-663399?style=for-the-badge&logo=css&logoColor=white">
+ 
+ 
+  ### BACKEND
+
+  ---
+  <img src="https://img.shields.io/badge/springboot-6DB33F?style=for-the-badge&logo=springboot&logoColor=white">
+  <img src="https://img.shields.io/badge/springsecurity-6DB33F?style=for-the-badge&logo=springsecurity&logoColor=white">
+  <img src="https://img.shields.io/badge/spring_data_jpa-6DB33F?style=for-the-badge&logo=springboot&logoColor=white">
+  <img src="https://img.shields.io/badge/jwt-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white">
+  <img src="https://img.shields.io/badge/java-007396?style=for-the-badge&logo=openjdk&logoColor=white">
+  <img src="https://img.shields.io/badge/apachekafka-231F20?style=for-the-badge&logo=apachekafka&logoColor=white">
+  <img src="https://img.shields.io/badge/elasticsearch-005571?style=for-the-badge&logo=elasticsearch&logoColor=white">
+  <img src="https://img.shields.io/badge/fastapi-009688?style=for-the-badge&logo=fastapi&logoColor=white">
+  <img src="https://img.shields.io/badge/livekit-000000?style=for-the-badge&logo=livekit&logoColor=white">
+  
+
+  ### DB
+
+  ---
+  <img src="https://img.shields.io/badge/mariadb-003545?style=for-the-badge&logo=mariadb&logoColor=white">
+  <img src="https://img.shields.io/badge/mysql-4479A1?style=for-the-badge&logo=mysql&logoColor=white">
+  <img src="https://img.shields.io/badge/redis-FF4438?style=for-the-badge&logo=redis&logoColor=white">
+
+  ### DevOps
+
+  ---
+  <img src="https://img.shields.io/badge/kubernetes-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white">
+  <img src="https://img.shields.io/badge/docker-2496ED?style=for-the-badge&logo=docker&logoColor=white">
+  <img src="https://img.shields.io/badge/nginx-009639?style=for-the-badge&logo=nginx&logoColor=white">
+  <img src="https://img.shields.io/badge/github_actions-00B0B9?style=for-the-badge&logo=githubactions&logoColor=white">
+  <img src="https://img.shields.io/badge/amazonaws-232F3E?style=for-the-badge&logo=amazonaws&logoColor=white">
+
+
+  ### Tools
+
+  ---
+  <img src="https://img.shields.io/badge/github-181717?style=for-the-badge&logo=github&logoColor=white">
+  <img src="https://img.shields.io/badge/erd_cloud-004639?style=for-the-badge&logo=erdcloud&logoColor=white">
+  <img src="https://img.shields.io/badge/postman-FF6C37?style=for-the-badge&logo=postman&logoColor=white">
+  <img src="https://img.shields.io/badge/figma-009639?style=for-the-badge&logo=figma&logoColor=white">
+  
+
+##  6. 시스템 아키텍처 및 CI/CD 계획서
+  ### 시스템 아키텍처
+  <img alt="시스템 아키텍처 이미지" src=""/>
+
+  ### CI/CD 계획서
+  
+
+---
+## 7. UI/UX 단위테스트
+<details>
+  <summary><strong>직원</strong></summary>
+  <blockquote>
+    <div class="content">
+      <details>
+        <summary>직원 상세 토글</summary>
+        <div>
+          <p>알아서</p>
+        </div>
+      </details>
+      <details>
+        <summary>하위 토글 추가</summary>
+        <div>
+          <p>알아서</p>
+        </div>
+      </details>
+    </div>
+  </blockquote>
+</details>
+
+  <details>
+    <summary><strong>근태</strong></summary>
+    <blockquote>
+    <div class="content">
+      <details>
+        <summary>근태 상세 토글</summary>
+        <div>
+          <p>알아서</p>
+        </div>
+      </details>
+      <details>
+        <summary>하위 토글 추가</summary>
+        <div>
+          <p>알아서</p>
+        </div>
+      </details>
+    </div>
+    </blockquote>
+  </details>
+
+  <details>
+    <summary><strong>성과</strong></summary>
+    <blockquote>
+      <div class="content">
+        <details>
+          <summary>성과 상세 토글</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+        <details>
+          <summary>하위 토글 추가</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+      </div>
+    </blockquote>
+  </details>
+
+  <details>
+    <summary><strong>전자결재</strong></summary>
+    <blockquote>
+      <div class="content">
+        <details>
+          <summary>전자결재 상세 토글</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+        <details>
+          <summary>하위 토글 추가</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+      </div>
+    </blockquote>
+  </details>
+
+  <details>
+    <summary><strong>급여</strong></summary>
+    <blockquote>
+      <div class="content">
+        <details>
+          <summary>급여 상세 토글</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+        <details>
+          <summary>하위 토글 추가</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+      </div>
+    </blockquote>
+  </details>
+
+  <details>
+    <summary><strong>예약</strong></summary>
+    <blockquote>
+      <div class="content">
+        <details>
+          <summary>예약 상세 토글</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+        <details>
+          <summary>하위 토글 추가</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+      </div>
+    </blockquote>
+  </details>
+
+  <details>
+    <summary><strong>화상회의</strong></summary>
+    <blockquote>
+      <div class="content">
+        <details>
+          <summary>화상회의 상세 토글</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+        <details>
+          <summary>하위 토글 추가</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+      </div>
+    </blockquote>
+  </details>
+
+---
+## 8. 산출물
 
 | 항목       | 링크 |
 |----------|---|
