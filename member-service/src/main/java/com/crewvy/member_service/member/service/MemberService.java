@@ -208,6 +208,7 @@ public class MemberService {
 
     // 로그인
     public LoginRes doLogin(LoginReq loginReq) {
+        log.info("로그인 시도");
         Member member = memberRepository.findByEmail(loginReq.getEmail()).orElseThrow(()
                 -> new IllegalArgumentException("email 또는 비밀번호가 일치하지 않습니다."));
 
@@ -222,6 +223,7 @@ public class MemberService {
         String accessToken = jwtTokenProvider.createAtToken(member, member.getDefaultMemberPosition());
         String refreshToken = jwtTokenProvider.createRtToken(member);
 
+        log.info("로그인 종료");
         return LoginRes.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
