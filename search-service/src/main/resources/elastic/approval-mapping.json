@@ -8,22 +8,25 @@
     },
     "title": {
       "type": "text",
-      "analyzer": "korean_analyzer"
+      "analyzer": "korean_index_analyzer",
+      "search_analyzer": "korean_search_analyzer"
     },
     "titleName": {
       "type": "text",
-      "analyzer": "korean_analyzer"
+      "analyzer": "korean_index_analyzer",
+      "search_analyzer": "korean_search_analyzer"
     },
     "memberName": {
       "type": "text",
-      "analyzer": "korean_analyzer"
+      "analyzer": "korean_index_analyzer",
+      "search_analyzer": "korean_search_analyzer"
     },
     "approverIdList": {
       "type": "keyword"
     },
     "createAt": {
       "type": "date",
-      "format": "yyyy-MM-dd'T'HH:mm:ss.SSSSSS||epoch_millis"
+      "format": "yyyy-MM-dd'T'HH:mm:ss.SSS||epoch_millis"
     }
   }
 }

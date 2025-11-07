@@ -8,24 +8,23 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ApprovalCompletedEvent implements Serializable {
+public class MinuteSavedEvent implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    private UUID approvalId;
-    private UUID memberPositionId;
-    private String title;
-    private String titleName;
-    private String memberName;
+    private UUID videoConferenceId;
+    private String name;
+    private String summary;
+    private String hostId;
     @Builder.Default
-    private List<String> approvalLineList = new ArrayList<>();
+    private Set<String> inviteeIdSet = new HashSet<>();
     @JsonProperty("createDateTime")
     private LocalDateTime createdAt;
 }

@@ -1,4 +1,4 @@
-package com.crewvy.member_service.member.kafka;
+package com.crewvy.workspace_service.meeting.kafka;
 
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -14,13 +14,13 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Configuration
-public class SearchEventKafkaConfig {
+public class MinuteSearchEventKafkaConfig {
 
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
 
-    @Bean("memberSearchEventProducerFactory")
-    public ProducerFactory<String, Object> memberSearchEventProducerFactory() {
+    @Bean("minuteSearchEventProducerFactory")
+    public ProducerFactory<String, Object> minuteSearchEventProducerFactory() {
         Map<String, Object> configProps = new HashMap<>();
         configProps.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
@@ -29,8 +29,8 @@ public class SearchEventKafkaConfig {
         return new DefaultKafkaProducerFactory<>(configProps);
     }
 
-    @Bean("memberSearchEventKafkaTemplate")
-    public KafkaTemplate<String, Object> memberSearchEventKafkaTemplate() {
-        return new KafkaTemplate<>(memberSearchEventProducerFactory());
+    @Bean("minuteSearchEventKafkaTemplate")
+    public KafkaTemplate<String, Object> approvalSearchEventKafkaTemplate() {
+        return new KafkaTemplate<>(minuteSearchEventProducerFactory());
     }
 }
