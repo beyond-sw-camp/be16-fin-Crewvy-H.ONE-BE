@@ -12,8 +12,8 @@ on:
 jobs:
   build-and-deploy:
     name: Build, Push, and Deploy
-    runs-on: [self-hosted, linux, X64]
-    # runs-on: ubuntu-latest
+    # runs-on: [self-hosted, linux, X64]
+    runs-on: ubuntu-latest
     
     steps:
       # 1. 소스 코드 체크아웃
