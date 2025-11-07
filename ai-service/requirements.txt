@@ -4,10 +4,11 @@ pydantic
 py-eureka-client
 confluent_kafka
 python-dotenv
-torch
 transformers
 whisperx
 boto3
 accelerate
-pyannote.audio
+torch==2.0.1
+torchaudio==2.0.2
+pyannote.audio==2.1.1
  
