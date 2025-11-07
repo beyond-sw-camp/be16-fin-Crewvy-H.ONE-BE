@@ -25,4 +25,4 @@ WORKDIR /app
 COPY --from=build /app/workforce-service/build/libs/*.jar app.jar
  
 # 'prod' 프로파일로 애플리케이션을 실행합니다.
-ENTRYPOINT ["java", "-jar", "app.jar", "--spring.profiles.active=prod"]
+ENTRYPOINT ["java", "-Duser.timezone=Asia/Seoul", "-jar", "app.jar", "--spring.profiles.active=prod"]

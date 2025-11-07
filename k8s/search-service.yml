@@ -27,6 +27,8 @@ spec:
         #     secretKeyRef:
         #       name: hone-secrets
         #       key: ELASTIC_HOST
+        - name: TZ
+          value: "Asia/Seoul"
         - name: DB_HOST
           valueFrom:
             secretKeyRef:

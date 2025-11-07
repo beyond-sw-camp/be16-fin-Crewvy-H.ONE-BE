@@ -21,7 +21,8 @@ spec:
         ports:
         - containerPort: 8080 # API Gateway는 보통 8000번 포트를 사용합니다.
         env:
-        # TODO: apigateway에 필요한 환경 변수들을 여기에 정의해야 합니다.
+        - name: TZ
+          value: "Asia/Seoul"
         - name: SECRET_KEY_AT
           valueFrom:
             secretKeyRef:

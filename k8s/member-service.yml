@@ -20,7 +20,8 @@ spec:
         ports:
         - containerPort: 8080
         env:
-        # TODO: member-service에 필요한 환경 변수들을 여기에 정의해야 합니다.
+        - name: TZ
+          value: "Asia/Seoul"
         - name: DB_HOST
           valueFrom:
             secretKeyRef:

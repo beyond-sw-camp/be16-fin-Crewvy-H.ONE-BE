@@ -23,7 +23,8 @@ spec:
         ports:
         - containerPort: 8080 # 애플리케이션이 사용하는 포트입니다.
         env:
-        # TODO: workforce-service에 필요한 환경 변수들을 여기에 정의해야 합니다.
+        - name: TZ
+          value: "Asia/Seoul"
         # 아래는 예시이며, 실제 Secret과 Key 이름을 사용해야 합니다.
         - name: DB_HOST
           valueFrom:
