@@ -62,3 +62,7 @@ livekit:
 aes:
   enabled: true
   key: ${AES_KEY}
+
+eureka:
+  client:
+    enabled: false

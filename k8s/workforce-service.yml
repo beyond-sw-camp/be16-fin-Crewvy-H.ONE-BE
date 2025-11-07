@@ -80,7 +80,7 @@ kind: Service
 metadata:
   # 서비스의 이름을 지정합니다. 이 이름이 클러스터 내부 DNS 이름이 됩니다.
   name: workforce-service
-  # namespace: your-namespace # 필요 시 네임스페이스를 지정합니다.
+  namespace: hone-namespace
 spec:
   # ClusterIP: 클러스터 내부에서만 접근 가능한 IP를 할당합니다. (기본값)
   type: ClusterIP
