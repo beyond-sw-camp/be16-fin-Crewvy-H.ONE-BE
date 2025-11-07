@@ -72,15 +72,16 @@ public class MemberController {
 
     // AT 재발급
     @PostMapping("/generate-at")
-    public ResponseEntity<?> generateNewAt(@RequestBody GenerateNewAtReq generateNewAtReq) {
+    public ResponseEntity<?> generateNewAt(@RequestHeader("X-User-UUID") UUID uuid,
+                                           @RequestBody GenerateNewAtReq generateNewAtReq) {
         return new ResponseEntity<>(ApiResponse.success(
-                memberService.generateNewAt(generateNewAtReq), "로그인 성공"), HttpStatus.OK);
+                memberService.generateNewAt(uuid, generateNewAtReq), "로그인 성공"), HttpStatus.OK);
     }
 
     // memberPosition 선택
     @PostMapping("/{memberPositionId}/select")
     public ResponseEntity<?> selectMemberPosition(@RequestHeader("X-User-UUID") UUID uuid,
-                                                  @PathVariable UUID memberPositionId){
+                                                  @PathVariable UUID memberPositionId) {
         return new ResponseEntity<>(ApiResponse.success(
                 memberService.selectMemberPosition(uuid, memberPositionId), "직무 선택 성공"), HttpStatus.OK);
     }
@@ -352,7 +353,7 @@ public class MemberController {
 
     // memberId -> memberPositionId List
     @GetMapping("/my-positions")
-    public ResponseEntity<?> getMyPositionList(@RequestHeader("X-User-UUID") UUID uuid){
+    public ResponseEntity<?> getMyPositionList(@RequestHeader("X-User-UUID") UUID uuid) {
         return new ResponseEntity<>(ApiResponse.success(
                 memberService.getMyPositionList(uuid), "내 직무 목록 조회 성공"), HttpStatus.OK);
     }

@@ -1,5 +1,6 @@
 package com.crewvy.workforce_service.salary.dto.response;
 
+import com.crewvy.workforce_service.salary.constant.SalaryStatus;
 import com.crewvy.workforce_service.salary.constant.SalaryType;
 import com.crewvy.workforce_service.salary.entity.Salary;
 import com.crewvy.workforce_service.salary.entity.SalaryDetail;
@@ -34,6 +35,7 @@ public class SalaryCalculationRes {
     private BigInteger totalAllowance;
     private BigInteger totalDeduction;
     private BigInteger netPay;
+    private SalaryStatus status;
 
     public static SalaryCalculationRes fromEntity(Salary salary, String memberName, String department, String sabun,
                                                   int workingDays, LocalDate periodStartDate, LocalDate periodEndDate) {
@@ -76,6 +78,7 @@ public class SalaryCalculationRes {
                 .totalAllowance(totalAllowance)
                 .totalDeduction(totalDeduction)
                 .netPay(salary.getNetPay())
+                .status(salary.getSalaryStatus())
                 .build();
     }
 }

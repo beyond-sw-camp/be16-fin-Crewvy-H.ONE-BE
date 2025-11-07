@@ -1313,9 +1313,10 @@ public class RequestService {
      */
     private com.crewvy.workforce_service.approval.entity.ApprovalDocument getApprovalDocumentByPolicyType(PolicyTypeCode policyTypeCode) {
         String documentName = switch(policyTypeCode) {
-            case ANNUAL_LEAVE, MATERNITY_LEAVE, PATERNITY_LEAVE, MENSTRUAL_LEAVE -> "휴가 신청서";
-            case CHILDCARE_LEAVE, FAMILY_CARE_LEAVE -> "휴직 신청서";
+            case ANNUAL_LEAVE, MATERNITY_LEAVE, PATERNITY_LEAVE, MENSTRUAL_LEAVE, FAMILY_CARE_LEAVE -> "휴가 신청서";
+            case CHILDCARE_LEAVE -> "휴직 신청서";
             case BUSINESS_TRIP -> "출장 신청서";
+            case OVERTIME, NIGHT_WORK, HOLIDAY_WORK -> "추가근무 신청서";
             default -> throw new BusinessException("해당 정책 타입에 대한 결재 문서가 정의되지 않았습니다: " + policyTypeCode);
         };
 

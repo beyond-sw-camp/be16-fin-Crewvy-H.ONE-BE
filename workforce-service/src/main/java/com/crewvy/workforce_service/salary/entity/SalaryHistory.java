@@ -3,6 +3,7 @@ package com.crewvy.workforce_service.salary.entity;
 import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.workforce_service.salary.constant.PayType;
 import com.crewvy.workforce_service.salary.converter.PayTypeConverter;
+import com.crewvy.workforce_service.salary.dto.request.SalaryHistoryCreateReq;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -42,4 +43,13 @@ public class SalaryHistory extends BaseEntity {
     @Column(nullable = false)
     private LocalDate effectiveDate;
 
+
+    public void update(SalaryHistoryCreateReq salaryHistoryCreateReq, UUID companyId) {
+        this.companyId = companyId;
+        this.memberId = salaryHistoryCreateReq.getMemberId();
+        this.baseSalary = salaryHistoryCreateReq.getBaseSalary();
+        this.customaryWage = salaryHistoryCreateReq.getCustomaryWage();
+        this.payType = salaryHistoryCreateReq.getPayType();
+        this.effectiveDate = salaryHistoryCreateReq.getEffectiveDate();
+    }
 }

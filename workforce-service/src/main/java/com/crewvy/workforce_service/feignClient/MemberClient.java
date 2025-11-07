@@ -28,6 +28,10 @@ public interface MemberClient {
     @GetMapping("/organization/tree-with-members")
     ApiResponse<List<OrganizationNodeDto>> getOrganization(@RequestHeader("X-User-UUID") UUID uuid);
 
+    @GetMapping("/member/title")
+    ApiResponse<List<TitleRes>>  getTitle(@RequestHeader("X-User-UUID") UUID uuid,
+                                          @RequestHeader("X-User-MemberPositionId") UUID memberPositionId);
+
     // 권한 확인
     @GetMapping("/member/check-permission")
     ApiResponse<Boolean> checkPermission(

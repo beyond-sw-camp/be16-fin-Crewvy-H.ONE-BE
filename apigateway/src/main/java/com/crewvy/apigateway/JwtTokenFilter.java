@@ -35,7 +35,6 @@ public class JwtTokenFilter implements GlobalFilter {
 
     private static final List<String> ALLOWED_PATH = List.of(
             "/member/login",
-            "/member/generate-at",
             "/member/create-admin",
             "/member/check-email",
             "/member/reset-password",
@@ -43,10 +42,6 @@ public class JwtTokenFilter implements GlobalFilter {
             "/actuator/health",
             "/transcribe",
             "/livekit/webhook"
-    );
-
-    private static final List<String> ADMIN_ONLY_PATH = List.of(
-//            "/member/list"
     );
 
     @Override
@@ -79,6 +74,8 @@ public class JwtTokenFilter implements GlobalFilter {
             String organizationId = claims.get("organizationId", String.class);
             String companyId = claims.get("companyId", String.class);
             String name = claims.get("name", String.class);
+
+            log.info("Extracted MemberPositionId: {}", memberPositionId);
 
             ServerWebExchange serverWebExchange = exchange.mutate()
                     .request(r -> r

@@ -16,6 +16,7 @@ import java.util.UUID;
 @Data
 public class CreateApprovalDto {
     private UUID documentId;
+    private UUID requestId;
     private String title;
     private Map<String, Object> contents;
     @Builder.Default

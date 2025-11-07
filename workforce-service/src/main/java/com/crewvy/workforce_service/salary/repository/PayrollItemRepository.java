@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Repository
-public interface PayrollItemRepository extends JpaRepository<PayrollItem, UUID> {
+public interface PayrollItemRepository extends JpaRepository<PayrollItem, UUID>, PayrollItemRepositoryCustom {
 
     List<PayrollItem> findByCompanyIdOrCompanyIdIsNull(UUID companyId);
 
@@ -34,15 +34,5 @@ public interface PayrollItemRepository extends JpaRepository<PayrollItem, UUID> 
             Bool isTaxable
     );
 
-    @Query("SELECT p FROM PayrollItem p " +
-            "WHERE p.salaryType = :salaryType " +
-            "AND (" +
-            "    (p.companyId IS NULL AND p.calculationCode IS NOT NULL) " +
-            "    OR " +
-            "    (p.companyId = :companyId AND p.calculationCode IS NULL) " +
-            ")")
-    List<PayrollItem> findApplicableForCompany(
-            @Param("companyId") UUID companyId,
-            @Param("salaryType") SalaryType salaryType
-    );
+    boolean existsByName(String name);
 }

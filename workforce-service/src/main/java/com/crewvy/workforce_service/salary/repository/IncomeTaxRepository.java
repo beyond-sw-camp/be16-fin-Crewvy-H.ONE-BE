@@ -9,15 +9,6 @@ import org.springframework.stereotype.Repository;
 import java.util.UUID;
 
 @Repository
-public interface IncomeTaxRepository extends JpaRepository<IncomeTax, UUID> {
-
-    @Query("SELECT it.taxAmount FROM IncomeTax it " +
-            "WHERE :taxableIncome >= it.incomeStart " +
-            "  AND :taxableIncome < it.incomeEnd " +
-            "  AND it.dependentCount = :dependentCount")
-    Long findTaxAmount(
-                          @Param("taxableIncome") long taxableIncome,
-                          @Param("dependentCount") int dependentCount
-    );
+public interface IncomeTaxRepository extends JpaRepository<IncomeTax, UUID>, IncomeTaxRepositoryCustom {
 
 }

@@ -230,4 +230,6 @@ public interface RequestRepository extends JpaRepository<Request, UUID> {
             @Param("memberIds") List<UUID> memberIds,
             @Param("startDateTime") LocalDateTime startDateTime,
             @Param("endDateTime") LocalDateTime endDateTime);
+
+    Optional<Request> findByApprovalId(UUID id);
 }

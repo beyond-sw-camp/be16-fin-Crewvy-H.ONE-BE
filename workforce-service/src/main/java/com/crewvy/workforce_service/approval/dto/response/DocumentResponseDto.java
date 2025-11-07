@@ -19,6 +19,7 @@ public class DocumentResponseDto {
     private String documentName;
     private Map<String, Object> metadata;
     private List<ApprovalStepDto> policy;
+    private RequestResDto request;
 
 
     public static DocumentResponseDto from(ApprovalDocument approvalDocument) {

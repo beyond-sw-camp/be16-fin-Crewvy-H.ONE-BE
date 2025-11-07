@@ -1,0 +1,64 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+  application:
+    name: workspace-service
+  redis:
+    host: redis-service
+    port: 6379
+  datasource:
+    driver-class-name: org.mariadb.jdbc.Driver
+    url: jdbc:mariadb://${DB_HOST}:3306/h_one?serverTimezone=Asia/Seoul
+    username: ${DB_ID}
+    password: ${DB_PW}
+  jpa:
+    database: mysql
+    database-platform: org.hibernate.dialect.MariaDBDialect
+    generate-ddl: true
+    hibernate:
+      ddl-auto: update
+    show_sql: true
+  kafka:
+    enabled: true
+    bootstrap-servers: kafka-service:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: workspace-notification-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted-packages: "*"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+
+cloud:
+  aws:
+    credentials:
+      access-key: ${ACCESS_KEY}
+      secret-key: ${SECRET_KEY}
+    region:
+      static: ap-northeast-2
+    s3:
+      enabled: true
+      bucket: ${S3_BUCKET}
+
+feign:
+  client:
+    member-service:
+      url:
+
+livekit:
+  host: http://localhost:7880/
+  apiKey: ${APIKEY}
+  apiSecret: ${LIVE_API_SECRET}
+
+aes:
+  enabled: true
+  key: ${AES_KEY}

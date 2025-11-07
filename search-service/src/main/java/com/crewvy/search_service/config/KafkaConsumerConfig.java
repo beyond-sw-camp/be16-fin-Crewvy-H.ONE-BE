@@ -1,6 +1,5 @@
 package com.crewvy.search_service.config;
 
-import com.crewvy.common.event.MemberSavedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -33,21 +32,22 @@ public class KafkaConsumerConfig {
     }
 
     @Bean
-    public ConsumerFactory<String, MemberSavedEvent> consumerFactory() {
+    public ConsumerFactory<String, Object> consumerFactory() {
         Map<String, Object> props = new HashMap<>();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
-        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
-        props.put(JsonDeserializer.TRUSTED_PACKAGES, "com.crewvy.common.event"); // Trust the package where MemberSavedEvent resides
-        props.put(JsonDeserializer.VALUE_DEFAULT_TYPE, MemberSavedEvent.class.getName()); // Explicitly set default type
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"); // Programmatically set auto-offset-reset
 
-        return new DefaultKafkaConsumerFactory<>(props);
+        // Create and configure the JsonDeserializer instance
+        JsonDeserializer<Object> jsonDeserializer = new JsonDeserializer<>(objectMapper);
+        jsonDeserializer.addTrustedPackages("com.crewvy.common.event", "com.crewvy.workforce_service.approval.event", "com.crewvy.search_service.dto.event");
+
+        return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), jsonDeserializer);
     }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, MemberSavedEvent> kafkaListenerContainerFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, MemberSavedEvent> factory = new ConcurrentKafkaListenerContainerFactory<>();
+    public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
         return factory;
     }

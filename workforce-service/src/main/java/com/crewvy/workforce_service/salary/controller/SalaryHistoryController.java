@@ -23,15 +23,17 @@ public class SalaryHistoryController {
 
     private final SalaryHistoryService salaryHistoryService;
 
-    @PostMapping
-    public ResponseEntity<?> insertSalaryHistory(@RequestBody SalaryHistoryCreateReq req) {
-        SalaryHistoryRes response = salaryHistoryService.insertSalaryHistory(req);
-        return new ResponseEntity<>(new ApiResponse<>(true, response, "급여 변경 등록 성공")
+    @PutMapping("/save")
+    public ResponseEntity<?> insertSalaryHistory(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                                 @RequestHeader("X-User-CompanyId") UUID companyId,
+                                                 @RequestBody List<SalaryHistoryCreateReq> reqList) {
+        salaryHistoryService.updateSalaryHistory(memberPositionId, companyId, reqList);
+        return new ResponseEntity<>(new ApiResponse<>(true, null, "급여 변경 등록 성공")
                 , HttpStatus.CREATED);
     }
 
     @GetMapping("/list")
-    public ResponseEntity<?> getSalaryHistoryList(@RequestParam UUID memberId) {
+    public ResponseEntity<?> getSalaryHistoryList(@RequestHeader("X-User-UUID") UUID memberId) {
         List<SalaryHistoryRes> response = salaryHistoryService.getSalaryHistoryListByMemberId(memberId);
         return new ResponseEntity<>(new ApiResponse<>(true, response, "급여 이력 조회 성공")
                 , HttpStatus.OK);
@@ -39,7 +41,8 @@ public class SalaryHistoryController {
 
     // 산정 종료일 기반 기본급 반환
     @GetMapping("/payroll-list")
-    public ResponseEntity<?> getSalaryHistoryListForPayrollCalculation(@RequestBody SalaryHistoryListReq salaryHistoryListReq) {
+    public ResponseEntity<?> getSalaryHistoryListForPayrollCalculation(
+            @RequestBody SalaryHistoryListReq salaryHistoryListReq) {
         List<SalaryHistory> response = salaryHistoryService.getSalaryHistories(salaryHistoryListReq);
         return new ResponseEntity<>(new ApiResponse<>(true, response, "급여 이력 조회 성공")
                 , HttpStatus.OK);

@@ -41,6 +41,7 @@ public class PolicyService {
     public PolicyResponse createPolicy(UUID memberpositionId, UUID companyId, UUID organizationId, PolicyCreateRequest request) {
 //        checkPermissionOrThrow(memberpositionId, "CREATE", "COMPANY", "회사 정책 생성 권한이 없습니다.");
 
+        // PolicyType 엔티티 제거 - PolicyTypeCode enum 직접 사용
         // 법정 필수 유급 휴가 검증
         validateMandatoryPaidLeave(request.getTypeCode(), request.getIsPaid());
 
@@ -91,7 +92,16 @@ public class PolicyService {
         Policy policy = policyRepository.findById(policyId)
                 .orElseThrow(() -> new ResourceNotFoundException("ID에 해당하는 정책을 찾을 수 없습니다: " + policyId));
 
+<<<<<<< HEAD
         // 2. 법정 필수 유급 휴가 검증
+=======
+        // 2. PolicyType이 존재하는지 확인
+//        PolicyType policyType = policyTypeRepository.findByCompanyIdAndTypeCode(policy.getCompanyId(), request.getTypeCode())
+        PolicyType policyType = policyTypeRepository.findByTypeCode(request.getTypeCode())
+                .orElseThrow(() -> new ResourceNotFoundException("존재하지 않는 정책 유형입니다."));
+
+        // 3. 법정 필수 유급 휴가 검증
+>>>>>>> origin/develop
         validateMandatoryPaidLeave(request.getTypeCode(), request.getIsPaid());
 
         // 3. 정책 유효 기간 논리적 일관성 검증
@@ -152,10 +162,16 @@ public class PolicyService {
     public List<PolicyTypeResponse> findPolicyTypesByCompany(UUID memberpositionId, UUID companyId) {
         checkPermission(memberpositionId, "attendance", "READ", "COMPANY");
 
+<<<<<<< HEAD
         // PolicyTypeCode enum의 모든 값을 PolicyTypeResponse로 변환
         return Arrays.stream(PolicyTypeCode.values())
                 .map(PolicyTypeResponse::new)
                 .collect(Collectors.toList());
+=======
+//        List<PolicyType> policyTypes = policyTypeRepository.findByCompanyId(companyId);
+        List<PolicyType> policyTypes = policyTypeRepository.findAll();
+        return policyTypes.stream().map(PolicyTypeResponse::new).collect(Collectors.toList());
+>>>>>>> origin/develop
     }
 
     public PolicyResponse findMyEffectivePolicy(UUID memberId, UUID memberPositionId, UUID companyId) {

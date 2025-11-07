@@ -38,7 +38,6 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
-import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -124,7 +123,7 @@ public class MemberService {
     }
 
     // 사업자등록정보 조회
-    public Map<String, Object> getCompanyStatus(String bsnsLcns){
+    public Map<String, Object> getCompanyStatus(String bsnsLcns) {
         // bsnsLcns : 사업자 등록번호
         Map<String, Object> result = new HashMap<>();
         try {
@@ -139,7 +138,8 @@ public class MemberService {
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("b_no", Collections.singletonList(bsnsLcns.replace("-", "")));
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-            ParameterizedTypeReference<Map<String, Object>> responseType = new ParameterizedTypeReference<>() {};
+            ParameterizedTypeReference<Map<String, Object>> responseType = new ParameterizedTypeReference<>() {
+            };
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(url, HttpMethod.POST, entity, responseType);
             result = response.getBody();
             return result;
@@ -232,8 +232,8 @@ public class MemberService {
     }
 
     // AT 재발급
-    public LoginRes generateNewAt(GenerateNewAtReq generateNewAtReq) {
-        Member member = jwtTokenProvider.validateRt(generateNewAtReq.getRefreshToken());
+    public LoginRes generateNewAt(UUID memberId, GenerateNewAtReq generateNewAtReq) {
+        Member member = jwtTokenProvider.validateRt(generateNewAtReq.getRefreshToken(), memberId.toString());
         MemberPosition memberPosition = memberPositionRepository.findById(generateNewAtReq.getMemberPositionId())
                 .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 직원입니다."));
 
@@ -1068,9 +1068,8 @@ public class MemberService {
         Map<String, List<Permission>> groupedPermissionList = permissionList.stream()
                 .collect(Collectors.groupingBy(p -> p.getResource() + ":" + p.getAction()));
 
-        return groupedPermissionList.entrySet().stream()
-                .map(entry -> {
-                    List<Permission> permsInGroup = entry.getValue();
+        return groupedPermissionList.values().stream()
+                .map(permsInGroup -> {
                     Permission permission = permsInGroup.get(0);
 
                     Map<PermissionRange, UUID> rangeToIdMap = permsInGroup.stream()
@@ -1138,7 +1137,7 @@ public class MemberService {
                 .build();
         roleRepository.save(adminRole);
 
-        List<String> resources = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "attendance-policy", "salary");
+        List<String> resources = Arrays.asList("member", "title", "grade", "role", "organization", "attendance", "attendance-policy", "salary", "approval");
         List<Action> actions = Arrays.asList(Action.CREATE, Action.READ, Action.UPDATE, Action.DELETE);
 
         List<RolePermission> permissions = resources.stream()
@@ -1262,7 +1261,7 @@ public class MemberService {
 
         try {
             List<MemberPosition> positionList = member.getMemberPositionList().stream().toList();
-            if (positionList == null || positionList.isEmpty()) {
+            if (positionList.isEmpty()) {
                 MemberPosition defaultPosition = member.getDefaultMemberPosition();
                 if (defaultPosition != null) {
                     positionList = List.of(defaultPosition);

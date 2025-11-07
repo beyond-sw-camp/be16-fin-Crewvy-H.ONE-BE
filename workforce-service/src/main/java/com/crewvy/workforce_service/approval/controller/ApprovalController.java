@@ -25,10 +25,11 @@ public class ApprovalController {
 
     @GetMapping("/get-document/{id}")
     public ResponseEntity<?> getDocument(@PathVariable UUID id,
+                                         @RequestParam(required = false) UUID requestId,
                                          @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                          @RequestHeader("X-User-UUID") UUID memberId
     ) {
-        DocumentResponseDto document = approvalService.getDocument(id, memberPositionId, memberId);
+        DocumentResponseDto document = approvalService.getDocument(id, requestId, memberPositionId, memberId);
         return new ResponseEntity<>(
                 ApiResponse.success(document, "양식 상세 조회"),
                 HttpStatus.OK
@@ -38,6 +39,15 @@ public class ApprovalController {
     @GetMapping("/get-document-list")
     public ResponseEntity<?> getDocumentList() {
         List<DocumentResponseDto> documents = approvalService.getDocumentList();
+        return new ResponseEntity<>(
+                ApiResponse.success(documents, "양식 리스트 조회"),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/get-document-direct-list")
+    public ResponseEntity<?> getDocumentDirectList() {
+        List<DocumentResponseDto> documents = approvalService.getDocumentDirectList();
         return new ResponseEntity<>(
                 ApiResponse.success(documents, "양식 리스트 조회"),
                 HttpStatus.OK
@@ -76,9 +86,8 @@ public class ApprovalController {
     }
 
     @PatchMapping("/approve/{approvalId}")
-    public ResponseEntity<?> approveApproval(@PathVariable UUID approvalId,
-                                             @RequestHeader ("X-User-MemberPositionId") UUID memberPositionId
-    ) {
+        public ResponseEntity<?> approveApproval(@PathVariable UUID approvalId,
+                                                 @RequestHeader("X-User-MemberPositionId") UUID memberPositionId) {
         approvalService.approveApproval(approvalId, memberPositionId);
         return new ResponseEntity<>(ApiResponse.success(approvalId, "승인"), HttpStatus.OK);
     }
@@ -207,6 +216,17 @@ public class ApprovalController {
         approvalService.setPolicies(documentId, dtoList);
         return new ResponseEntity<>(
                 ApiResponse.success(documentId, "문서 양식 수정"),
+                HttpStatus.OK
+        );
+    }
+
+    @GetMapping("/get-policies/{documentId}")
+    public ResponseEntity<?> getPolicies(@PathVariable UUID documentId,
+                                         @RequestHeader("X-User-UUID") UUID memberId,
+                                         @RequestHeader("X-User-MemberPositionId") UUID memberPositionId
+    ) {
+        return new ResponseEntity<>(
+                ApiResponse.success(approvalService.getPolicies(documentId, memberId, memberPositionId), "문서 정책 조회"),
                 HttpStatus.OK
         );
     }
