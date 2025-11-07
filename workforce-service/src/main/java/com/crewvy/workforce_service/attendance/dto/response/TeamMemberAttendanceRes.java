@@ -18,6 +18,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class TeamMemberAttendanceRes {
 
+    private UUID dailyAttendanceId;   // 근태 기록 ID (수정 시 필요)
     private UUID memberId;
     private String name;              // 직원 이름
     private String department;        // 부서명

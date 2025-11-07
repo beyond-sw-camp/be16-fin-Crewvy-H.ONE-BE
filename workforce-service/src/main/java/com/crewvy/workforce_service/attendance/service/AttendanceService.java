@@ -4,6 +4,7 @@ import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.exception.*;
 import com.crewvy.workforce_service.attendance.constant.*;
 import com.crewvy.workforce_service.attendance.dto.request.EventRequest;
+import com.crewvy.workforce_service.attendance.dto.request.UpdateDailyAttendanceReq;
 import com.crewvy.workforce_service.attendance.dto.response.*;
 import com.crewvy.workforce_service.attendance.dto.rule.*;
 import com.crewvy.workforce_service.attendance.entity.*;
@@ -18,11 +19,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -1726,6 +1723,7 @@ public class AttendanceService {
                 String effectivePolicy = finalPolicyNameMap.getOrDefault(targetMemberId, "-");
 
                 TeamMemberAttendanceRes res = TeamMemberAttendanceRes.builder()
+                        .dailyAttendanceId(attendance != null ? attendance.getId() : null)
                         .memberId(targetMemberId)
                         .name(position != null ? position.getMemberName() : "알 수 없음")
                         .department(position != null ? position.getOrganizationName() : "-")
@@ -1937,13 +1935,13 @@ public class AttendanceService {
      */
     @Transactional
     public void updateDailyAttendance(UUID dailyAttendanceId, UUID memberPositionId,
-                                      com.crewvy.workforce_service.attendance.dto.request.UpdateDailyAttendanceReq request) {
+                                      UpdateDailyAttendanceReq request) {
         // 1. 근태 기록 조회
         DailyAttendance dailyAttendance = dailyAttendanceRepository.findById(dailyAttendanceId)
                 .orElseThrow(() -> new ResourceNotFoundException("근태 기록을 찾을 수 없습니다."));
 
         // 2. 권한 검증 (TEAM 이상 권한 필요)
-        boolean hasPermission = hasPermission(memberPositionId, "attendance", "UPDATE", "TEAM");
+        boolean hasPermission = hasPermission(memberPositionId, "attendance", "UPDATE", "COMPANY");
         if (!hasPermission) {
             throw new PermissionDeniedException("근태 기록을 수정할 권한이 없습니다.");
         }
