@@ -64,7 +64,7 @@ public class MemberController {
     }
 
     // 로그인
-    @PostMapping("/login")
+    @PostMapping("/doLogin")
     public ResponseEntity<?> memberDoLogin(@RequestBody @Valid LoginReq loginReq) {
         System.out.println("로그인 컨트롤러");
         return new ResponseEntity<>(ApiResponse.success(
