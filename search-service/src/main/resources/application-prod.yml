@@ -4,9 +4,10 @@ spring:
       on-profile: prod
   application:
     name: search-service
-  redis:
-    host: redis-service
-    port: 6379
+  data:
+    redis:
+      host: redis-service
+      port: 6379
   datasource:
     driver-class-name: org.mariadb.jdbc.Driver
     url: jdbc:mariadb://${DB_HOST}:3306/h_one?serverTimezone=Asia/Seoul
