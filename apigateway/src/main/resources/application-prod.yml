@@ -26,35 +26,35 @@ spring:
             - Path=/ai-service/**
           filters:
             - StripPrefix=1
-          uri: http://ai-service
+          uri: lb://ai-service
 
         - id: member-service
           predicates:
             - Path=/member-service/**
           filters:
             - StripPrefix=1
-          uri: http://member-service
+          uri: lb://member-service
 
         - id: search-service
           predicates:
             - Path=/search-service/**
           filters:
             - StripPrefix=1
-          uri: http://search-service
+          uri: lb://search-service
 
         - id: workforce-service
           predicates:
             - Path=/workforce-service/**
           filters:
             - StripPrefix=1
-          uri: http://workforce-service
+          uri: lb://workforce-service
 
         - id: workspace-service
           predicates:
             - Path=/workspace-service/**
           filters:
             - StripPrefix=1
-          uri: http://workspace-service
+          uri: lb://workspace-service
 
 jwt:
   secretKeyAt: ${SECRET_KEY_AT}
