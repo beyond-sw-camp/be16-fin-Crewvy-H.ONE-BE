@@ -19,4 +19,8 @@ public interface MemberPositionRepository extends JpaRepository<MemberPosition, 
     List<MemberPosition> findByCompany(@Param("company") Company company);
 
     List<MemberPosition> findAllByMemberId(UUID memberId);
+
+    List<MemberPosition> findAllByTitleId(UUID titleId);
+
+    List<MemberPosition> findAllByRoleId(UUID roleId);
 }

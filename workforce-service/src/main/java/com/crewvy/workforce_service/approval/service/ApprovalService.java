@@ -5,14 +5,15 @@ import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.dto.NotificationMessage;
 import com.crewvy.common.dto.ScheduleDto;
 import com.crewvy.common.entity.Bool;
+import com.crewvy.common.event.ApprovalCompletedEvent;
 import com.crewvy.common.exception.BusinessException;
+import com.crewvy.common.exception.SerializationException;
 import com.crewvy.workforce_service.approval.constant.ApprovalState;
 import com.crewvy.workforce_service.approval.constant.LineStatus;
 import com.crewvy.workforce_service.approval.constant.RequirementType;
 import com.crewvy.workforce_service.approval.dto.request.*;
 import com.crewvy.workforce_service.approval.dto.response.*;
 import com.crewvy.workforce_service.approval.entity.*;
-import com.crewvy.workforce_service.approval.event.ApprovalCompletedEvent;
 import com.crewvy.workforce_service.approval.repository.*;
 import com.crewvy.workforce_service.attendance.constant.RequestStatus;
 import com.crewvy.workforce_service.attendance.entity.Request;
@@ -23,6 +24,7 @@ import com.crewvy.workforce_service.feignClient.dto.response.MemberDto;
 import com.crewvy.workforce_service.feignClient.dto.response.OrganizationNodeDto;
 import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
 import com.crewvy.workforce_service.feignClient.dto.response.TitleRes;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -51,10 +53,10 @@ public class ApprovalService {
     private final ApprovalDocumentRepository approvalDocumentRepository;
     private final ApprovalLineRepository approvalLineRepository;
     private final ApprovalReplyRepository approvalReplyRepository;
+    private final ApprovalSearchOutboxEventRepository approvalSearchOutboxEventRepository;
     private final S3Uploader s3Uploader;
     private final MemberClient memberClient;
     private final ApplicationEventPublisher eventPublisher;
-    private final SearchOutboxEventRepository searchOutboxEventRepository;
     private final ObjectMapper objectMapper;
     private final RequestRepository requestRepository;
     private final ApprovalPolicyRepository approvalPolicyRepository;
@@ -305,28 +307,10 @@ public class ApprovalService {
         // 4. 최종 상태 결정: 결재 라인이 1명뿐인 경우 최종 승인 처리
         if (dto.getLineDtoList().size() == 1) {
             approval.updateState(ApprovalState.APPROVED);
-
-            List<String> memberPositionIdList = approval.getApprovalLineList().stream()
-                    .map(line -> line.getMemberPositionId().toString())
-                    .collect(Collectors.toList());
-
-            List<PositionDto> requesterPositionInfo = memberClient.getPositionList(memberPositionId, new IdListReq(List.of(approval.getMemberPositionId()))).getData();
-            if (requesterPositionInfo != null && !requesterPositionInfo.isEmpty()) {
-                ApprovalCompletedEvent approvalEvent = new ApprovalCompletedEvent(
-                        approval.getId(),
-                        requesterPositionInfo.get(0).getMemberId(),
-                        approval.getTitle(),
-                        requesterPositionInfo.get(0).getTitleName(),
-                        requesterPositionInfo.get(0).getMemberName(),
-                        memberPositionIdList,
-                        approval.getCreatedAt()
-                );
-                eventPublisher.publishEvent(approvalEvent);
-            }
         }
 
         // 5. 부모 엔티티를 한 번만 저장
-        approvalRepository.save(approval);
+        Approval savedApproval = approvalRepository.saveAndFlush(approval);
 
 //        request에 approvalId 추가
         if(dto.getRequestId() != null) {
@@ -374,7 +358,25 @@ public class ApprovalService {
                     .build();
 
             eventPublisher.publishEvent(message);
+        }
 
+        // Elasticsearch 저장을 위한 이벤트 발행
+        List<PositionDto> requesterPositionInfo = memberClient.getPositionList(memberPositionId, new IdListReq(List.of(savedApproval.getMemberPositionId()))).getData();
+        if (requesterPositionInfo != null && !requesterPositionInfo.isEmpty()) {
+            List<String> approverIdList = savedApproval.getApprovalLineList().stream()
+                    .map(line -> line.getMemberPositionId().toString())
+                    .collect(Collectors.toList());
+
+            ApprovalCompletedEvent approvalEvent = new ApprovalCompletedEvent(
+                    savedApproval.getId(),
+                    memberPositionId,
+                    savedApproval.getTitle(),
+                    requesterPositionInfo.get(0).getTitleName(),
+                    requesterPositionInfo.get(0).getMemberName(),
+                    approverIdList,
+                    savedApproval.getCreatedAt()
+            );
+            eventPublisher.publishEvent(approvalEvent);
         }
 
         return approval.getId();
@@ -493,7 +495,7 @@ public class ApprovalService {
 
                 ApprovalCompletedEvent approvalEvent = new ApprovalCompletedEvent(
                         approval.getId(),
-                        requesterPositionInfo.get(0).getMemberId(),
+                        memberPositionId,
                         approval.getTitle(),
                         requesterPositionInfo.get(0).getTitleName(),
                         requesterPositionInfo.get(0).getMemberName(),
@@ -1154,9 +1156,9 @@ public class ApprovalService {
                     .aggregateId(event.getApprovalId())
                     .payload(payload)
                     .build();
-            searchOutboxEventRepository.save(outboxEvent);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            throw new RuntimeException("Failed to serialize approval event", e);
+            approvalSearchOutboxEventRepository.save(outboxEvent);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("데이터 직렬화 실패");
         }
     }
 }

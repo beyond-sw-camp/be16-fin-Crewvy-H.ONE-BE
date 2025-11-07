@@ -29,7 +29,7 @@ public class MemberRes {
     public static MemberRes fromEntity(Member member) {
         MemberPosition defaultPosition = member.getDefaultMemberPosition();
         String departmentName = (defaultPosition != null && defaultPosition.getOrganization() != null) ? defaultPosition.getOrganization().getName() : null;
-        String teamName = (defaultPosition != null && defaultPosition.getOrganization() != null && defaultPosition.getOrganization().getParent() != null) ? defaultPosition.getOrganization().getParent().getName() : null; // Assuming parent is team or department
+        String teamName = (defaultPosition != null && defaultPosition.getOrganization() != null && defaultPosition.getOrganization().getParent() != null) ? defaultPosition.getOrganization().getParent().getName() : null;
         String positionName = (defaultPosition != null && defaultPosition.getTitle() != null) ? defaultPosition.getTitle().getName() : null;
         UUID memberPositionId = (defaultPosition != null && defaultPosition.getId() != null) ? defaultPosition.getId() : null;
         UUID titleId = (defaultPosition != null && defaultPosition.getTitle() != null) ? defaultPosition.getTitle().getId() : null;

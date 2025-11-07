@@ -5,9 +5,12 @@ import com.crewvy.member_service.member.entity.GradeHistory;
 import com.crewvy.member_service.member.entity.Member;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface GradeHistoryRepository extends JpaRepository<GradeHistory, UUID> {
     Optional<GradeHistory> findByMemberAndIsActive(Member member, Bool isActive);
+
+    List<GradeHistory> findAllByGradeId(UUID gradeId);
 }

@@ -16,6 +16,7 @@ import java.util.UUID;
 public class VideoConferenceCreateReq {
     private String name;
     private String description;
+    @Builder.Default
     private List<UUID> inviteeIdList = new ArrayList<>();
     private Boolean isRecording;
     private LocalDateTime scheduledStartTime;
