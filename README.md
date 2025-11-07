@@ -1,11 +1,15 @@
 # [H.ONE]
-<img width="1094" height="367" alt="Image" src="https://github.com/user-attachments/assets/a51c1746-d6a1-4eea-b358-ba65e1e0759c" />
+<img width="1077" height="367" alt="Image" src="https://github.com/user-attachments/assets/6912dad4-a773-4dfb-996a-917917e5c98f" />
 
 ## 팀원 소개
 
 | **김송옥** | **정지완** | **김지현** | **최승휘** | **위동길** |
 | :---: | :---: | :---: | :---: | :---: |
 | [<img src="https://avatars.githubusercontent.com/u/208786203?v=4" height=150 width=150> <br/> @songok14](https://github.com/songok14) | [<img src="https://avatars.githubusercontent.com/u/61574220?v=4" height=150 width=150> <br/> @FOJF](https://github.com/FOJF) | [<img src="https://avatars.githubusercontent.com/u/80299604?v=4" height=150 width=150> <br/> @Jihyeon0804](https://github.com/Jihyeon0804) | [<img src="https://avatars.githubusercontent.com/u/109147221?v=4" height=150 width=150> <br/> @kishinoa](https://github.com/kishinoa) | [<img src="https://avatars.githubusercontent.com/u/165255454?v=4" height=150 width=150> <br/> @mozzibeam](https://github.com/mozzibeam) |
+
+---
+
+# 목차
 
 
 ## 1. 프로젝트 추진 배경
@@ -111,7 +115,7 @@
   <img src="https://img.shields.io/badge/fastapi-009688?style=for-the-badge&logo=fastapi&logoColor=white">
   <img src="https://img.shields.io/badge/livekit-000000?style=for-the-badge&logo=livekit&logoColor=white">
   <img src="https://img.shields.io/badge/a.x-000000?style=for-the-badge&logo=a.x&logoColor=white">
-  <img src="https://img.shields.io/badge/openai-412991?style=for-the-badge&logo=openai&logoColor=white">
+  <img src="https://img.shields.io/badge/whisper-412991?style=for-the-badge&logo=openai&logoColor=white">
   </p>
 
   ### DB
