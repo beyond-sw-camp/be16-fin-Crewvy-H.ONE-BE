@@ -28,6 +28,13 @@ spec:
             secretKeyRef:
               name: hone-secrets
               key: SECRET_KEY_AT
+        resources:
+          limits:
+            cpu: "2"
+            memory: "2Gi"
+          requests:
+            cpu: "1"
+            memory: "1Gi"
 
         readinessProbe:
           httpGet:

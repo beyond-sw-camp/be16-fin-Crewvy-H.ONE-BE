@@ -56,6 +56,13 @@ spec:
             secretKeyRef:
               name: hone-secrets
               key: S3_BUCKET
+        resources:
+          limits:
+            cpu: "2"
+            memory: "2Gi"
+          requests:
+            cpu: "1"
+            memory: "1Gi"
 
         # 컨테이너가 요청을 받을 준비가 되었는지 확인합니다.
         readinessProbe:
