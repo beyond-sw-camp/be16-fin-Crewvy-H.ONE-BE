@@ -13,11 +13,13 @@ spec:
       labels:
         app: apigateway
     spec:
+      nodeSelector:
+        eks.amazonaws.com/nodegroup: hone-nodes
       containers:
       - name: apigateway
         image: IMAGE_PLACEHOLDER
         ports:
-        - containerPort: 8000 # API Gateway는 보통 8000번 포트를 사용합니다.
+        - containerPort: 8080
         resources:
           limits:
             cpu: "1"
@@ -36,14 +38,14 @@ spec:
         readinessProbe:
           httpGet:
             path: /actuator/health
-            port: 8000
+            port: 8080
           initialDelaySeconds: 20
           periodSeconds: 15
 
         livenessProbe:
           httpGet:
             path: /actuator/health
-            port: 8000
+            port: 8080
           initialDelaySeconds: 40
           periodSeconds: 15
 
@@ -58,6 +60,6 @@ spec:
   type: ClusterIP
   ports:
   - port: 80
-    targetPort: 8000
+    targetPort: 8080
   selector:
     app: apigateway

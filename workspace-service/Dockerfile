@@ -1,22 +1,26 @@
-# 1단계: Gradle을 사용하여 애플리케이션 빌드
-FROM gradle:8.4-jdk17-alpine AS build
+# 1단계: eclipse-temurin과 Gradle Wrapper를 사용하여 애플리케이션 빌드
+FROM eclipse-temurin:17-jdk-alpine AS build
 
-WORKDIR /home/gradle/src
-
-# 멀티 프로젝트 빌드를 위해 전체 프로젝트 소스를 복사
-COPY --chown=gradle:gradle . .
-
-# 'workspace-service' 하위 프로젝트에 대해서만 bootJar 태스크를 실행
-RUN gradle :workspace-service:bootJar -x test
-
-
-# 2단계: 실제 실행을 위한 가벼운 최종 이미지 생성
-FROM openjdk:17-jre-slim
-
+# 컨테이너 내 작업 디렉터리 설정
 WORKDIR /app
 
-# 빌드 단계에서 생성된 JAR 파일을 최종 이미지로 복사
-COPY --from=build /home/gradle/src/workspace-service/build/libs/*.jar app.jar
+# 프로젝트 전체 소스를 컨테이너의 /app 디렉터리로 복사합니다.
+COPY . .
 
-# 'prod' 프로파일로 애플리케이션을 실행
+# gradlew 스크립트에 실행 권한을 부여합니다.
+RUN chmod +x ./gradlew
+
+# Gradle Wrapper를 사용하여 'workspace-service' 하위 프로젝트를 빌드합니다.
+RUN ./gradlew :workspace-service:bootJar -x test
+
+# 2단계: 실제 실행을 위한 가벼운 최종 이미지 생성
+FROM eclipse-temurin:17-jre-alpine
+
+# 애플리케이션 작업 디렉터리 설정
+WORKDIR /app
+
+# 빌드 단계(build stage)에서 생성된 JAR 파일을 최종 이미지로 복사합니다.
+COPY --from=build /app/workspace-service/build/libs/*.jar app.jar
+
+# 'prod' 프로파일로 애플리케이션을 실행합니다.
 ENTRYPOINT ["java", "-jar", "app.jar", "--spring.profiles.active=prod"]
