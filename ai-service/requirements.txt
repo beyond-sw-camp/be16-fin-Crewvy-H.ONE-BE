@@ -9,4 +9,5 @@ transformers
 whisperx
 boto3
 accelerate
+pyannote
  
