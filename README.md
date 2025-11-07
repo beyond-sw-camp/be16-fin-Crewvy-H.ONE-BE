@@ -10,6 +10,22 @@
 ---
 
 # 목차
+| **문서명** | **분류** | **설명** |
+|--------|----------|----------|
+| [프로젝트 추진 배경](#1-프로젝트-추진-배경) | 기획 | 프로젝트 배경 |
+| [프로젝트 목적](#2-프로젝트-목적) | 기획 | 프로젝트 목적 |
+| [추진 전략 (핵심 목표)](#3-추진-전략-핵심-목표) | 기획 | 프로젝트 목적 |
+| [요구사항 정의서](https://docs.google.com/spreadsheets/d/1OWBwOKICwviN1j20aa2d0-GFYH7mc54pXyNh_uE32rs/edit?gid=0#gid=0) | 기획 | 기능 및 비기능 요구사항 정의 |
+| [WBS](https://docs.google.com/spreadsheets/d/1OWBwOKICwviN1j20aa2d0-GFYH7mc54pXyNh_uE32rs/edit?gid=437381057#gid=437381057) | 기획 | 업무 분장 및 세부 일정 |
+| [ERD](https://www.erdcloud.com/d/putcJAPJZgGAzeqBS) | 기획 | 데이터베이스 구조 및 관계 |
+| [화면설계서](https://www.figma.com/design/xpNgDkijDVTtfj1qtteclD/Team-project?node-id=939-12738&t=uA5ilLzLXs6EpFeA-1) | 기획 | UI/UX 화면 흐름 및 구조 |
+| [단위 테스트 결과서](https://documenter.getpostman.com/view/48728965/2sB3QQH7M2) | 백엔드 | 기능별 테스트 결과 |
+| [주요 기술 아키텍처](#4-주요-기술-아키텍처) | 기술 | 프로젝트 |
+| [기술 스택](#5-기술-스택) | 기술 | 프로젝트 사용 기술 명세 |
+| [시스템 아키텍처 및 CI/CD 계획서](#6-시스템-아키텍처-및-cicd-계획서) | 시스템 통합 | 배포 및 자동화 계획 |
+| [UI/UX 단위테스트](#7-uiux-단위테스트) | 프론트엔드 | 사용자 테스트 결과 |
+| [회고록](#8-회고록) | 회고 | 개인 회고록 |
+
 
 
 ## 1. 프로젝트 추진 배경
@@ -140,21 +156,11 @@
   <img src="https://img.shields.io/badge/postman-FF6C37?style=for-the-badge&logo=postman&logoColor=white">
   <img src="https://img.shields.io/badge/figma-009639?style=for-the-badge&logo=figma&logoColor=white">
   </p>
-  
----
-## 6. 산출물
 
-| 항목       | 링크 |
-|----------|---|
-| 요구사항 정의서 | [열기](https://docs.google.com/spreadsheets/d/1OWBwOKICwviN1j20aa2d0-GFYH7mc54pXyNh_uE32rs/edit?gid=0#gid=0) |
-| WBS      | [열기](https://docs.google.com/spreadsheets/d/1OWBwOKICwviN1j20aa2d0-GFYH7mc54pXyNh_uE32rs/edit?gid=437381057#gid=437381057) |
-| ERD      | [열기](https://www.erdcloud.com/d/putcJAPJZgGAzeqBS) |
-| 화면설계서    | [열기](https://www.figma.com/design/xpNgDkijDVTtfj1qtteclD/Team-project?node-id=939-12738&t=uA5ilLzLXs6EpFeA-1) |
-| API 명세서  | [열기](https://documenter.getpostman.com/view/48728965/2sB3QQH7M2) |
 
 ---
 
-##  7. 시스템 아키텍처 및 CI/CD 계획서
+##  6. 시스템 아키텍처 및 CI/CD 계획서
   ### 시스템 아키텍처
   <img alt="시스템 아키텍처 이미지" src=""/>
 
@@ -162,7 +168,7 @@
   
 
 ---
-## 8. UI/UX 단위테스트
+## 7. UI/UX 단위테스트
 <details>
   <summary><strong>직원</strong></summary>
   <blockquote>
@@ -305,7 +311,7 @@
 
 ---
 
-## 9. 회고록
+## 8. 회고록
 | 팀원   | 회고 내용 |
 |--------|----------|
 | 김송옥 |  |
