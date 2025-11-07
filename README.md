@@ -1,4 +1,12 @@
 # [H.ONE]
+<img width="1094" height="367" alt="Image" src="https://github.com/user-attachments/assets/a51c1746-d6a1-4eea-b358-ba65e1e0759c" />
+
+## 팀원 소개
+
+| **김송옥** | **정지완** | **김지현** | **최승휘** | **위동길** |
+| :---: | :---: | :---: | :---: | :---: |
+| [<img src="https://avatars.githubusercontent.com/u/208786203?v=4" height=150 width=150> <br/> @songok14](https://github.com/songok14) | [<img src="https://avatars.githubusercontent.com/u/61574220?v=4" height=150 width=150> <br/> @FOJF](https://github.com/FOJF) | [<img src="https://avatars.githubusercontent.com/u/80299604?v=4" height=150 width=150> <br/> @Jihyeon0804](https://github.com/Jihyeon0804) | [<img src="https://avatars.githubusercontent.com/u/109147221?v=4" height=150 width=150> <br/> @kishinoa](https://github.com/kishinoa) | [<img src="https://avatars.githubusercontent.com/u/165255454?v=4" height=150 width=150> <br/> @mozzibeam](https://github.com/mozzibeam) |
+
 
 ## 1. 프로젝트 추진 배경
 
@@ -99,14 +107,16 @@
   <img src="https://img.shields.io/badge/java-007396?style=for-the-badge&logo=openjdk&logoColor=white">
   <img src="https://img.shields.io/badge/apachekafka-231F20?style=for-the-badge&logo=apachekafka&logoColor=white">
   <img src="https://img.shields.io/badge/elasticsearch-005571?style=for-the-badge&logo=elasticsearch&logoColor=white">
+   <img src="https://img.shields.io/badge/python-3776AB?style=for-the-badge&logo=python&logoColor=white">
   <img src="https://img.shields.io/badge/fastapi-009688?style=for-the-badge&logo=fastapi&logoColor=white">
   <img src="https://img.shields.io/badge/livekit-000000?style=for-the-badge&logo=livekit&logoColor=white">
+  <img src="https://img.shields.io/badge/a.x-000000?style=for-the-badge&logo=a.x&logoColor=white">
+  <img src="https://img.shields.io/badge/openai-412991?style=for-the-badge&logo=openai&logoColor=white">
   </p>
 
   ### DB
   <p>
   <img src="https://img.shields.io/badge/mariadb-003545?style=for-the-badge&logo=mariadb&logoColor=white">
-  <img src="https://img.shields.io/badge/mysql-4479A1?style=for-the-badge&logo=mysql&logoColor=white">
   <img src="https://img.shields.io/badge/redis-FF4438?style=for-the-badge&logo=redis&logoColor=white">
   </p>
 
@@ -128,8 +138,19 @@
   </p>
   
 ---
+## 6. 산출물
 
-##  6. 시스템 아키텍처 및 CI/CD 계획서
+| 항목       | 링크 |
+|----------|---|
+| 요구사항 정의서 | [열기](https://docs.google.com/spreadsheets/d/1OWBwOKICwviN1j20aa2d0-GFYH7mc54pXyNh_uE32rs/edit?gid=0#gid=0) |
+| WBS      | [열기](https://docs.google.com/spreadsheets/d/1OWBwOKICwviN1j20aa2d0-GFYH7mc54pXyNh_uE32rs/edit?gid=437381057#gid=437381057) |
+| ERD      | [열기](https://www.erdcloud.com/d/putcJAPJZgGAzeqBS) |
+| 화면설계서    | [열기](https://www.figma.com/design/xpNgDkijDVTtfj1qtteclD/Team-project?node-id=939-12738&t=uA5ilLzLXs6EpFeA-1) |
+| API 명세서  | [열기](https://documenter.getpostman.com/view/48728965/2sB3QQH7M2) |
+
+---
+
+##  7. 시스템 아키텍처 및 CI/CD 계획서
   ### 시스템 아키텍처
   <img alt="시스템 아키텍처 이미지" src=""/>
 
@@ -137,7 +158,7 @@
   
 
 ---
-## 7. UI/UX 단위테스트
+## 8. UI/UX 단위테스트
 <details>
   <summary><strong>직원</strong></summary>
   <blockquote>
@@ -277,17 +298,6 @@
       </div>
     </blockquote>
   </details>
-
----
-## 8. 산출물
-
-| 항목       | 링크 |
-|----------|---|
-| 요구사항 정의서 | [열기](https://docs.google.com/spreadsheets/d/1OWBwOKICwviN1j20aa2d0-GFYH7mc54pXyNh_uE32rs/edit?gid=0#gid=0) |
-| WBS      | [열기](https://docs.google.com/spreadsheets/d/1OWBwOKICwviN1j20aa2d0-GFYH7mc54pXyNh_uE32rs/edit?gid=437381057#gid=437381057) |
-| ERD      | [열기](https://www.erdcloud.com/d/putcJAPJZgGAzeqBS) |
-| 화면설계서    | [열기](https://www.figma.com/design/xpNgDkijDVTtfj1qtteclD/Team-project?node-id=939-12738&t=uA5ilLzLXs6EpFeA-1) |
-| API 명세서  | [열기](https://documenter.getpostman.com/view/48728965/2sB3QQH7M2) |
 
 ---
 
