@@ -35,6 +35,7 @@ public class JwtTokenFilter implements GlobalFilter {
 
     private static final List<String> ALLOWED_PATH = List.of(
             "/member/login",
+            "/member/doLogin",
             "/member/create-admin",
             "/member/check-email",
             "/member/reset-password",
