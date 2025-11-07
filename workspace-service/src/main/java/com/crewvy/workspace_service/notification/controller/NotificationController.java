@@ -18,6 +18,7 @@ import java.util.UUID;
 public class NotificationController {
     private final NotificationService notificationService;
 
+
     @GetMapping("/get-my-alarm")
     public ResponseEntity<?> getMyAlarm(@RequestHeader("X-User-UUID") UUID memberId) {
         List<NotificationResDto> dtoList = notificationService.getMyAlarm(memberId);
