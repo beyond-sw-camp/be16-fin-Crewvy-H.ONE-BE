@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.attendance.batch;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersBuilder;
@@ -38,6 +39,11 @@ public class AttendanceBatchScheduler {
      */
     @Scheduled(cron = "0 5 0 * * *")
     @Async
+    @SchedulerLock(
+            name = "runDailyAttendanceBatch", // ★ 중요: 작업별로 고유한 이름 지정
+            lockAtMostFor = "PT10M",  // 작업이 10분 이상 걸리면 강제 잠금 해제
+            lockAtLeastFor = "PT30S"  // 작업이 빨리 끝나도 최소 30초간 잠금 유지
+    )
     public void runDailyAttendanceBatch() {
         log.info("========================================");
         log.info("근태 일일 배치 시작: {}", LocalDateTime.now());
@@ -122,6 +128,11 @@ public class AttendanceBatchScheduler {
      */
     @Scheduled(cron = "0 0 2 * * *")
     @Async
+    @SchedulerLock(
+            name = "runAutoCompleteClockOutBatch", // ★ 중요: 작업별로 고유한 이름 지정
+            lockAtMostFor = "PT10M",  // 작업이 10분 이상 걸리면 강제 잠금 해제
+            lockAtLeastFor = "PT30S"  // 작업이 빨리 끝나도 최소 30초간 잠금 유지
+    )
     public void runAutoCompleteClockOutBatch() {
         log.info("========================================");
         log.info("미완료 퇴근 자동 처리 배치 시작: {}", LocalDateTime.now());
@@ -175,6 +186,11 @@ public class AttendanceBatchScheduler {
      */
     @Scheduled(cron = "0 0 3 1 * *")
     @Async
+    @SchedulerLock(
+            name = "runAnnualLeaveAccrualBatch", // ★ 중요: 작업별로 고유한 이름 지정
+            lockAtMostFor = "PT10M",  // 작업이 10분 이상 걸리면 강제 잠금 해제
+            lockAtLeastFor = "PT30S"  // 작업이 빨리 끝나도 최소 30초간 잠금 유지
+    )
     public void runAnnualLeaveAccrualBatch() {
         log.info("========================================");
         log.info("연차 자동 발생 배치 시작: {}", LocalDateTime.now());

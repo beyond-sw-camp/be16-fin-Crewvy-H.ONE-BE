@@ -4,6 +4,7 @@ import com.crewvy.common.entity.Bool;
 import com.crewvy.member_service.member.entity.NotificationOutboxEvent;
 import com.crewvy.member_service.member.repository.OutboxRepository;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Pageable;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -33,6 +34,11 @@ public class OutboxRelayScheduler {
      */
     @Scheduled(fixedDelay = 5000)
     @Transactional // 2. 이 작업 전체를 하나의 트랜잭션으로 묶습니다.
+    @SchedulerLock(
+            name = "relayOutboxEvents", // ★ 중요: 작업별로 고유한 이름 지정
+            lockAtMostFor = "PT10M",  // 작업이 10분 이상 걸리면 강제 잠금 해제
+            lockAtLeastFor = "PT30S"  // 작업이 빨리 끝나도 최소 30초간 잠금 유지
+    )
     public void relayOutboxEvents() {
 
         // 3. 처리 안 된(processed=false) 이벤트들을 조회합니다. (예: 최대 100개)
