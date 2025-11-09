@@ -58,9 +58,9 @@ public interface RequestRepository extends JpaRepository<Request, UUID> {
     Page<Request> findDeviceRequestsByStatus(@Param("status") RequestStatus status, Pageable pageable);
 
     /**
-     * 내 휴가 신청 목록 조회 (페이징) - 정책이 있는(휴가) 요청만
+     * 내 휴가 신청 목록 조회 (페이징) - 정책이 있는(휴가) 요청만, CANCELED 제외
      */
-    @Query("SELECT r FROM Request r WHERE r.memberId = :memberId AND r.policy IS NOT NULL ORDER BY r.createdAt DESC")
+    @Query("SELECT r FROM Request r WHERE r.memberId = :memberId AND r.policy IS NOT NULL AND r.status != 'RS004' ORDER BY r.createdAt DESC")
     Page<Request> findLeaveRequestsByMemberId(@Param("memberId") UUID memberId, Pageable pageable);
 
     /**

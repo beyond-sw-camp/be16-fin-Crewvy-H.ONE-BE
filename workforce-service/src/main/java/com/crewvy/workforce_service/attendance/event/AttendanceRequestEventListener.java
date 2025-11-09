@@ -68,6 +68,15 @@ public class AttendanceRequestEventListener {
 
             requestRepository.save(request); // DB 반영
             log.error("❌❌❌ [이벤트 리스너] Request 반려 처리 및 잔액 복구 완료: requestId={} ❌❌❌", request.getId());
+
+        } else if (event.getApprovalState() == ApprovalState.DISCARDED) {
+            request.updateStatus(RequestStatus.CANCELED);
+
+            // 취소 시 잔액 복구 (신청 시 차감했던 잔액 되돌림)
+            restoreBalanceAfterRejection(request);
+
+            requestRepository.save(request); // DB 반영
+            log.error("🗑️🗑️🗑️ [이벤트 리스너] Request 취소 처리 및 잔액 복구 완료: requestId={} 🗑️🗑️🗑️", request.getId());
         }
     }
 

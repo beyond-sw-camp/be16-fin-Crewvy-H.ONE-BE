@@ -1017,6 +1017,11 @@ public class RequestService {
             return;
         }
 
+        // deductionDays가 null이거나 0이면 복구할 필요 없음
+        if (request.getDeductionDays() == null || request.getDeductionDays() == 0) {
+            return;
+        }
+
         int currentYear = LocalDate.now().getYear();
         PolicyTypeCode typeCode = request.getPolicy().getPolicyTypeCode();
 

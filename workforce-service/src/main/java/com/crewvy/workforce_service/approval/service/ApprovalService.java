@@ -401,6 +401,8 @@ public class ApprovalService {
 
 //    결재 임시저장
     public UUID draftApproval(CreateApprovalDto dto, UUID memberPositionId) {
+        log.info("📝 [임시저장] 시작: approvalId={}, lineCount={}", dto.getApprovalId(), dto.getLineDtoList().size());
+
         Approval approval = null;
         if(dto.getApprovalId() == null) {
             ApprovalDocument document = approvalDocumentRepository.findById(dto.getDocumentId()).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 문서입니다."));
@@ -411,14 +413,15 @@ public class ApprovalService {
                     .state(ApprovalState.DRAFT)
                     .memberPositionId(memberPositionId)
                     .build();
+            log.info("📝 [임시저장] 새 Approval 생성");
         }
         else {
             approval = approvalRepository.findById(dto.getApprovalId()).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 결재입니다."));
+            log.info("📝 [임시저장] 기존 Approval 조회: 기존 lineCount={}", approval.getApprovalLineList().size());
             approval.updateApproval(dto.getTitle(), dto.getContents());
             approval.getApprovalLineList().clear();
+            log.info("📝 [임시저장] 기존 결재라인 clear 완료");
         }
-
-        approvalRepository.save(approval);
 
         // 2. 결재 라인 정렬
         dto.getLineDtoList().sort(Comparator.comparing(ApprovalLineRequestDto::getLineIndex));
@@ -433,22 +436,52 @@ public class ApprovalService {
                     .build();
 
             approval.getApprovalLineList().add(approvalLine);
+            log.info("📝 [임시저장] ApprovalLine 추가: memberPositionId={}, index={}",
+                    alDto.getMemberPositionId(), alDto.getLineIndex());
         }
+
+        log.info("📝 [임시저장] 저장 전 lineCount={}", approval.getApprovalLineList().size());
+
+        // 4. ApprovalLine을 추가한 후 저장 (중요!)
+        Approval savedApproval = approvalRepository.save(approval);
+
+        log.info("📝 [임시저장] 저장 완료: approvalId={}, lineCount={}",
+                savedApproval.getId(), savedApproval.getApprovalLineList().size());
 
 //        request에 approvalId 추가
         if(dto.getRequestId() != null) {
             Request request = requestRepository.findById(dto.getRequestId())
                     .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 신청입니다."));
 
-            request.updateApprovalId(approval.getId());
+            request.updateApprovalId(savedApproval.getId());
+            requestRepository.save(request);
+            log.info("📝 [임시저장] Request 연결: requestId={}", dto.getRequestId());
         }
 
-        return approval.getId();
+        return savedApproval.getId();
     }
 
 //    결재 삭제(임시저장된 상태의 문서 삭제)
     public void discardApproval(UUID approvalId) {
         Approval approval = approvalRepository.findById(approvalId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 결재입니다."));
+
+        // 연결된 Request가 있으면 취소 처리하고 잔액 복구
+        Optional<Request> requestOpt = requestRepository.findByApprovalId(approvalId);
+        if (requestOpt.isPresent()) {
+            Request request = requestOpt.get();
+
+            // Request 상태를 CANCELED로 변경하고 잔액 복구 이벤트 발행
+            AttendanceRequestApprovedEvent cancelEvent = new AttendanceRequestApprovedEvent(
+                    request.getId(),
+                    approvalId,
+                    ApprovalState.DISCARDED, // DISCARDED 상태로 전달하여 취소 처리
+                    LocalDateTime.now()
+            );
+            eventPublisher.publishEvent(cancelEvent);
+            log.info("결재 문서 삭제로 인한 Request 취소 이벤트 발행: requestId={}, approvalId={}",
+                    request.getId(), approvalId);
+        }
+
         approval.updateState(ApprovalState.DISCARDED);
     }
 
@@ -632,9 +665,13 @@ public class ApprovalService {
 //    결재 상세 조회
     @Transactional(readOnly = true)
     public ApprovalResponseDto getApproval(UUID id) {
+        log.info("🔍 [결재조회] 시작: approvalId={}", id);
+
         // 1. N+1 문제 방지를 위해 Fetch Join으로 연관 엔티티를 한 번에 조회합니다.
         Approval approval = approvalRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new EntityNotFoundException("결재 내역이 없습니다."));
+
+        log.info("🔍 [결재조회] Approval 조회 완료: lineCount={}", approval.getApprovalLineList().size());
 
         // 2. positionMap을 final로 선언하고, 할당은 if-else 블록 안에서 한 번만 하도록 변경
         final Map<UUID, PositionDto> positionMap;
@@ -643,16 +680,21 @@ public class ApprovalService {
                 .distinct()
                 .toList();
 
+        log.info("🔍 [결재조회] 결재라인 memberPositionId 목록: {}", mpidList);
+
         if (!mpidList.isEmpty()) {
             ApiResponse<List<PositionDto>> response = memberClient.getPositionList(approval.getMemberPositionId(), new IdListReq(mpidList));
             if (response.isSuccess() && response.getData() != null) {
                 positionMap = response.getData().stream()
                         .collect(Collectors.toMap(PositionDto::getMemberPositionId, position -> position));
+                log.info("🔍 [결재조회] member-service 조회 성공: count={}", positionMap.size());
             } else {
                 positionMap = Collections.emptyMap(); // API 호출 실패 시 빈 맵 할당
+                log.warn("🔍 [결재조회] member-service 조회 실패");
             }
         } else {
             positionMap = Collections.emptyMap(); // 결재 라인이 없을 시 빈 맵 할당
+            log.warn("🔍 [결재조회] 결재 라인이 비어있음");
         }
 
         // 3. 결재 라인 DTO 리스트를 Stream으로 생성합니다. (이제 에러 없이 동작)
