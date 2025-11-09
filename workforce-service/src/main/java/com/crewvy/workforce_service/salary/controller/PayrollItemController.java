@@ -54,15 +54,16 @@ public class PayrollItemController {
     }
 
     // 급여 항목 추가
-    @PostMapping
+    @PostMapping("/create")
     public ResponseEntity<?> createPayrollItem(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                               @RequestHeader("X-User-CompanyId") UUID companyId,
                                                @RequestBody PayrollItemCreateReq request) {
-        PayrollItemRes response = payrollItemService.createPayrollItem(memberPositionId, request);
+        PayrollItemRes response = payrollItemService.createPayrollItem(memberPositionId, companyId, request);
         return new ResponseEntity<>(new ApiResponse<>(true, response, "항목 추가 성공"), HttpStatus.CREATED);
     }
 
     // 급여 항목 수정
-    @PutMapping
+    @PutMapping("/update")
     public ResponseEntity<?> updatePayrollItems(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                                 @RequestBody List<PayrollItemUpdateReq> requests) {
         List<PayrollItemRes> response = payrollItemService.updatePayrollItems(memberPositionId, requests);

@@ -65,17 +65,11 @@ public class SalaryPolicy extends BaseEntity {
         if (salaryPolicyUpdateReq.getPayDayType() != null) {
             this.payDayType = salaryPolicyUpdateReq.getPayDayType();
         }
-        if (salaryPolicyUpdateReq.getPaymentDay() != 0) {
-            this.paymentDay = salaryPolicyUpdateReq.getPaymentDay();
-        }
         if (salaryPolicyUpdateReq.getHolidayRule() != null) {
             this.holidayRule = salaryPolicyUpdateReq.getHolidayRule();
         }
         if (salaryPolicyUpdateReq.getPeriodStartMonthType() != null) {
             this.periodStartMonthType = salaryPolicyUpdateReq.getPeriodStartMonthType();
-        }
-        if (salaryPolicyUpdateReq.getPeriodStartDay() != 0) {
-            this.periodStartDay = salaryPolicyUpdateReq.getPeriodStartDay();
         }
         if (salaryPolicyUpdateReq.getPeriodType() != null) {
             this.periodType = salaryPolicyUpdateReq.getPeriodType();
@@ -83,9 +77,9 @@ public class SalaryPolicy extends BaseEntity {
         if (salaryPolicyUpdateReq.getPeriodEndMonthType() != null) {
             this.periodEndMonthType = salaryPolicyUpdateReq.getPeriodEndMonthType();
         }
-        if (salaryPolicyUpdateReq.getPeriodEndDay() != 0) {
-            this.periodEndDay = salaryPolicyUpdateReq.getPeriodEndDay();
-        }
+        this.paymentDay = salaryPolicyUpdateReq.getPaymentDay();
+        this.periodEndDay = salaryPolicyUpdateReq.getPeriodEndDay();
+        this.periodStartDay = salaryPolicyUpdateReq.getPeriodStartDay();
 
     }
 

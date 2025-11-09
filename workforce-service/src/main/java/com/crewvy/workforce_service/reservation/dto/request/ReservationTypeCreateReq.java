@@ -7,6 +7,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -19,8 +21,9 @@ public class ReservationTypeCreateReq {
     private String facilities;
     private String description;
 
-    public ReservationType toEntity() {
+    public ReservationType toEntity(UUID companyId) {
         return ReservationType.builder()
+                .companyId(companyId)
                 .reservationCategory(reservationCategory)
                 .reservationTypeStatus(ReservationTypeStatus.AVAILABLE)
                 .name(name)
