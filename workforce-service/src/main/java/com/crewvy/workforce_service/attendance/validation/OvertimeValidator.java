@@ -23,19 +23,14 @@ public class OvertimeValidator implements PolicyRuleValidator {
 
         OvertimeRuleDto overtimeRule = details.getOvertimeRule();
 
-        // 2. 연장근무 허용 여부 검사
-        if (!overtimeRule.isAllowOvertime()) {
-            throw new InvalidPolicyRuleException("연장근무 정책에서는 연장근무 허용(allowOvertime)이 true여야 합니다.");
-        }
-
-        // 3. 근로기준법 제53조 - 주간 최대 연장근무 한도 12시간(720분) 검증
+        // 2. 근로기준법 제53조 - 주간 최대 연장근무 한도 12시간(720분) 검증
         if (overtimeRule.getMaxWeeklyOvertimeMinutes() != null && overtimeRule.getMaxWeeklyOvertimeMinutes() > 720) {
             throw new InvalidPolicyRuleException(
                 "법규 위반: 주간 최대 연장근무 한도는 12시간(720분)을 초과할 수 없습니다. (근로기준법 제53조)"
             );
         }
 
-        // 4. 근로기준법 제56조 - 연장근무 가산임금률 1.5배 이상 검증
+        // 3. 근로기준법 제56조 - 연장근무 가산임금률 1.5배 이상 검증
         if (overtimeRule.getOvertimeRate() != null && overtimeRule.getOvertimeRate().compareTo(new BigDecimal("1.5")) < 0) {
             throw new InvalidPolicyRuleException(
                 "법규 위반: 연장근무 가산임금률은 최소 1.5배 이상이어야 합니다. (근로기준법 제56조)"
