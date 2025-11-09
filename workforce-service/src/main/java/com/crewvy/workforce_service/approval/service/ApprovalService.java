@@ -16,6 +16,7 @@ import com.crewvy.workforce_service.approval.event.ApprovalCompletedEvent;
 import com.crewvy.workforce_service.approval.repository.*;
 import com.crewvy.workforce_service.attendance.constant.RequestStatus;
 import com.crewvy.workforce_service.attendance.entity.Request;
+import com.crewvy.workforce_service.attendance.event.AttendanceRequestApprovedEvent;
 import com.crewvy.workforce_service.attendance.repository.RequestRepository;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
@@ -143,7 +144,7 @@ public class ApprovalService {
         RequestResDto dto = null;
         if(request != null) {
             dto = RequestResDto.builder()
-                    .requestType(request.getPolicy().getPolicyType().getTypeName())
+                    .requestType(request.getPolicy().getPolicyTypeCode().getCodeName())
                     .requestUnit(request.getRequestUnit().getCodeName())
                     .startDate(request.getStartDateTime())
                     .endDate(request.getEndDateTime())
@@ -334,13 +335,29 @@ public class ApprovalService {
                     .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 신청입니다."));
 
             request.updateApprovalId(approval.getId());
+            requestRepository.save(request); // approval_id를 DB에 반영
+
+            // 근태 Request 승인 이벤트 발행 (AttendanceService에서 처리)
+            if(approval.getState().equals(ApprovalState.APPROVED) || approval.getState().equals(ApprovalState.REJECTED)) {
+                AttendanceRequestApprovedEvent attendanceEvent = new AttendanceRequestApprovedEvent(
+                        request.getId(),
+                        approval.getId(),
+                        approval.getState(),
+                        LocalDateTime.now()
+                );
+                eventPublisher.publishEvent(attendanceEvent);
+                log.info("근태 Request 승인 이벤트 발행: requestId={}, approvalState={}",
+                        request.getId(), approval.getState());
+            }
+
+            // 일정 등록 이벤트 발행 (출장/휴가)
             if(approval.getState().equals(ApprovalState.APPROVED)) {
-                request.updateStatus(RequestStatus.APPROVED);
-                if(request.getPolicy().getPolicyType().getTypeName().equals("출장")) {
+                String policyTypeName = request.getPolicy().getPolicyTypeCode().getCodeName();
+                if(policyTypeName.equals("출장")) {
                     ScheduleDto schedule = ScheduleDto.builder()
                             .originId(request.getId())
                             .type("CT004")
-                            .title(request.getPolicy().getPolicyType().getTypeName())
+                            .title(policyTypeName)
                             .contents(request.getReason())
                             .startDate(request.getStartDateTime())
                             .endDate(request.getEndDateTime())
@@ -348,7 +365,7 @@ public class ApprovalService {
                             .build();
                     eventPublisher.publishEvent(schedule);
                 }
-                else if(request.getPolicy().getPolicyType().getTypeName().contains("휴가")) {
+                else if(policyTypeName.contains("휴가")) {
                     ScheduleDto schedule = ScheduleDto.builder()
                             .originId(request.getId())
                             .type("CT003")
@@ -505,12 +522,23 @@ public class ApprovalService {
 
             Optional<Request> request = requestRepository.findByApprovalId(approval.getId());
             if(request.isPresent()) {
-                request.get().updateStatus(RequestStatus.APPROVED);
-                if(request.get().getPolicy().getPolicyType().getTypeName().equals("출장")) {
+                // 근태 Request 승인 이벤트 발행 (AttendanceService에서 처리)
+                AttendanceRequestApprovedEvent attendanceEvent = new AttendanceRequestApprovedEvent(
+                        request.get().getId(),
+                        approval.getId(),
+                        ApprovalState.APPROVED,
+                        LocalDateTime.now()
+                );
+                eventPublisher.publishEvent(attendanceEvent);
+                log.error("============ [마지막 승인자] 근태 Request 승인 이벤트 발행: requestId={} ============", request.get().getId());
+
+                // 일정 등록 이벤트 발행
+                String policyTypeName = request.get().getPolicy().getPolicyTypeCode().getCodeName();
+                if(policyTypeName.equals("출장")) {
                     ScheduleDto schedule = ScheduleDto.builder()
                             .originId(request.get().getId())
                             .type("CT004")
-                            .title(request.get().getPolicy().getPolicyType().getTypeName())
+                            .title(policyTypeName)
                             .contents(request.get().getReason())
                             .startDate(request.get().getStartDateTime())
                             .endDate(request.get().getEndDateTime())
@@ -518,7 +546,7 @@ public class ApprovalService {
                             .build();
                     eventPublisher.publishEvent(schedule);
                 }
-                else if(request.get().getPolicy().getPolicyType().getTypeName().contains("휴가")) {
+                else if(policyTypeName.contains("휴가")) {
                     ScheduleDto schedule = ScheduleDto.builder()
                             .originId(request.get().getId())
                             .type("CT003")
@@ -572,8 +600,18 @@ public class ApprovalService {
         // 5. 문서 전체 상태를 '반려'로 즉시 변경
         approval.updateState(ApprovalState.REJECTED);
 
+        // 6. 근태 Request 반려 이벤트 발행 (AttendanceService에서 처리)
         Optional<Request> request = requestRepository.findByApprovalId(approval.getId());
-        request.ifPresent(value -> value.updateStatus(RequestStatus.REJECTED));
+        if(request.isPresent()) {
+            AttendanceRequestApprovedEvent attendanceEvent = new AttendanceRequestApprovedEvent(
+                    request.get().getId(),
+                    approval.getId(),
+                    ApprovalState.REJECTED,
+                    LocalDateTime.now()
+            );
+            eventPublisher.publishEvent(attendanceEvent);
+            log.info("근태 Request 반려 이벤트 발행: requestId={}", request.get().getId());
+        }
 
         UUID nextApproverId = approval.getMemberPositionId();
 
