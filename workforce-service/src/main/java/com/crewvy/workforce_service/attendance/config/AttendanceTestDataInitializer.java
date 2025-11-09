@@ -4,6 +4,12 @@ import com.crewvy.workforce_service.attendance.constant.*;
 import com.crewvy.workforce_service.attendance.dto.rule.*;
 import com.crewvy.workforce_service.attendance.entity.*;
 import com.crewvy.workforce_service.attendance.repository.*;
+import com.crewvy.workforce_service.approval.constant.ApprovalState;
+import com.crewvy.workforce_service.approval.constant.LineStatus;
+import com.crewvy.workforce_service.approval.entity.Approval;
+import com.crewvy.workforce_service.approval.entity.ApprovalLine;
+import com.crewvy.workforce_service.approval.repository.ApprovalLineRepository;
+import com.crewvy.workforce_service.approval.repository.ApprovalRepository;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberEmploymentInfoDto;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +52,9 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     private final AttendanceLogRepository attendanceLogRepository;
     private final DailyAttendanceRepository dailyAttendanceRepository;
     private final RequestRepository requestRepository;
+    private final MemberBalanceRepository memberBalanceRepository;
+    private final ApprovalRepository approvalRepository;
+    private final ApprovalLineRepository approvalLineRepository;
     private final MemberClient memberClient;
 
     // Deterministic random for reproducible test data
@@ -53,7 +62,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
 
     // 고정 회사 ID (AutoCreateAdmin에서 생성된 회사와 일치해야 함)
     // 실제 환경에서는 DB에서 첫 번째 회사 ID를 조회하거나, 환경변수로 관리 필요
-    private static final UUID COMPANY_ID = UUID.fromString("e8b0c6aa-beb4-4d54-9481-ac44bfcbeb2a");
+    private static final UUID COMPANY_ID = UUID.fromString("376302df-e3c5-451d-801a-e5d6b68fc169");
 
     // 테스트 대상 직원 분류
     private static class TestEmployees {
@@ -77,14 +86,16 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     @Transactional
     public void run(String... args) {
         try {
-            // 1단계: 직원 정보 조회 및 분류
+            // 1단계: 직원 정보 조회 및 분류 (member-service 대기)
             log.info("========================================");
             log.info("🚀 시연용 근태 테스트 데이터 초기화 시작");
             log.info("========================================");
             log.info("");
             log.info("📋 [1/6] 직원 정보 조회 중...");
             log.info("   ✓ 회사 ID: {}", COMPANY_ID);
-            TestEmployees employees = fetchAndClassifyEmployees();
+            log.info("   ⏳ Member Service 연결 대기 중...");
+
+            TestEmployees employees = fetchAndClassifyEmployeesWithRetry();
 
             // 직원이 없으면 초기화 불가
             if (employees.all.isEmpty()) {
@@ -119,8 +130,8 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
             log.info("📋 [5/6] 근태 기록 생성 중 (최대 3년치)...");
             createAttendanceRecords(employees);
 
-            // 6단계: 연차 요청 생성
-            log.info("📋 [6/6] 연차 요청 생성 중...");
+            // 6단계: 휴가 신청 및 결재 연동 데이터 생성
+            log.info("📋 [6/6] 휴가 신청 및 결재 데이터 생성 중 (Request-Approval 완전 연동)...");
             createLeaveRequests(employees);
 
             log.info("");
@@ -136,7 +147,39 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     }
 
     /**
-     * 1단계: 직원 정보 조회 및 분류
+     * 1단계: 직원 정보 조회 및 분류 (재시도 로직 포함)
+     * member-service가 준비되지 않았을 경우 자동으로 재시도
+     */
+    private TestEmployees fetchAndClassifyEmployeesWithRetry() {
+        int maxRetries = 10;
+        int retryDelayMs = 3000; // 3초
+
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                log.info("   🔄 Member Service 연결 시도 {}/{}", attempt, maxRetries);
+                return fetchAndClassifyEmployees();
+            } catch (Exception e) {
+                if (attempt == maxRetries) {
+                    log.error("   ❌ Member Service 연결 실패 ({}회 시도 후 포기)", maxRetries);
+                    throw new RuntimeException("Member Service 연결 실패: " + e.getMessage(), e);
+                }
+                log.warn("   ⚠️  Member Service 연결 실패, {}ms 후 재시도... (시도 {}/{}) - 원인: {}",
+                        retryDelayMs, attempt, maxRetries, e.getMessage());
+                try {
+                    Thread.sleep(retryDelayMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("재시도 중 인터럽트 발생", ie);
+                }
+            }
+        }
+
+        // Should never reach here
+        return new TestEmployees();
+    }
+
+    /**
+     * 직원 정보 조회 및 분류 (실제 로직)
      */
     private TestEmployees fetchAndClassifyEmployees() {
         TestEmployees testEmployees = new TestEmployees();
@@ -375,8 +418,10 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
 
         // 연장근무 규칙 추가
         OvertimeRuleDto overtimeRule = new OvertimeRuleDto();
-        overtimeRule.setAllowOvertime(true);
         overtimeRule.setOvertimeRate(java.math.BigDecimal.valueOf(1.5));
+        overtimeRule.setNightWorkRate(java.math.BigDecimal.valueOf(1.5));
+        overtimeRule.setHolidayWorkRate(java.math.BigDecimal.valueOf(1.5));
+        overtimeRule.setHolidayOvertimeRate(java.math.BigDecimal.valueOf(2.0));
         overtimeRule.setMaxWeeklyOvertimeMinutes(720);  // 근로기준법: 주 12시간
 
         PolicyRuleDetails ruleDetails = new PolicyRuleDetails();
@@ -407,8 +452,10 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
      */
     private Policy createOvertimePolicy() {
         OvertimeRuleDto overtimeRule = new OvertimeRuleDto();
-        overtimeRule.setAllowOvertime(true);
         overtimeRule.setOvertimeRate(java.math.BigDecimal.valueOf(1.5));
+        overtimeRule.setNightWorkRate(java.math.BigDecimal.valueOf(1.5));
+        overtimeRule.setHolidayWorkRate(java.math.BigDecimal.valueOf(1.5));
+        overtimeRule.setHolidayOvertimeRate(java.math.BigDecimal.valueOf(2.0));
         overtimeRule.setMaxWeeklyOvertimeMinutes(720); // 12시간 = 720분
 
         PolicyRuleDetails ruleDetails = new PolicyRuleDetails();
@@ -584,12 +631,17 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     }
 
     /**
-     * 5단계: 근태 기록 생성 (최근 4~6개월)
+     * 5단계: 근태 기록 생성 (최대 3년치)
      */
     private void createAttendanceRecords(TestEmployees employees) {
         LocalDate today = LocalDate.now();
         int totalDays = 0;
         int totalLogs = 0;
+        int incompleteClockOuts = 0;
+
+        // 전월 기간 계산 (월별 연차 배치 시연용)
+        LocalDate previousMonthStart = today.minusMonths(1).withDayOfMonth(1);
+        LocalDate previousMonthEnd = previousMonthStart.plusMonths(1).minusDays(1);
 
         for (MemberEmploymentInfoDto member : employees.all) {
             // 각 직원별로 입사일 이후부터 근태 기록 생성
@@ -597,6 +649,9 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
             if (startDate.isBefore(today.minusYears(3))) {
                 startDate = today.minusYears(3);  // 최대 3년 전부터
             }
+
+            // 1년 미만 직원 여부 확인
+            boolean isFirstYear = java.time.Period.between(member.getJoinDate(), today).getYears() < 1;
 
             int daysCreated = 0;
             int logsCreated = 0;
@@ -607,10 +662,27 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                     continue;
                 }
 
-                // 90% 확률로 출근
-                if (random.nextDouble() < 0.90) {
-                    logsCreated += createDailyAttendanceRecord(member, date);
+                // 출근 확률 결정 (1년 미만 직원의 전월 근속율을 80% 이상으로 조정)
+                double attendanceProbability;
+                if (isFirstYear && !date.isBefore(previousMonthStart) && !date.isAfter(previousMonthEnd)) {
+                    // 1년 미만 직원의 전월: 95% 확률로 출근 (월별 연차 배치 시연용)
+                    attendanceProbability = 0.95;
+                } else {
+                    // 그 외: 기본 90% 확률로 출근
+                    attendanceProbability = 0.90;
+                }
+
+                if (random.nextDouble() < attendanceProbability) {
+                    // 최근 3일: 30% 확률로 퇴근 미완료 케이스 생성 (근태 보정 배치 테스트용)
+                    boolean skipClockOut = date.isAfter(today.minusDays(4)) && random.nextDouble() < 0.30;
+
+                    int logs = createDailyAttendanceRecord(member, date, skipClockOut);
+                    logsCreated += logs;
                     daysCreated++;
+
+                    if (skipClockOut) {
+                        incompleteClockOuts++;
+                    }
                 }
             }
 
@@ -623,13 +695,15 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         }
 
         log.info("   ✓ 총 {}명 직원의 {}일 근무 기록 생성 ({}개 로그)", employees.all.size(), totalDays, totalLogs);
+        log.info("   ⚠️  미완료 퇴근 케이스: {}건 (근태 보정 배치 테스트용)", incompleteClockOuts);
         log.info("");
     }
 
     /**
      * 개별 직원의 일일 근태 기록 생성
+     * @param skipClockOut true면 퇴근 기록을 생성하지 않음 (미완료 퇴근 케이스)
      */
-    private int createDailyAttendanceRecord(MemberEmploymentInfoDto member, LocalDate date) {
+    private int createDailyAttendanceRecord(MemberEmploymentInfoDto member, LocalDate date, boolean skipClockOut) {
         int logsCreated = 0;
 
         // 출근 시간 (9시 ± 30분 랜덤)
@@ -648,24 +722,33 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         attendanceLogRepository.save(clockInLog);
         logsCreated++;
 
-        // 퇴근 시간 (18시 ± 60분 랜덤)
-        LocalTime clockOutTime = LocalTime.of(18, 0).plusMinutes(random.nextInt(120) - 60);
-        LocalDateTime clockOut = LocalDateTime.of(date, clockOutTime);
+        LocalDateTime clockOut = null;
+        LocalTime clockOutTime = null;
 
-        // AttendanceLog: CLOCK_OUT
-        AttendanceLog clockOutLog = AttendanceLog.builder()
-                .memberId(member.getMemberId())
-                .eventType(EventType.CLOCK_OUT)
-                .eventTime(clockOut)
-                .latitude(mainOffice.getLatitude() + (random.nextDouble() - 0.5) * 0.001)
-                .longitude(mainOffice.getLongitude() + (random.nextDouble() - 0.5) * 0.001)
-                .isCorrected(false)
-                .build();
-        attendanceLogRepository.save(clockOutLog);
-        logsCreated++;
+        // 퇴근 미완료 케이스가 아니면 퇴근 기록 생성
+        if (!skipClockOut) {
+            // 퇴근 시간 (18시 ± 60분 랜덤)
+            clockOutTime = LocalTime.of(18, 0).plusMinutes(random.nextInt(120) - 60);
+            clockOut = LocalDateTime.of(date, clockOutTime);
+
+            // AttendanceLog: CLOCK_OUT
+            AttendanceLog clockOutLog = AttendanceLog.builder()
+                    .memberId(member.getMemberId())
+                    .eventType(EventType.CLOCK_OUT)
+                    .eventTime(clockOut)
+                    .latitude(mainOffice.getLatitude() + (random.nextDouble() - 0.5) * 0.001)
+                    .longitude(mainOffice.getLongitude() + (random.nextDouble() - 0.5) * 0.001)
+                    .isCorrected(false)
+                    .build();
+            attendanceLogRepository.save(clockOutLog);
+            logsCreated++;
+        }
 
         // DailyAttendance 생성
-        int workMinutes = (int) java.time.Duration.between(clockInTime, clockOutTime).toMinutes() - 60;  // 점심시간 제외
+        int workMinutes = 0;
+        if (!skipClockOut && clockOutTime != null) {
+            workMinutes = (int) java.time.Duration.between(clockInTime, clockOutTime).toMinutes() - 60;  // 점심시간 제외
+        }
 
         DailyAttendance dailyAttendance = DailyAttendance.builder()
                 .memberId(member.getMemberId())
@@ -673,15 +756,15 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                 .attendanceDate(date)
                 .status(AttendanceStatus.NORMAL_WORK)
                 .firstClockIn(clockIn)
-                .lastClockOut(clockOut)
+                .lastClockOut(clockOut)  // 퇴근 미완료면 null
                 .workedMinutes(workMinutes)
-                .totalBreakMinutes(60)
-                .overtimeMinutes(Math.max(0, workMinutes - 480))
+                .totalBreakMinutes(skipClockOut ? 0 : 60)
+                .overtimeMinutes(skipClockOut ? 0 : Math.max(0, workMinutes - 480))
                 .isLate(clockInTime.isAfter(LocalTime.of(9, 10)))
                 .lateMinutes(clockInTime.isAfter(LocalTime.of(9, 10)) ?
                     (int) java.time.Duration.between(LocalTime.of(9, 0), clockInTime).toMinutes() : 0)
-                .isEarlyLeave(clockOutTime.isBefore(LocalTime.of(17, 50)))
-                .earlyLeaveMinutes(clockOutTime.isBefore(LocalTime.of(17, 50)) ?
+                .isEarlyLeave(!skipClockOut && clockOutTime != null && clockOutTime.isBefore(LocalTime.of(17, 50)))
+                .earlyLeaveMinutes(!skipClockOut && clockOutTime != null && clockOutTime.isBefore(LocalTime.of(17, 50)) ?
                     (int) java.time.Duration.between(clockOutTime, LocalTime.of(18, 0)).toMinutes() : 0)
                 .build();
         dailyAttendanceRepository.save(dailyAttendance);
@@ -690,19 +773,60 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     }
 
     /**
-     * 6단계: 연차 요청 생성
+     * 6단계: 휴가/출장 신청 및 결재 연동 데이터 생성 (완벽한 시연용)
+     *
+     * 생성 흐름:
+     * 1. Request 생성 (잔액 차감)
+     * 2. Approval 생성 (requestId 연결)
+     * 3. ApprovalLine 생성 (단일/복수 결재자)
+     * 4. 승인/반려 처리:
+     *    - APPROVED: Request 상태 업데이트, DailyAttendance 생성
+     *    - REJECTED: Request 상태 업데이트, 잔액 복구
+     *    - PENDING: Request 상태 유지 (대기 중)
      */
     private void createLeaveRequests(TestEmployees employees) {
         int totalRequests = 0;
+        int approvedCount = 0;
+        int rejectedCount = 0;
+        int pendingCount = 0;
         LocalDate today = LocalDate.now();
 
-        // 각 직원별로 1~3개의 연차 요청 생성
+        // 각 직원별로 2~4개의 휴가 신청 생성
         for (MemberEmploymentInfoDto member : employees.all) {
-            int numRequests = random.nextInt(3) + 1;  // 1~3개
+            // 잔액 확인
+            MemberBalance balance = memberBalanceRepository
+                    .findByMemberIdAndBalanceTypeCodeAndYear(
+                            member.getMemberId(),
+                            PolicyTypeCode.ANNUAL_LEAVE,
+                            today.getYear())
+                    .orElse(null);
+
+            if (balance == null || balance.getRemaining() < 1.0) {
+                continue; // 잔액 없으면 스킵
+            }
+
+            int numRequests = Math.min(random.nextInt(3) + 2, (int) balance.getRemaining().doubleValue()); // 2~4개, 잔액 이내
 
             for (int i = 0; i < numRequests; i++) {
-                // 과거 또는 미래의 랜덤 날짜
-                int daysOffset = random.nextInt(60) - 30;  // -30일 ~ +30일
+                // 70% 과거 (승인됨), 20% 미래 (대기), 10% 과거 (반려)
+                double rand = random.nextDouble();
+                int daysOffset;
+                RequestStatus targetStatus;
+
+                if (rand < 0.70) {
+                    // 과거 신청 (승인됨)
+                    daysOffset = -(random.nextInt(90) + 1); // -1일 ~ -90일
+                    targetStatus = RequestStatus.APPROVED;
+                } else if (rand < 0.90) {
+                    // 미래 신청 (대기 중)
+                    daysOffset = random.nextInt(30) + 1; // +1일 ~ +30일
+                    targetStatus = RequestStatus.PENDING;
+                } else {
+                    // 과거 신청 (반려됨)
+                    daysOffset = -(random.nextInt(60) + 1);
+                    targetStatus = RequestStatus.REJECTED;
+                }
+
                 LocalDate leaveDate = today.plusDays(daysOffset);
 
                 // 주말 제외
@@ -710,24 +834,176 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                     leaveDate = leaveDate.plusDays(1);
                 }
 
+                // 1. Request 생성
                 Request request = Request.builder()
                         .memberId(member.getMemberId())
                         .policy(annualLeavePolicy)
                         .requestUnit(RequestUnit.DAY)
-                        .status(daysOffset < 0 ? RequestStatus.APPROVED : RequestStatus.PENDING)
+                        .status(RequestStatus.PENDING) // 초기 상태는 PENDING
                         .startDateTime(LocalDateTime.of(leaveDate, LocalTime.of(9, 0)))
                         .endDateTime(LocalDateTime.of(leaveDate, LocalTime.of(18, 0)))
-                        .reason("개인 사유")
+                        .reason(i == 0 ? "개인 사유" : (i == 1 ? "가족 행사" : "휴식"))
                         .deductionDays(1.0)
-                        .completedAt(daysOffset < 0 ? LocalDateTime.now().minusDays(Math.abs(daysOffset)) : null)
+                        .workLocation(null)
+                        .completedAt(null)
                         .build();
 
                 requestRepository.save(request);
+
+                // 잔액 차감 (builder로 재생성)
+                MemberBalance updatedBalance = MemberBalance.builder()
+                        .id(balance.getId())
+                        .memberId(balance.getMemberId())
+                        .companyId(balance.getCompanyId())
+                        .balanceTypeCode(balance.getBalanceTypeCode())
+                        .year(balance.getYear())
+                        .totalGranted(balance.getTotalGranted())
+                        .totalUsed(balance.getTotalUsed() + 1.0)
+                        .remaining(balance.getRemaining() - 1.0)
+                        .expirationDate(balance.getExpirationDate())
+                        .isPaid(balance.getIsPaid())
+                        .isUsable(balance.getIsUsable())
+                        .build();
+                balance = memberBalanceRepository.save(updatedBalance);
+
+                // 2. Approval 생성 (시연용: memberPositionId는 COMPANY_ID 사용)
+                Approval approval = Approval.builder()
+                        .memberPositionId(COMPANY_ID)
+                        .approvalDocument(null) // 시연용: null
+                        .title(member.getName() + "님의 연차 신청")
+                        .contents(Map.of(
+                                "startDate", leaveDate.toString(),
+                                "endDate", leaveDate.toString(),
+                                "reason", request.getReason(),
+                                "type", "연차"
+                        ))
+                        .state(ApprovalState.PENDING)
+                        .build();
+
+                approvalRepository.save(approval);
+
+                // Request에 approvalId 연결
+                request.updateApprovalId(approval.getId());
+                requestRepository.save(request);
+
+                // 3. ApprovalLine 생성 (80% 단일 결재자, 20% 2단계 결재)
+                boolean isSingleApprover = random.nextDouble() < 0.80;
+                UUID approverPositionId = COMPANY_ID; // 시연용: COMPANY_ID 사용
+
+                if (isSingleApprover) {
+                    // 단일 결재자
+                    ApprovalLine line = ApprovalLine.builder()
+                            .approval(approval)
+                            .memberPositionId(approverPositionId)
+                            .lineIndex(1)
+                            .lineStatus(targetStatus == RequestStatus.APPROVED ? LineStatus.APPROVED :
+                                       (targetStatus == RequestStatus.REJECTED ? LineStatus.REJECTED : LineStatus.PENDING))
+                            .approvalDate(targetStatus != RequestStatus.PENDING ?
+                                         LocalDateTime.now().minusDays(Math.abs(daysOffset)) : null)
+                            .build();
+                    approvalLineRepository.save(line);
+
+                    // Approval 상태 업데이트
+                    if (targetStatus == RequestStatus.APPROVED) {
+                        approval.updateState(ApprovalState.APPROVED);
+                    } else if (targetStatus == RequestStatus.REJECTED) {
+                        approval.updateState(ApprovalState.REJECTED);
+                    }
+                } else {
+                    // 2단계 결재
+                    UUID approver2PositionId = COMPANY_ID; // 시연용: COMPANY_ID 사용
+
+                    // 1차 결재자 (항상 승인)
+                    ApprovalLine line1 = ApprovalLine.builder()
+                            .approval(approval)
+                            .memberPositionId(approverPositionId)
+                            .lineIndex(1)
+                            .lineStatus(LineStatus.APPROVED)
+                            .approvalDate(targetStatus != RequestStatus.PENDING ?
+                                         LocalDateTime.now().minusDays(Math.abs(daysOffset) + 1) : null)
+                            .build();
+                    approvalLineRepository.save(line1);
+
+                    // 2차 결재자
+                    LineStatus line2Status = targetStatus == RequestStatus.APPROVED ? LineStatus.APPROVED :
+                                             (targetStatus == RequestStatus.REJECTED ? LineStatus.REJECTED : LineStatus.WAITING);
+                    ApprovalLine line2 = ApprovalLine.builder()
+                            .approval(approval)
+                            .memberPositionId(approver2PositionId)
+                            .lineIndex(2)
+                            .lineStatus(line2Status)
+                            .approvalDate(targetStatus != RequestStatus.PENDING ?
+                                         LocalDateTime.now().minusDays(Math.abs(daysOffset)) : null)
+                            .build();
+                    approvalLineRepository.save(line2);
+
+                    // Approval 상태 업데이트
+                    if (targetStatus == RequestStatus.APPROVED) {
+                        approval.updateState(ApprovalState.APPROVED);
+                    } else if (targetStatus == RequestStatus.REJECTED) {
+                        approval.updateState(ApprovalState.REJECTED);
+                    }
+                }
+
+                approvalRepository.save(approval);
+
+                // 4. Request 상태 업데이트 및 후처리
+                if (targetStatus == RequestStatus.APPROVED) {
+                    request.updateStatus(RequestStatus.APPROVED); // updateStatus가 completedAt도 자동 설정
+                    requestRepository.save(request);
+
+                    // DailyAttendance 생성 (승인된 휴가)
+                    DailyAttendance leaveAttendance = DailyAttendance.builder()
+                            .memberId(member.getMemberId())
+                            .companyId(COMPANY_ID)
+                            .attendanceDate(leaveDate)
+                            .status(AttendanceStatus.ANNUAL_LEAVE)
+                            .firstClockIn(null)
+                            .lastClockOut(null)
+                            .workedMinutes(0)
+                            .totalBreakMinutes(0)
+                            .overtimeMinutes(0)
+                            .isLate(false)
+                            .lateMinutes(0)
+                            .isEarlyLeave(false)
+                            .earlyLeaveMinutes(0)
+                            .build();
+                    dailyAttendanceRepository.save(leaveAttendance);
+
+                    approvedCount++;
+                } else if (targetStatus == RequestStatus.REJECTED) {
+                    request.updateStatus(RequestStatus.REJECTED); // updateStatus가 completedAt도 자동 설정
+                    requestRepository.save(request);
+
+                    // 잔액 복구 (builder로 재생성)
+                    MemberBalance restoredBalance = MemberBalance.builder()
+                            .id(balance.getId())
+                            .memberId(balance.getMemberId())
+                            .companyId(balance.getCompanyId())
+                            .balanceTypeCode(balance.getBalanceTypeCode())
+                            .year(balance.getYear())
+                            .totalGranted(balance.getTotalGranted())
+                            .totalUsed(balance.getTotalUsed() - 1.0)
+                            .remaining(balance.getRemaining() + 1.0)
+                            .expirationDate(balance.getExpirationDate())
+                            .isPaid(balance.getIsPaid())
+                            .isUsable(balance.getIsUsable())
+                            .build();
+                    balance = memberBalanceRepository.save(restoredBalance);
+
+                    rejectedCount++;
+                } else {
+                    // PENDING 상태 유지
+                    pendingCount++;
+                }
+
                 totalRequests++;
             }
         }
 
-        log.info("   ✓ 총 {}개의 연차 요청 생성", totalRequests);
+        log.info("   ✓ 총 {}개의 휴가 신청 생성 (승인: {}, 반려: {}, 대기: {})",
+                 totalRequests, approvedCount, rejectedCount, pendingCount);
+        log.info("   ✓ 승인된 휴가에 대한 DailyAttendance {} 건 생성", approvedCount);
         log.info("");
     }
 
@@ -785,24 +1061,32 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         log.info("");
 
         log.info("✅ 5. 근태 보정 배치 (지각/결근 자동 처리)");
-        log.info("   - 테스트 방법: 매일 02:00 배치 실행");
-        log.info("   - 예상 결과: 미완료 퇴근 자동 처리, 결근 자동 마킹");
+        log.info("   - API: POST /workforce-service/batch/attendance/auto-complete-clock-out (미완료 퇴근)");
+        log.info("   - API: POST /workforce-service/batch/attendance/mark-absent (결근 처리)");
+        log.info("   - 테스트 데이터: 최근 3일 중 {}%의 미완료 퇴근 케이스 생성됨", 30);
+        log.info("   - 예상 결과: 미완료 퇴근 자동 처리 (출근 + 9시간), 결근 자동 마킹");
         log.info("");
 
-        log.info("✅ 6. 출근율 80% 체크 (월별 연차 발생 조건)");
-        log.info("   - 테스트 방법: 직원별 출근율 확인 (현재 85~95% 생성됨)");
-        log.info("   - 예상 결과: 출근율 80% 이상 직원만 월별 연차 발생");
+        log.info("✅ 6. 월별 연차 배치 (1년 미만 근속자)");
+        log.info("   - API: POST /workforce-service/batch/attendance/annual-leave-accrual");
+        log.info("   - 대상: 1년 미만 직원 {}명", employees.lessThan1Year.size());
+        log.info("   - 예상 결과: 근속 개월 수 × 1일 (최대 11일)");
         log.info("");
 
-        log.info("✅ 7. 관리자 UI - 연차 현황 필터링");
-        log.info("   - 테스트 방법: AdminAttendance.vue → 연차 현황 탭");
-        log.info("   - 근속년수 필터: <1년, ≥1년, ≥3년, ≥5년, ≥10년");
-        log.info("   - 연차 수정: 부여일수/사용일수 직접 수정 가능");
+        log.info("✅ 7. 출근율 85~95% (자동 생성)");
+        log.info("   - 현재 출근율: 90% (결근 10%)");
+        log.info("   - 월별 연차 발생 조건: 출근율 80% 이상");
         log.info("");
 
-        log.info("✅ 8. 정책 설정 - 신규 DTO 구조");
-        log.info("   - 테스트 방법: PolicyEditor.vue → 연차 정책 생성/수정");
-        log.info("   - 설정 가능: 회계연도/입사일 기준, 가산 규칙, 이월 설정");
+        log.info("✅ 8. 관리자 UI - 휴가 현황 필터링");
+        log.info("   - 화면: /admin/attendance → 휴가 현황 탭");
+        log.info("   - 필터: 유형별, 근속년수별 (<1년, ≥1년, ≥3년, ≥5년, ≥10년)");
+        log.info("   - 기능: 월별 연차 배치 실행 (1년 미만 필터 시에만 활성화)");
+        log.info("");
+
+        log.info("✅ 9. 정책 설정 - 신규 DTO 구조");
+        log.info("   - 화면: /admin/policy-editor → 연차 정책 생성/수정");
+        log.info("   - 설정: 회계연도/입사일 기준, 가산 규칙, 이월 설정, 월별 발생");
         log.info("");
 
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");

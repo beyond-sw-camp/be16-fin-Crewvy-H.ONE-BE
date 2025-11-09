@@ -1,7 +1,10 @@
 package com.crewvy.workforce_service.attendance.service;
 
+import com.crewvy.workforce_service.attendance.constant.AttendanceStatus;
 import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
+import com.crewvy.workforce_service.attendance.entity.DailyAttendance;
 import com.crewvy.workforce_service.attendance.entity.MemberBalance;
+import com.crewvy.workforce_service.attendance.repository.DailyAttendanceRepository;
 import com.crewvy.workforce_service.attendance.repository.MemberBalanceRepository;
 import com.crewvy.workforce_service.attendance.repository.PolicyRepository;
 import com.crewvy.workforce_service.feignClient.MemberClient;
@@ -11,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.Period;
 import java.util.*;
@@ -29,6 +33,7 @@ public class AnnualLeaveAccrualService {
     private final MemberBalanceRepository memberBalanceRepository;
     private final MemberClient memberClient;
     private final PolicyRepository policyRepository;
+    private final DailyAttendanceRepository dailyAttendanceRepository;
 
     // 배치 처리 청크 크기 (성능 최적화: 100명씩 나눠서 처리)
     private static final int BATCH_CHUNK_SIZE = 100;
@@ -824,8 +829,18 @@ public class AnnualLeaveAccrualService {
             // 6. 월별 연차 발생 처리
             List<MemberBalance> balancesToSave = new ArrayList<>();
             int processedCount = 0;
+            int skippedByAttendanceRate = 0;
 
             for (MemberEmploymentInfoDto member : firstYearMembers) {
+                // 전월 근속비율 체크 (80% 미만이면 스킵)
+                double attendanceRate = calculatePreviousMonthAttendanceRate(member.getMemberId(), referenceDate);
+                if (attendanceRate < 80.0) {
+                    log.info("근속비율 미달로 월별 연차 발생 스킵: memberId={}, 근속비율={}%",
+                            member.getMemberId(), String.format("%.2f", attendanceRate));
+                    skippedByAttendanceRate++;
+                    continue;
+                }
+
                 MemberBalance balance = balanceMap.get(member.getMemberId());
 
                 if (balance != null) {
@@ -879,12 +894,62 @@ public class AnnualLeaveAccrualService {
 
             log.info("========================================");
             log.info("월별 연차 발생 완료: 처리건수={}/{}", processedCount, firstYearMembers.size());
+            log.info("근속비율 미달로 스킵: {}건 (80% 미만)", skippedByAttendanceRate);
             log.info("========================================");
 
         } catch (Exception e) {
             log.error("월별 연차 발생 중 오류: companyId={}", companyId, e);
             throw e;
         }
+    }
+
+    /**
+     * 전월 근속비율 계산
+     * @param memberId 직원 ID
+     * @param referenceDate 기준 날짜 (보통 현재 날짜)
+     * @return 전월 근속비율 (0.0 ~ 100.0)
+     */
+    public double calculatePreviousMonthAttendanceRate(UUID memberId, LocalDate referenceDate) {
+        // 전월의 첫날과 마지막날 계산
+        LocalDate previousMonthStart = referenceDate.minusMonths(1).withDayOfMonth(1);
+        LocalDate previousMonthEnd = previousMonthStart.plusMonths(1).minusDays(1);
+
+        // 전월의 총 근무일수 계산 (주말 제외)
+        long totalWorkDays = 0;
+        LocalDate current = previousMonthStart;
+        while (!current.isAfter(previousMonthEnd)) {
+            DayOfWeek dayOfWeek = current.getDayOfWeek();
+            if (dayOfWeek != DayOfWeek.SATURDAY && dayOfWeek != DayOfWeek.SUNDAY) {
+                totalWorkDays++;
+            }
+            current = current.plusDays(1);
+        }
+
+        if (totalWorkDays == 0) {
+            return 0.0;
+        }
+
+        // 전월의 DailyAttendance 조회
+        List<DailyAttendance> attendances = dailyAttendanceRepository
+                .findByMemberIdAndAttendanceDateBetween(memberId, previousMonthStart, previousMonthEnd);
+
+        // 정상 출근일수 계산 (NORMAL_WORK, BUSINESS_TRIP, 휴가 등 모두 포함)
+        long actualAttendanceDays = attendances.stream()
+                .filter(attendance -> {
+                    AttendanceStatus status = attendance.getStatus();
+                    // 결근이 아닌 모든 상태를 출근으로 인정
+                    return status != AttendanceStatus.ABSENT;
+                })
+                .count();
+
+        // 근속비율 계산 (%)
+        double attendanceRate = (double) actualAttendanceDays / totalWorkDays * 100.0;
+
+        log.debug("근속비율 계산: memberId={}, 전월={}-{}, 총근무일={}일, 실출근={}일, 비율={}%",
+                memberId, previousMonthStart, previousMonthEnd, totalWorkDays, actualAttendanceDays,
+                String.format("%.2f", attendanceRate));
+
+        return attendanceRate;
     }
 
     /**

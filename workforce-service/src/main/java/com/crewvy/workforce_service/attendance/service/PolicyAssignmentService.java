@@ -223,43 +223,74 @@ public class PolicyAssignmentService {
         List<PolicyAssignment> savedAssignments = policyAssignmentRepository.saveAll(newAssignments);
 
         // ✅ 정책 할당 생성 후 member_balance 생성
+        log.info("=== member_balance 생성 시작: 총 {}건의 할당 처리 ===", savedAssignments.size());
+
         for (PolicyAssignment assignment : savedAssignments) {
             PolicyTypeCode typeCode = assignment.getPolicy().getPolicyTypeCode();
+            String policyName = assignment.getPolicy().getName();
 
             // 잔액 차감 필요한 휴가 정책만 처리
             if (!typeCode.isBalanceDeductible()) {
+                log.debug("스킵: {} ({}) - 근로시간 관련 정책 (잔액 차감 불필요)", policyName, typeCode.getCodeName());
                 continue; // 근로시간 관련 정책은 스킵
             }
 
             // COMPANY 레벨 할당만 처리 (연차는 이미 검증됨)
-            if (assignment.getScopeType() == PolicyScopeType.COMPANY) {
+            if (assignment.getScopeType() != PolicyScopeType.COMPANY) {
+                log.warn("스킵: {} ({}) - COMPANY 레벨이 아님 (scopeType={})",
+                    policyName, typeCode.getCodeName(), assignment.getScopeType());
+                continue;
+            }
+
+            log.info(">>> 처리 시작: {} ({}) - companyId={}", policyName, typeCode.getCodeName(), companyId);
+
+            try {
                 switch (typeCode) {
                     case ANNUAL_LEAVE:
-                        // 연차: 자동 계산 후 즉시 부여
+                        log.info("  → 연차 정책: 전체 직원 초기 연차 부여 시작");
                         annualLeaveAccrualService.grantInitialAnnualLeaveForAllMembers(
                             companyId,
                             java.time.LocalDate.now()
                         );
+                        log.info("  ✅ 연차 정책: 부여 완료");
                         break;
 
                     case MATERNITY_LEAVE:
                     case PATERNITY_LEAVE:
                     case MENSTRUAL_LEAVE:
-                        // 법정 휴가: defaultDays만큼 즉시 부여
-                        grantFixedLeaveDays(companyId, typeCode, assignment.getPolicy());
-                        break;
-
                     case CHILDCARE_LEAVE:
                     case FAMILY_CARE_LEAVE:
-                        // 신청형 휴가: 0일로 시작 (관리자가 개별 부여)
-                        createZeroBalanceForAllMembers(companyId, typeCode, assignment.getPolicy());
+                        // defaultDays가 있으면 해당 일수만큼 부여, 없으면 0일로 시작
+                        Double defaultDays = null;
+                        if (assignment.getPolicy().getRuleDetails() != null
+                            && assignment.getPolicy().getRuleDetails().getLeaveRule() != null) {
+                            defaultDays = assignment.getPolicy().getRuleDetails().getLeaveRule().getDefaultDays();
+                        }
+
+                        log.info("  → {} 정책: defaultDays={}", typeCode.getCodeName(), defaultDays);
+
+                        if (defaultDays != null && defaultDays > 0) {
+                            log.info("  → 고정 일수 부여 모드: {}일 부여", defaultDays);
+                            grantFixedLeaveDays(companyId, typeCode, assignment.getPolicy());
+                            log.info("  ✅ 고정 일수 부여 완료: {}일", defaultDays);
+                        } else {
+                            log.info("  → 0일 시작 모드: 관리자 개별 부여 방식");
+                            createZeroBalanceForAllMembers(companyId, typeCode, assignment.getPolicy());
+                            log.info("  ✅ 0일 잔액 생성 완료");
+                        }
                         break;
 
                     default:
+                        log.warn("  ⚠️ 처리되지 않은 정책 타입: {}", typeCode);
                         break;
                 }
+            } catch (Exception e) {
+                log.error("  ❌ member_balance 생성 실패: {} ({})", policyName, typeCode.getCodeName(), e);
+                // 한 정책이 실패해도 다른 정책은 계속 처리
             }
         }
+
+        log.info("=== member_balance 생성 완료 ===");
 
         return savedAssignments.stream()
                 .map(PolicyAssignmentResponse::new)
@@ -588,20 +619,30 @@ public class PolicyAssignmentService {
      * 고정 일수 휴가 부여 (출산전후휴가, 배우자 출산휴가, 생리휴가)
      */
     private void grantFixedLeaveDays(UUID companyId, PolicyTypeCode typeCode, Policy policy) {
+        log.info("    [grantFixedLeaveDays] 시작: typeCode={}, companyId={}", typeCode, companyId);
+
+        // 내부 전용 API 사용 (권한 체크 없음 - 시스템 작업용)
         List<com.crewvy.workforce_service.feignClient.dto.response.MemberEmploymentInfoDto> members =
-                memberClient.getEmploymentInfo(UUID.fromString("00000000-0000-0000-0000-000000000000"), companyId)
+                memberClient.getEmploymentInfoInternal(companyId)
                         .getData();
+
+        log.info("    [grantFixedLeaveDays] 회사 전체 직원 조회 완료: {}명", members != null ? members.size() : 0);
 
         Double defaultDays = policy.getRuleDetails().getLeaveRule().getDefaultDays();
         if (defaultDays == null) {
             defaultDays = 0.0;
         }
 
+        log.info("    [grantFixedLeaveDays] 부여할 일수: {}일", defaultDays);
+
         int currentYear = java.time.LocalDate.now().getYear();
         List<com.crewvy.workforce_service.attendance.entity.MemberBalance> balancesToSave = new ArrayList<>();
+        int workingMemberCount = 0;
+        int existingBalanceCount = 0;
 
         for (com.crewvy.workforce_service.feignClient.dto.response.MemberEmploymentInfoDto member : members) {
             if ("MS001".equals(member.getMemberStatus())) { // MS001 = WORKING (재직)
+                workingMemberCount++;
                 Optional<com.crewvy.workforce_service.attendance.entity.MemberBalance> existing =
                         memberBalanceRepository.findByMemberIdAndBalanceTypeCodeAndYear(
                                 member.getMemberId(), typeCode, currentYear
@@ -622,13 +663,20 @@ public class PolicyAssignmentService {
                                     .isUsable(true)
                                     .build();
                     balancesToSave.add(balance);
+                } else {
+                    existingBalanceCount++;
                 }
             }
         }
 
+        log.info("    [grantFixedLeaveDays] 재직 중인 직원: {}명, 기존 잔액 보유: {}명, 신규 생성 대상: {}명",
+                workingMemberCount, existingBalanceCount, balancesToSave.size());
+
         if (!balancesToSave.isEmpty()) {
             memberBalanceRepository.saveAll(balancesToSave);
-            log.info("고정 일수 휴가 부여 완료: typeCode={}, count={}", typeCode, balancesToSave.size());
+            log.info("    [grantFixedLeaveDays] ✅ DB 저장 완료: {}건 ({}일씩 부여)", balancesToSave.size(), defaultDays);
+        } else {
+            log.info("    [grantFixedLeaveDays] ⚠️ 생성할 잔액 없음 (모두 이미 존재하거나 재직자 없음)");
         }
     }
 
@@ -636,15 +684,23 @@ public class PolicyAssignmentService {
      * 0일 잔액 생성 (육아휴직, 가족돌봄휴가 - 관리자 개별 부여)
      */
     private void createZeroBalanceForAllMembers(UUID companyId, PolicyTypeCode typeCode, Policy policy) {
+        log.info("    [createZeroBalanceForAllMembers] 시작: typeCode={}, companyId={}", typeCode, companyId);
+
+        // 내부 전용 API 사용 (권한 체크 없음 - 시스템 작업용)
         List<com.crewvy.workforce_service.feignClient.dto.response.MemberEmploymentInfoDto> members =
-                memberClient.getEmploymentInfo(UUID.fromString("00000000-0000-0000-0000-000000000000"), companyId)
+                memberClient.getEmploymentInfoInternal(companyId)
                         .getData();
+
+        log.info("    [createZeroBalanceForAllMembers] 회사 전체 직원 조회 완료: {}명", members != null ? members.size() : 0);
 
         int currentYear = java.time.LocalDate.now().getYear();
         List<com.crewvy.workforce_service.attendance.entity.MemberBalance> balancesToSave = new ArrayList<>();
+        int workingMemberCount = 0;
+        int existingBalanceCount = 0;
 
         for (com.crewvy.workforce_service.feignClient.dto.response.MemberEmploymentInfoDto member : members) {
             if ("MS001".equals(member.getMemberStatus())) { // MS001 = WORKING (재직)
+                workingMemberCount++;
                 Optional<com.crewvy.workforce_service.attendance.entity.MemberBalance> existing =
                         memberBalanceRepository.findByMemberIdAndBalanceTypeCodeAndYear(
                                 member.getMemberId(), typeCode, currentYear
@@ -665,13 +721,20 @@ public class PolicyAssignmentService {
                                     .isUsable(true)
                                     .build();
                     balancesToSave.add(balance);
+                } else {
+                    existingBalanceCount++;
                 }
             }
         }
 
+        log.info("    [createZeroBalanceForAllMembers] 재직 중인 직원: {}명, 기존 잔액 보유: {}명, 신규 생성 대상: {}명",
+                workingMemberCount, existingBalanceCount, balancesToSave.size());
+
         if (!balancesToSave.isEmpty()) {
             memberBalanceRepository.saveAll(balancesToSave);
-            log.info("신청형 휴가 잔액(0일) 생성 완료: typeCode={}, count={}", typeCode, balancesToSave.size());
+            log.info("    [createZeroBalanceForAllMembers] ✅ DB 저장 완료: {}건 (0일로 시작, 관리자 개별 부여)", balancesToSave.size());
+        } else {
+            log.info("    [createZeroBalanceForAllMembers] ⚠️ 생성할 잔액 없음 (모두 이미 존재하거나 재직자 없음)");
         }
     }
 
