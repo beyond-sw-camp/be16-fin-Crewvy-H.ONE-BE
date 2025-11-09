@@ -4,6 +4,7 @@ import com.crewvy.common.entity.Bool;
 import com.crewvy.common.event.MemberDeletedEvent;
 import com.crewvy.common.event.MemberSavedEvent;
 import com.crewvy.common.event.OrganizationSavedEvent;
+import com.crewvy.common.event.PositionNameChangedEvent;
 import com.crewvy.common.exception.PermissionDeniedException;
 import com.crewvy.common.exception.SerializationException;
 import com.crewvy.common.passwordgenerater.PasswordGenerator;
@@ -634,8 +635,28 @@ public class MemberService {
         Title title = titleRepository.findById(titleId).orElseThrow(()
                 -> new IllegalArgumentException("존재하지 않는 직책입니다."));
 
+        String oldTitleName = title.getName(); // 이전 직책명 캡처
         title.updateName(updateTitleReq.getName());
         titleRepository.save(title);
+
+        // 직책 이름 변경 이벤트 발행
+        try {
+            PositionNameChangedEvent event = new PositionNameChangedEvent(
+                    oldTitleName,
+                    updateTitleReq.getName(),
+                    title.getCompany().getId().toString()
+            );
+            String payload = objectMapper.writeValueAsString(event);
+
+            SearchOutboxEvent searchOutbox = SearchOutboxEvent.builder()
+                    .topic("position-name-changed-events")
+                    .aggregateId(title.getId())
+                    .payload(payload)
+                    .build();
+            searchOutboxEventRepository.save(searchOutbox);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("데이터 직렬화 실패");
+        }
     }
 
     // 직책 순서 변경
@@ -671,7 +692,16 @@ public class MemberService {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
-        titleRepository.findById(titleId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 직책입니다.")).delete();
+        boolean isInUse = memberPositionRepository.findAllByTitleId(titleId).stream()
+                .anyMatch(mp -> mp.getYnDel() == Bool.FALSE);
+
+        if (isInUse) {
+            throw new IllegalStateException("사용 중인 직원이 있어 삭제할 수 없습니다.");
+        }
+
+        Title title = titleRepository.findById(titleId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 직책입니다."));
+        title.delete();
+        titleRepository.save(title);
     }
 
     // 직책 영구 삭제
@@ -772,7 +802,16 @@ public class MemberService {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
 
-        gradeRepository.findById(gradeId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 직급입니다.")).delete();
+        boolean isInUse = gradeHistoryRepository.findAllByGradeId(gradeId).stream()
+                .anyMatch(gh -> gh.getYnDel() == Bool.FALSE);
+
+        if (isInUse) {
+            throw new IllegalStateException("사용 중인 직원이 있어 삭제할 수 없습니다.");
+        }
+
+        Grade grade = gradeRepository.findById(gradeId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 직급입니다."));
+        grade.delete();
+        gradeRepository.save(grade);
     }
 
     // 직급 복원
@@ -965,7 +1004,17 @@ public class MemberService {
         if (checkPermission(memberPositionId, "role", Action.DELETE, PermissionRange.COMPANY) == FALSE) {
             throw new PermissionDeniedException("권한이 없습니다.");
         }
-        roleRepository.findById(roleId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 역할입니다.")).delete();
+
+        boolean isInUse = memberPositionRepository.findAllByRoleId(roleId).stream()
+                .anyMatch(mp -> mp.getYnDel() == Bool.FALSE);
+
+        if (isInUse) {
+            throw new IllegalStateException("사용 중인 직원이 있어 삭제할 수 없습니다.");
+        }
+
+        Role role = roleRepository.findById(roleId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 역할입니다."));
+        role.delete();
+        roleRepository.save(role);
     }
 
     // 역할 복원
@@ -1084,7 +1133,9 @@ public class MemberService {
     @Transactional(readOnly = true)
     public List<MemberPositionInfo> getMyPositionList(UUID memberId) {
         List<MemberPosition> memberPositionList = memberPositionRepository.findAllByMemberId(memberId);
-        return memberPositionList.stream().map(MemberPositionInfo::fromEntity).collect(Collectors.toList());
+        return memberPositionList.stream()
+                .filter(mp -> mp.getYnDel() == Bool.FALSE)
+                .map(MemberPositionInfo::fromEntity).collect(Collectors.toList());
     }
 
     // 권한 확인 (캐시 없음)

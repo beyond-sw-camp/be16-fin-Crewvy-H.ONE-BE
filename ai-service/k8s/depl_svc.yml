@@ -23,17 +23,17 @@ spec:
         ports:
         - containerPort: 8080
         env:
-        - name: S3_BUCKET
+        - name: AWS_S3_BUCKET_NAME
           valueFrom:
             secretKeyRef:
               name: hone-secrets
               key: S3_BUCKET
-        - name: ACCESS_KEY
+        - name: AWS_S3_ACCESS_KEY
           valueFrom:
             secretKeyRef:
               name: hone-secrets
               key: ACCESS_KEY
-        - name: SECRET_KEY
+        - name: AWS_S3_SECRET_KEY
           valueFrom:
             secretKeyRef:
               name: hone-secrets
@@ -43,6 +43,16 @@ spec:
             secretKeyRef:
               name: hone-secrets
               key: HUGGINGFACE_TOKEN
+        - name: AWS_S3_REGION
+          value: "ap-northeast-2"
+        - name: WHISPERX_DEVICE
+          value: "cuda"
+        - name: WHISPERX_COMPUTE_TYPE
+          value: "float16"
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "kafka-service:9092"
+        - name: KAFKA_GROUP_ID
+          value: "ai-service-group"
         # 컨테이너 상태 확인을 통해 롤링업데이트 최적화 
         readinessProbe:
           httpGet:

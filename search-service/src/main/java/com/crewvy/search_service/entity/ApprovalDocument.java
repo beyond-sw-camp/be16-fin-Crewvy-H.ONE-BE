@@ -15,7 +15,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Document(indexName = "approval", createIndex = false, writeTypeHint = WriteTypeHint.FALSE)
+@Document(indexName = "approval", createIndex = true, writeTypeHint = WriteTypeHint.FALSE)
 @Setting(settingPath = "elastic/approval-setting.json")
 @Mapping(mappingPath = "elastic/approval-mapping.json")
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -25,7 +25,7 @@ public class ApprovalDocument {
     private String approvalId;
 
     @Field(type = FieldType.Keyword)
-    private String memberId;
+    private String memberPositionId;
 
     @Field(type = FieldType.Text)
     private String title;

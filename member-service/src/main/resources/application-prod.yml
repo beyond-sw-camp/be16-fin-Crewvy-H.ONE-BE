@@ -51,3 +51,7 @@ management:
     web:
       exposure:
         include: "*"
+
+eureka:
+  client:
+    enabled: false

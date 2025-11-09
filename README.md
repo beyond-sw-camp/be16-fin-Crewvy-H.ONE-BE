@@ -1,4 +1,32 @@
 # [H.ONE]
+<img width="1077" height="367" alt="Image" src="https://github.com/user-attachments/assets/6912dad4-a773-4dfb-996a-917917e5c98f" />
+
+## 팀원 소개
+
+| **김송옥** | **정지완** | **김지현** | **최승휘** | **위동길** |
+| :---: | :---: | :---: | :---: | :---: |
+| [<img src="https://avatars.githubusercontent.com/u/208786203?v=4" height=150 width=150> <br/> @songok14](https://github.com/songok14) | [<img src="https://avatars.githubusercontent.com/u/61574220?v=4" height=150 width=150> <br/> @FOJF](https://github.com/FOJF) | [<img src="https://avatars.githubusercontent.com/u/80299604?v=4" height=150 width=150> <br/> @Jihyeon0804](https://github.com/Jihyeon0804) | [<img src="https://avatars.githubusercontent.com/u/109147221?v=4" height=150 width=150> <br/> @kishinoa](https://github.com/kishinoa) | [<img src="https://avatars.githubusercontent.com/u/165255454?v=4" height=150 width=150> <br/> @mozzibeam](https://github.com/mozzibeam) |
+
+---
+
+# 목차
+| **문서명** | **분류** | **설명** |
+|--------|----------|----------|
+| [프로젝트 추진 배경](#1-프로젝트-추진-배경) | 기획 | 프로젝트 배경 |
+| [프로젝트 목적](#2-프로젝트-목적) | 기획 | 프로젝트 목적 |
+| [추진 전략 (핵심 목표)](#3-추진-전략-핵심-목표) | 기획 | 프로젝트 목적 |
+| [요구사항 정의서](https://docs.google.com/spreadsheets/d/1OWBwOKICwviN1j20aa2d0-GFYH7mc54pXyNh_uE32rs/edit?gid=0#gid=0) | 기획 | 기능 및 비기능 요구사항 정의 |
+| [WBS](https://docs.google.com/spreadsheets/d/1OWBwOKICwviN1j20aa2d0-GFYH7mc54pXyNh_uE32rs/edit?gid=437381057#gid=437381057) | 기획 | 업무 분장 및 세부 일정 |
+| [ERD](https://www.erdcloud.com/d/putcJAPJZgGAzeqBS) | 기획 | 데이터베이스 구조 및 관계 |
+| [화면설계서](https://www.figma.com/design/xpNgDkijDVTtfj1qtteclD/Team-project?node-id=939-12738&t=uA5ilLzLXs6EpFeA-1) | 기획 | UI/UX 화면 흐름 및 구조 |
+| [단위 테스트 결과서](https://documenter.getpostman.com/view/48728965/2sB3QQH7M2) | 백엔드 | 기능별 테스트 결과 |
+| [주요 기술 아키텍처](#4-주요-기술-아키텍처) | 기술 | 프로젝트 |
+| [기술 스택](#5-기술-스택) | 기술 | 프로젝트 사용 기술 명세 |
+| [시스템 아키텍처 및 CI/CD 계획서](#6-시스템-아키텍처-및-cicd-계획서) | 시스템 통합 | 배포 및 자동화 계획 |
+| [UI/UX 단위테스트](#7-uiux-단위테스트) | 프론트엔드 | 사용자 테스트 결과 |
+| [회고록](#8-회고록) | 회고 | 개인 회고록 |
+
+
 
 ## 1. 프로젝트 추진 배경
 
@@ -79,14 +107,215 @@
 
 ---
 
-## 5. 산출물
+## 5. 기술 스택
+  ### FRONT
+  <p>
+     <img src="https://img.shields.io/badge/vuedotjs-4FC08D?style=for-the-badge&logo=vuedotjs&logoColor=white">
+     <img src="https://img.shields.io/badge/vuetify-1867C0?style=for-the-badge&logo=vuetify&logoColor=white">
+    <img src="https://img.shields.io/badge/axios-5A29E4?style=for-the-badge&logo=axios&logoColor=white">
+    <img src="https://img.shields.io/badge/javascript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black">
+    <img src="https://img.shields.io/badge/html5-E34F26?style=for-the-badge&logo=html5&logoColor=white">
+    <img src="https://img.shields.io/badge/css-663399?style=for-the-badge&logo=css&logoColor=white">
+ </p>
+ 
+  ### BACKEND
+  <p>
+  <img src="https://img.shields.io/badge/springboot-6DB33F?style=for-the-badge&logo=springboot&logoColor=white">
+  <img src="https://img.shields.io/badge/spring_security-6DB33F?style=for-the-badge&logo=springsecurity&logoColor=white">
+  <img src="https://img.shields.io/badge/spring_data_jpa-6DB33F?style=for-the-badge&logo=springboot&logoColor=white">
+  <img src="https://img.shields.io/badge/jwt-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white">
+  <img src="https://img.shields.io/badge/java-007396?style=for-the-badge&logo=openjdk&logoColor=white">
+  <img src="https://img.shields.io/badge/apachekafka-231F20?style=for-the-badge&logo=apachekafka&logoColor=white">
+  <img src="https://img.shields.io/badge/elasticsearch-005571?style=for-the-badge&logo=elasticsearch&logoColor=white">
+   <img src="https://img.shields.io/badge/python-3776AB?style=for-the-badge&logo=python&logoColor=white">
+  <img src="https://img.shields.io/badge/fastapi-009688?style=for-the-badge&logo=fastapi&logoColor=white">
+  <img src="https://img.shields.io/badge/livekit-000000?style=for-the-badge&logo=livekit&logoColor=white">
+  <img src="https://img.shields.io/badge/a.x-000000?style=for-the-badge&logo=a.x&logoColor=white">
+  <img src="https://img.shields.io/badge/whisper-412991?style=for-the-badge&logo=openai&logoColor=white">
+  </p>
 
-| 항목       | 링크 |
-|----------|---|
-| 요구사항 정의서 | [열기](https://docs.google.com/spreadsheets/d/1OWBwOKICwviN1j20aa2d0-GFYH7mc54pXyNh_uE32rs/edit?gid=0#gid=0) |
-| WBS      | [열기](https://docs.google.com/spreadsheets/d/1OWBwOKICwviN1j20aa2d0-GFYH7mc54pXyNh_uE32rs/edit?gid=437381057#gid=437381057) |
-| ERD      | [열기](https://www.erdcloud.com/d/putcJAPJZgGAzeqBS) |
-| 화면설계서    | [열기](https://www.figma.com/design/xpNgDkijDVTtfj1qtteclD/Team-project?node-id=939-12738&t=uA5ilLzLXs6EpFeA-1) |
-| API 명세서  | [열기](https://documenter.getpostman.com/view/48728965/2sB3QQH7M2) |
+  ### DB
+  <p>
+  <img src="https://img.shields.io/badge/mariadb-003545?style=for-the-badge&logo=mariadb&logoColor=white">
+  <img src="https://img.shields.io/badge/redis-FF4438?style=for-the-badge&logo=redis&logoColor=white">
+  </p>
+
+  ### DevOps
+  <p>
+  <img src="https://img.shields.io/badge/kubernetes-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white">
+  <img src="https://img.shields.io/badge/docker-2496ED?style=for-the-badge&logo=docker&logoColor=white">
+  <img src="https://img.shields.io/badge/nginx-009639?style=for-the-badge&logo=nginx&logoColor=white">
+  <img src="https://img.shields.io/badge/github_actions-00B0B9?style=for-the-badge&logo=githubactions&logoColor=white">
+  <img src="https://img.shields.io/badge/amazonaws-232F3E?style=for-the-badge&logo=amazonaws&logoColor=white">
+   </p>
+
+  ### Tools
+  <p>
+  <img src="https://img.shields.io/badge/github-181717?style=for-the-badge&logo=github&logoColor=white">
+  <img src="https://img.shields.io/badge/erd_cloud-004639?style=for-the-badge&logo=erdcloud&logoColor=white">
+  <img src="https://img.shields.io/badge/postman-FF6C37?style=for-the-badge&logo=postman&logoColor=white">
+  <img src="https://img.shields.io/badge/figma-009639?style=for-the-badge&logo=figma&logoColor=white">
+  </p>
+
 
 ---
+
+##  6. 시스템 아키텍처 및 CI/CD 계획서
+  ### 시스템 아키텍처
+  <img alt="시스템 아키텍처 이미지" src=""/>
+
+  ### CI/CD 계획서
+  
+
+---
+## 7. UI/UX 단위테스트
+<details>
+  <summary><strong>직원</strong></summary>
+  <blockquote>
+    <div class="content">
+      <details>
+        <summary>직원 상세 토글</summary>
+        <div>
+          <p>알아서</p>
+        </div>
+      </details>
+      <details>
+        <summary>하위 토글 추가</summary>
+        <div>
+          <p>알아서</p>
+        </div>
+      </details>
+    </div>
+  </blockquote>
+</details>
+
+  <details>
+    <summary><strong>근태</strong></summary>
+    <blockquote>
+    <div class="content">
+      <details>
+        <summary>근태 상세 토글</summary>
+        <div>
+          <p>알아서</p>
+        </div>
+      </details>
+      <details>
+        <summary>하위 토글 추가</summary>
+        <div>
+          <p>알아서</p>
+        </div>
+      </details>
+    </div>
+    </blockquote>
+  </details>
+
+  <details>
+    <summary><strong>성과</strong></summary>
+    <blockquote>
+      <div class="content">
+        <details>
+          <summary>성과 상세 토글</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+        <details>
+          <summary>하위 토글 추가</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+      </div>
+    </blockquote>
+  </details>
+
+  <details>
+    <summary><strong>전자결재</strong></summary>
+    <blockquote>
+      <div class="content">
+        <details>
+          <summary>전자결재 상세 토글</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+        <details>
+          <summary>하위 토글 추가</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+      </div>
+    </blockquote>
+  </details>
+
+  <details>
+    <summary><strong>급여</strong></summary>
+    <blockquote>
+      <div class="content">
+        <details>
+          <summary>급여 상세 토글</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+        <details>
+          <summary>하위 토글 추가</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+      </div>
+    </blockquote>
+  </details>
+
+  <details>
+    <summary><strong>예약</strong></summary>
+    <blockquote>
+      <div class="content">
+        <details>
+          <summary>예약 상세 토글</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+        <details>
+          <summary>하위 토글 추가</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+      </div>
+    </blockquote>
+  </details>
+
+  <details>
+    <summary><strong>화상회의</strong></summary>
+    <blockquote>
+      <div class="content">
+        <details>
+          <summary>화상회의 상세 토글</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+        <details>
+          <summary>하위 토글 추가</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+      </div>
+    </blockquote>
+  </details>
+
+---
+
+## 8. 회고록
+| 팀원   | 회고 내용 |
+|--------|----------|
+| 김송옥 |  |
+| 정지완 |  |
+| 김지현 |  |
+| 최승휘 |  |
+| 위동길 |  |
