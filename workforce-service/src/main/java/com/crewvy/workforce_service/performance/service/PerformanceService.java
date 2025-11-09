@@ -725,7 +725,7 @@ public class PerformanceService {
                         memberPositionId,
                         GoalStatus.AWAITING_EVALUATION
         );
-        int teamGoalCount = teamGoalRepository.countByMemberPositionIdAndStatus(
+        int teamGoalCount = teamGoalRepository.countByMemberPositionIdAndStatus2(
                         memberPositionId,
                         TeamGoalStatus.AWAITING_EVALUATION
         );
