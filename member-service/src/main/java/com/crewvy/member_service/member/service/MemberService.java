@@ -1445,4 +1445,19 @@ public class MemberService {
                 .memberStatus(member.getMemberStatus().getCodeValue())
                 .build();
     }
+
+    /**
+     * 내부 전용: 첫 번째 회사 ID 조회 (테스트 데이터 초기화용)
+     * 권한 체크 없이 직접 조회 - 시스템 내부 작업에서만 사용
+     * @return 첫 번째 회사 ID
+     */
+    @Transactional(readOnly = true)
+    public UUID getFirstCompanyId() {
+        // 권한 체크 없음 - 시스템 내부 작업용
+        Member firstMember = memberRepository.findAll().stream()
+                .findFirst()
+                .orElseThrow(() -> new EntityNotFoundException("회사가 존재하지 않습니다. 먼저 회사를 생성해주세요."));
+
+        return firstMember.getCompany().getId();
+    }
 }

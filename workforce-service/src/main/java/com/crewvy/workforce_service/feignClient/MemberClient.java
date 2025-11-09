@@ -66,4 +66,8 @@ public interface MemberClient {
     // 내부 전용: 단일 회원 고용 정보 조회 (Kafka 이벤트/내부 작업용 - 권한 체크 없음)
     @GetMapping("/member/internal/member/{memberId}/employment-info")
     ApiResponse<MemberEmploymentInfoDto> getMemberEmploymentInfoInternal(@PathVariable("memberId") UUID memberId);
+
+    // 내부 전용: 첫 번째 회사 ID 조회 (테스트 데이터 초기화용 - 권한 체크 없음)
+    @GetMapping("/member/internal/first-company-id")
+    ApiResponse<UUID> getFirstCompanyId();
 }

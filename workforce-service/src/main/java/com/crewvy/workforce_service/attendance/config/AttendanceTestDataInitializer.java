@@ -60,9 +60,8 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     // Deterministic random for reproducible test data
     private final Random random = new Random(42);
 
-    // 고정 회사 ID (AutoCreateAdmin에서 생성된 회사와 일치해야 함)
-    // 실제 환경에서는 DB에서 첫 번째 회사 ID를 조회하거나, 환경변수로 관리 필요
-    private static final UUID COMPANY_ID = UUID.fromString("376302df-e3c5-451d-801a-e5d6b68fc169");
+    // 회사 ID (member-service로부터 자동 조회)
+    private UUID companyId;
 
     // 테스트 대상 직원 분류
     private static class TestEmployees {
@@ -86,14 +85,17 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     @Transactional
     public void run(String... args) {
         try {
-            // 1단계: 직원 정보 조회 및 분류 (member-service 대기)
+            // 1단계: 회사 ID 조회 및 직원 정보 조회 (member-service 대기)
             log.info("========================================");
             log.info("🚀 시연용 근태 테스트 데이터 초기화 시작");
             log.info("========================================");
             log.info("");
-            log.info("📋 [1/6] 직원 정보 조회 중...");
-            log.info("   ✓ 회사 ID: {}", COMPANY_ID);
+            log.info("📋 [1/6] 회사 ID 및 직원 정보 조회 중...");
             log.info("   ⏳ Member Service 연결 대기 중...");
+
+            // 회사 ID 자동 조회
+            this.companyId = fetchCompanyIdWithRetry();
+            log.info("   ✓ 회사 ID: {}", companyId);
 
             TestEmployees employees = fetchAndClassifyEmployeesWithRetry();
 
@@ -104,7 +106,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
             }
 
             // 이미 Policy가 있으면 스킵
-            if (policyRepository.findByCompanyId(COMPANY_ID, org.springframework.data.domain.Pageable.unpaged()).getTotalElements() > 0) {
+            if (policyRepository.findByCompanyId(companyId, org.springframework.data.domain.Pageable.unpaged()).getTotalElements() > 0) {
                 log.info("✅ 근태 테스트 데이터가 이미 존재합니다. 초기화를 건너뜁니다.");
                 return;
             }
@@ -144,6 +146,40 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
             log.error("❌ 테스트 데이터 초기화 실패", e);
             throw new RuntimeException("테스트 데이터 초기화 실패", e);
         }
+    }
+
+    /**
+     * 회사 ID 조회 (재시도 로직 포함)
+     * member-service가 준비되지 않았을 경우 자동으로 재시도
+     */
+    private UUID fetchCompanyIdWithRetry() {
+        int maxRetries = 10;
+        int retryDelayMs = 3000; // 3초
+
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                log.info("   🔄 회사 ID 조회 시도 {}/{}", attempt, maxRetries);
+                var response = memberClient.getFirstCompanyId();
+                UUID fetchedCompanyId = response.getData();
+                log.info("   ✓ 회사 ID 조회 성공: {}", fetchedCompanyId);
+                return fetchedCompanyId;
+            } catch (Exception e) {
+                if (attempt == maxRetries) {
+                    log.error("   ❌ 회사 ID 조회 실패 ({}회 시도 후 포기)", maxRetries);
+                    throw new RuntimeException("Member Service에서 회사 ID를 조회할 수 없습니다. Member Service가 실행 중인지 확인해주세요.", e);
+                }
+                log.warn("   ⚠ 조회 실패 (시도 {}/{}): {} - {}초 후 재시도...",
+                        attempt, maxRetries, e.getMessage(), retryDelayMs / 1000);
+                try {
+                    Thread.sleep(retryDelayMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("재시도 중 인터럽트 발생", ie);
+                }
+            }
+        }
+
+        throw new RuntimeException("회사 ID 조회 실패");
     }
 
     /**
@@ -187,7 +223,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
 
         try {
             // FeignClient로 직원 목록 조회
-            var response = memberClient.getEmploymentInfoInternal(COMPANY_ID);
+            var response = memberClient.getEmploymentInfoInternal(companyId);
             List<MemberEmploymentInfoDto> allMembers = response.getData();
 
             log.info("   ✓ 총 {}명의 직원 조회 완료", allMembers.size());
@@ -270,7 +306,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
      */
     private void createWorkLocations() {
         mainOffice = WorkLocation.builder()
-                .companyId(COMPANY_ID)
+                .companyId(companyId)
                 .name("본사 (서울 강남구)")
                 .address("서울특별시 강남구 테헤란로 123")
                 .latitude(37.4979)
@@ -373,7 +409,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         ruleDetails.setLeaveRule(leaveRule);
 
         Policy policy = Policy.builder()
-                .companyId(COMPANY_ID)
+                .companyId(companyId)
                 .policyTypeCode(PolicyTypeCode.ANNUAL_LEAVE)
                 .name("연차")
                 .isPaid(true)
@@ -431,7 +467,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         ruleDetails.setOvertimeRule(overtimeRule);
 
         Policy policy = Policy.builder()
-                .companyId(COMPANY_ID)
+                .companyId(companyId)
                 .policyTypeCode(PolicyTypeCode.STANDARD_WORK)
                 .name("기본근무")
                 .isPaid(true)
@@ -462,7 +498,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         ruleDetails.setOvertimeRule(overtimeRule);
 
         Policy policy = Policy.builder()
-                .companyId(COMPANY_ID)
+                .companyId(companyId)
                 .policyTypeCode(PolicyTypeCode.OVERTIME)
                 .name("연장근무")
                 .isPaid(true)
@@ -491,7 +527,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         ruleDetails.setTripRule(tripRule);
 
         Policy policy = Policy.builder()
-                .companyId(COMPANY_ID)
+                .companyId(companyId)
                 .policyTypeCode(PolicyTypeCode.BUSINESS_TRIP)
                 .name("출장")
                 .isPaid(true)
@@ -520,7 +556,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         ruleDetails.setLeaveRule(leaveRule);
 
         Policy policy = Policy.builder()
-                .companyId(COMPANY_ID)
+                .companyId(companyId)
                 .policyTypeCode(PolicyTypeCode.MATERNITY_LEAVE)
                 .name("출산전후휴가")
                 .isPaid(true)
@@ -549,7 +585,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         ruleDetails.setLeaveRule(leaveRule);
 
         Policy policy = Policy.builder()
-                .companyId(COMPANY_ID)
+                .companyId(companyId)
                 .policyTypeCode(PolicyTypeCode.PATERNITY_LEAVE)
                 .name("배우자출산휴가")
                 .isPaid(true)
@@ -581,7 +617,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         ruleDetails.setLeaveRule(leaveRule);
 
         Policy policy = Policy.builder()
-                .companyId(COMPANY_ID)
+                .companyId(companyId)
                 .policyTypeCode(PolicyTypeCode.MENSTRUAL_LEAVE)
                 .name("생리휴가")
                 .isPaid(false)  // 무급
@@ -600,13 +636,13 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
      */
     private void assignPoliciesToCompany() {
         // 회사 레벨에 정책 할당
-        assignPolicy(annualLeavePolicy, PolicyScopeType.COMPANY, COMPANY_ID);
-        assignPolicy(basicWorkPolicy, PolicyScopeType.COMPANY, COMPANY_ID);
-        assignPolicy(overtimePolicy, PolicyScopeType.COMPANY, COMPANY_ID);
-        assignPolicy(businessTripPolicy, PolicyScopeType.COMPANY, COMPANY_ID);
-        assignPolicy(maternityLeavePolicy, PolicyScopeType.COMPANY, COMPANY_ID);
-        assignPolicy(paternityLeavePolicy, PolicyScopeType.COMPANY, COMPANY_ID);
-        assignPolicy(menstrualLeavePolicy, PolicyScopeType.COMPANY, COMPANY_ID);
+        assignPolicy(annualLeavePolicy, PolicyScopeType.COMPANY, companyId);
+        assignPolicy(basicWorkPolicy, PolicyScopeType.COMPANY, companyId);
+        assignPolicy(overtimePolicy, PolicyScopeType.COMPANY, companyId);
+        assignPolicy(businessTripPolicy, PolicyScopeType.COMPANY, companyId);
+        assignPolicy(maternityLeavePolicy, PolicyScopeType.COMPANY, companyId);
+        assignPolicy(paternityLeavePolicy, PolicyScopeType.COMPANY, companyId);
+        assignPolicy(menstrualLeavePolicy, PolicyScopeType.COMPANY, companyId);
 
         log.info("   ✓ 회사 레벨 정책 할당 완료 (7개)");
         log.info("   ⏳ 자동 잔액 부여 프로세스 실행 중...");
@@ -623,7 +659,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                 .targetId(targetId)
                 .scopeType(scopeType)
                 .assignedAt(LocalDateTime.now())
-                .assignedBy(COMPANY_ID)  // 시스템 자동 할당 (회사 ID 사용)
+                .assignedBy(companyId)  // 시스템 자동 할당 (회사 ID 사용)
                 .isActive(true)
                 .build();
 
@@ -752,7 +788,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
 
         DailyAttendance dailyAttendance = DailyAttendance.builder()
                 .memberId(member.getMemberId())
-                .companyId(COMPANY_ID)
+                .companyId(companyId)
                 .attendanceDate(date)
                 .status(AttendanceStatus.NORMAL_WORK)
                 .firstClockIn(clockIn)
@@ -866,9 +902,9 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                         .build();
                 balance = memberBalanceRepository.save(updatedBalance);
 
-                // 2. Approval 생성 (시연용: memberPositionId는 COMPANY_ID 사용)
+                // 2. Approval 생성 (시연용: memberPositionId는 companyId 사용)
                 Approval approval = Approval.builder()
-                        .memberPositionId(COMPANY_ID)
+                        .memberPositionId(companyId)
                         .approvalDocument(null) // 시연용: null
                         .title(member.getName() + "님의 연차 신청")
                         .contents(Map.of(
@@ -888,7 +924,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
 
                 // 3. ApprovalLine 생성 (80% 단일 결재자, 20% 2단계 결재)
                 boolean isSingleApprover = random.nextDouble() < 0.80;
-                UUID approverPositionId = COMPANY_ID; // 시연용: COMPANY_ID 사용
+                UUID approverPositionId = companyId; // 시연용: companyId 사용
 
                 if (isSingleApprover) {
                     // 단일 결재자
@@ -911,7 +947,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                     }
                 } else {
                     // 2단계 결재
-                    UUID approver2PositionId = COMPANY_ID; // 시연용: COMPANY_ID 사용
+                    UUID approver2PositionId = companyId; // 시연용: companyId 사용
 
                     // 1차 결재자 (항상 승인)
                     ApprovalLine line1 = ApprovalLine.builder()
@@ -955,7 +991,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                     // DailyAttendance 생성 (승인된 휴가)
                     DailyAttendance leaveAttendance = DailyAttendance.builder()
                             .memberId(member.getMemberId())
-                            .companyId(COMPANY_ID)
+                            .companyId(companyId)
                             .attendanceDate(leaveDate)
                             .status(AttendanceStatus.ANNUAL_LEAVE)
                             .firstClockIn(null)
