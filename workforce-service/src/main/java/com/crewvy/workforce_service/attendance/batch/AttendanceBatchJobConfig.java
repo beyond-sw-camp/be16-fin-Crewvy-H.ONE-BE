@@ -249,17 +249,36 @@ public class AttendanceBatchJobConfig {
     @Bean
     @StepScope
     public JpaPagingItemReader<DailyAttendance> incompleteAttendanceReader(@Value("#{jobParameters[date]}") String date) {
-        LocalDate yesterday = (date == null) ? LocalDate.now().minusDays(1) : LocalDate.parse(date).minusDays(1);
+        // 과거 30일치 미완료 데이터를 모두 처리 (특정 날짜 지정 시 해당 날짜만 처리)
+        LocalDate targetDate = (date == null) ? null : LocalDate.parse(date).minusDays(1);
+        LocalDate startDate = LocalDate.now().minusDays(30);
+
+        String queryString;
+        Map<String, Object> params;
+
+        if (targetDate != null) {
+            // 특정 날짜만 처리
+            queryString = "SELECT da FROM DailyAttendance da " +
+                    "WHERE da.attendanceDate = :date " +
+                    "AND da.firstClockIn IS NOT NULL AND da.lastClockOut IS NULL " +
+                    "AND da.status != com.crewvy.workforce_service.attendance.constant.AttendanceStatus.ABSENT";
+            params = Map.of("date", targetDate);
+        } else {
+            // 과거 30일 모든 미완료 데이터 처리
+            queryString = "SELECT da FROM DailyAttendance da " +
+                    "WHERE da.attendanceDate >= :startDate AND da.attendanceDate < :endDate " +
+                    "AND da.firstClockIn IS NOT NULL AND da.lastClockOut IS NULL " +
+                    "AND da.status != com.crewvy.workforce_service.attendance.constant.AttendanceStatus.ABSENT " +
+                    "ORDER BY da.attendanceDate ASC";
+            params = Map.of("startDate", startDate, "endDate", LocalDate.now());
+        }
 
         return new JpaPagingItemReaderBuilder<DailyAttendance>()
                 .name("incompleteAttendanceReader")
                 .entityManagerFactory(entityManagerFactory)
                 .pageSize(CHUNK_SIZE)
-                .queryString("SELECT da FROM DailyAttendance da " +
-                             "WHERE da.attendanceDate = :date " +
-                             "AND da.firstClockIn IS NOT NULL AND da.lastClockOut IS NULL " +
-                             "AND da.status IN (com.crewvy.workforce_service.attendance.constant.AttendanceStatus.NORMAL_WORK, com.crewvy.workforce_service.attendance.constant.AttendanceStatus.BUSINESS_TRIP)")
-                .parameterValues(Map.of("date", yesterday))
+                .queryString(queryString)
+                .parameterValues(params)
                 .build();
     }
 
@@ -268,7 +287,26 @@ public class AttendanceBatchJobConfig {
     public ItemProcessor<DailyAttendance, DailyAttendance> incompleteAttendanceProcessor() {
         return attendance -> {
             LocalDate yesterday = attendance.getAttendanceDate();
-            LocalDateTime autoClockOutTime = attendance.getFirstClockIn().plusHours(9);
+
+            // 상태별로 자동 퇴근 시간 계산
+            LocalDateTime autoClockOutTime;
+            int standardWorkMinutes;
+
+            switch (attendance.getStatus()) {
+                case HALF_DAY_PM:  // 오후 반차 (오전만 근무)
+                    autoClockOutTime = attendance.getFirstClockIn().plusHours(4);
+                    standardWorkMinutes = 240;  // 4시간
+                    break;
+                case HALF_DAY_AM:  // 오전 반차 (오후만 근무)
+                    autoClockOutTime = attendance.getFirstClockIn().plusHours(5);
+                    standardWorkMinutes = 240;  // 4시간
+                    break;
+                default:  // 정상 출근, 출장, 지각 등
+                    autoClockOutTime = attendance.getFirstClockIn().plusHours(9);
+                    standardWorkMinutes = 480;  // 8시간
+                    break;
+            }
+
             LocalDateTime endOfDay = yesterday.atTime(23, 59, 59);
 
             if (autoClockOutTime.isAfter(endOfDay)) {
@@ -278,10 +316,11 @@ public class AttendanceBatchJobConfig {
             boolean isHoliday = yesterday.getDayOfWeek() == java.time.DayOfWeek.SATURDAY
                     || yesterday.getDayOfWeek() == java.time.DayOfWeek.SUNDAY;
 
-            Integer standardWorkMinutes = 480;
-
             if (attendance.getTotalBreakMinutes() == null || attendance.getTotalBreakMinutes() == 0) {
-                attendance.setTotalBreakMinutes(60);
+                // 반차는 휴게시간 30분, 전일 근무는 60분
+                int breakMinutes = (attendance.getStatus() == AttendanceStatus.HALF_DAY_PM
+                                    || attendance.getStatus() == AttendanceStatus.HALF_DAY_AM) ? 30 : 60;
+                attendance.setTotalBreakMinutes(breakMinutes);
             }
 
             attendance.updateClockOut(autoClockOutTime, standardWorkMinutes, isHoliday);

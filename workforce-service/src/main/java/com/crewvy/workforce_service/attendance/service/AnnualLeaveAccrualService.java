@@ -486,9 +486,19 @@ public class AnnualLeaveAccrualService {
                 log.info("1년 이상 근속자 연차 계산: memberId={}, 근속년수={}, 부여일수={}일",
                         memberId, yearsOfService, initialLeave);
             } else {
-                // 1년 미만 근속자: 월별 발생 계산
-                initialLeave = calculateFirstYearAccrual(memberInfo.getJoinDate(), today, annualLeavePolicyOpt.get());
-                log.info("1년 미만 근속자 연차 계산: memberId={}, 부여일수={}일", memberId, initialLeave);
+                // 1년 미만 근속자: 전월 근속률 체크 후 월별 발생 계산
+                double attendanceRate = calculatePreviousMonthAttendanceRate(memberId, today);
+                log.debug("전월 근속률 확인: memberId={}, 근속률={}%", memberId, String.format("%.2f", attendanceRate));
+
+                if (attendanceRate < 80.0) {
+                    log.info("근속비율 미달로 연차 부여 안 함: memberId={}, 근속률={}%",
+                            memberId, String.format("%.2f", attendanceRate));
+                    initialLeave = 0.0;
+                } else {
+                    initialLeave = calculateFirstYearAccrual(memberInfo.getJoinDate(), today, annualLeavePolicyOpt.get());
+                    log.info("1년 미만 근속자 연차 계산: memberId={}, 근속률={}%, 부여일수={}일",
+                            memberId, String.format("%.2f", attendanceRate), initialLeave);
+                }
             }
 
             log.info("연차 정책 기반 계산 완료: policyName={}, 근속년수={}, 부여일수={}일",
