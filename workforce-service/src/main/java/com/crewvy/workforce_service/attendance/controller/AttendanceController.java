@@ -131,21 +131,31 @@ public class AttendanceController {
     }
 
     /**
-     * 연차 현황 조회 (권한에 따라 조회 범위 자동 결정)
+     * 연차 현황 조회 (권한에 따라 조회 범위 자동 결정, 페이징 지원)
      * - COMPANY 권한: 전사 직원 연차 현황
      * - TEAM 권한: 본인 조직 및 하위 조직 직원 연차 현황
+     * @param year 연도 (optional, 기본값: 현재 연도)
+     * @param searchQuery 검색어 (이름, 부서)
+     * @param policyTypeCode 정책 유형 코드 (PTC001 등)
+     * @param yearsOfService 근속년수 필터 (<1, >=1, >=3, >=5, >=10)
+     * @param pageable 페이징 정보 (page, size, sort)
      */
     @GetMapping("/leave-balance/status")
-    public ResponseEntity<ApiResponse<List<MemberBalanceSummaryRes>>> getLeaveBalanceStatus(
+    public ResponseEntity<ApiResponse<Page<MemberBalanceSummaryRes>>> getLeaveBalanceStatus(
             @RequestHeader("X-User-UUID") UUID memberId,
             @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
             @RequestHeader("X-User-CompanyId") UUID companyId,
-            @RequestParam(required = false) Integer year) {
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) String searchQuery,
+            @RequestParam(required = false) String policyTypeCode,
+            @RequestParam(required = false) String yearsOfService,
+            Pageable pageable) {
 
         // year가 null이면 현재 연도 사용
         Integer targetYear = year != null ? year : java.time.Year.now().getValue();
 
-        List<MemberBalanceSummaryRes> response = attendanceService.getLeaveBalanceStatus(memberId, memberPositionId, companyId, targetYear);
+        Page<MemberBalanceSummaryRes> response = attendanceService.getLeaveBalanceStatus(
+                memberId, memberPositionId, companyId, targetYear, searchQuery, policyTypeCode, yearsOfService, pageable);
         return new ResponseEntity<>(ApiResponse.success(response, "연차 현황 조회 완료"), HttpStatus.OK);
     }
 

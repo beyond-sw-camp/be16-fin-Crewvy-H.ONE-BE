@@ -26,6 +26,7 @@ public class TeamMemberAttendanceRes {
     private String date;              // 날짜 (yyyy-MM-dd 형식)
     private String status;            // 근태 상태 (한글, 예: "정상근무", "연차")
     private Boolean isLate;           // 지각 여부
+    private Boolean isEarlyLeave;     // 조퇴 여부
     private String clockInTime;       // 출근 시간 (HH:mm 형식)
     private String clockOutTime;      // 퇴근 시간 (HH:mm 형식)
     private String workHours;         // 근무 시간 (예: "8시간 30분")

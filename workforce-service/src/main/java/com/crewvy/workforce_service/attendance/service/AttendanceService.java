@@ -13,6 +13,7 @@ import com.crewvy.workforce_service.attendance.util.DistanceCalculator;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberDto;
+import com.crewvy.workforce_service.feignClient.dto.response.MemberEmploymentInfoDto;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberPositionListRes;
 import com.crewvy.workforce_service.feignClient.dto.response.OrganizationNodeDto;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -49,6 +51,7 @@ public class AttendanceService {
     // 분리된 서비스들
     private final AttendanceValidator attendanceValidator;
     private final AttendanceCalculator attendanceCalculator;
+    private final AnnualLeaveAccrualService annualLeaveAccrualService;
 
     // 로컬 개발 환경 설정
     @Value("${attendance.dev-mode.enabled:false}")
@@ -487,19 +490,10 @@ public class AttendanceService {
                     authRule.getAllowedWorkLocationIds().size(), allowedLocations.size());
         }
 
-        // 디바이스 타입별 필수 인증 정보 검증
-        if (deviceType == DeviceType.LAPTOP) {
-            // 노트북/데스크톱: IP 주소 또는 WiFi 정보 필요
-            if ((clientIp == null || clientIp.trim().isEmpty()) && (wifiSsid == null || wifiSsid.trim().isEmpty())) {
-                throw new AuthenticationFailedException("노트북/데스크톱 출퇴근은 네트워크 정보(IP 주소 또는 WiFi)가 필요합니다.");
-            }
-        } else if (deviceType == DeviceType.MOBILE) {
-            // 모바일: GPS 또는 WiFi 중 하나 필요
-            boolean hasGps = (latitude != null && longitude != null);
-            boolean hasWifi = (wifiSsid != null && !wifiSsid.trim().isEmpty());
-            if (!hasGps && !hasWifi) {
-                throw new AuthenticationFailedException("모바일 출퇴근은 GPS 위치 정보 또는 WiFi 네트워크 정보가 필요합니다.");
-            }
+        // GPS 위치 정보 필수 검증 (모든 디바이스 타입)
+        boolean hasGps = (latitude != null && longitude != null);
+        if (!hasGps) {
+            throw new AuthenticationFailedException("출퇴근은 GPS 위치 정보가 필요합니다.");
         }
 
         // 사용자 위치/네트워크 정보로 매칭되는 근무지 찾기
@@ -507,47 +501,14 @@ public class AttendanceService {
         List<String> failureReasons = new ArrayList<>();
 
         for (WorkLocation location : allowedLocations) {
-            boolean isMatched = false;
-            List<String> locationFailures = new ArrayList<>();
+            // GPS 매칭만 수행 (모든 디바이스 타입)
+            boolean gpsMatched = isGpsMatched(location, latitude, longitude);
 
-            if (deviceType == DeviceType.LAPTOP) {
-                // 노트북/데스크톱: IP 또는 WiFi 매칭
-                boolean ipMatched = isIpMatched(location, clientIp);
-                boolean wifiMatched = isWifiMatched(location, wifiSsid);
-
-                if (ipMatched || wifiMatched) {
-                    isMatched = true;
-                } else {
-                    if (clientIp != null && !clientIp.trim().isEmpty()) {
-                        locationFailures.add("IP 불일치");
-                    }
-                    if (wifiSsid != null && !wifiSsid.trim().isEmpty()) {
-                        locationFailures.add("WiFi 불일치");
-                    }
-                }
-            } else if (deviceType == DeviceType.MOBILE) {
-                // 모바일: GPS 또는 WiFi 매칭
-                boolean gpsMatched = isGpsMatched(location, latitude, longitude);
-                boolean wifiMatched = isWifiMatched(location, wifiSsid);
-
-                if (gpsMatched || wifiMatched) {
-                    isMatched = true;
-                } else {
-                    if (latitude != null && longitude != null) {
-                        locationFailures.add("GPS 범위 초과");
-                    }
-                    if (wifiSsid != null && !wifiSsid.trim().isEmpty()) {
-                        locationFailures.add("WiFi 불일치");
-                    }
-                }
-            }
-
-            // 매칭되면 해당 근무지로 설정
-            if (isMatched) {
+            if (gpsMatched) {
                 matchedLocation = location;
                 break;
             } else {
-                failureReasons.add(String.format("%s (%s)", location.getName(), String.join(", ", locationFailures)));
+                failureReasons.add(String.format("%s (GPS 범위 초과)", location.getName()));
             }
         }
 
@@ -829,13 +790,20 @@ public class AttendanceService {
      * @return 권한 범위 내 직원들의 연차 현황 리스트
      */
     @Transactional(readOnly = true)
-    public List<MemberBalanceSummaryRes> getLeaveBalanceStatus(
+    public Page<MemberBalanceSummaryRes> getLeaveBalanceStatus(
             UUID memberId,
             UUID memberPositionId,
             UUID companyId,
-            Integer year) {
+            Integer year,
+            String searchQuery,
+            String policyTypeCode,
+            String yearsOfService,
+            Pageable pageable) {
 
         validateYear(year);
+
+        // 현재 날짜 (전월 근속비율 계산 및 근속년수 계산에 사용)
+        LocalDate today = LocalDate.now();
 
         // 1. member-service에서 조직 트리 가져오기
         List<OrganizationNodeDto> organizationTree;
@@ -872,20 +840,20 @@ public class AttendanceService {
             UUID myOrganizationId = findMemberOrganization(organizationTree, memberId);
             if (myOrganizationId == null) {
                 log.warn("Member {} not found in organization tree", memberId);
-                return new ArrayList<>();
+                return Page.empty(pageable);
             }
             targetMemberIds = extractMemberIdsFromOrganization(organizationTree, myOrganizationId);
         }
 
         if (targetMemberIds.isEmpty()) {
-            return new ArrayList<>();
+            return Page.empty(pageable);
         }
 
         // 3. 해당 연도의 MemberBalance 조회 (개선)
         List<MemberBalance> filteredBalances = memberBalanceRepository.findAllByMemberIdInAndYear(targetMemberIds, year);
 
         if (filteredBalances.isEmpty()) {
-            return new ArrayList<>();
+            return Page.empty(pageable);
         }
 
         // 5. 직책 정보 조회 (member-service)
@@ -910,16 +878,41 @@ public class AttendanceService {
             }
         }
 
+        // 5-1. 입사일 정보 조회 (member-service) - 프론트 요청사항
+        Map<UUID, MemberEmploymentInfoDto> employmentMap = new HashMap<>();
+        try {
+            ApiResponse<List<MemberEmploymentInfoDto>> employmentResponse =
+                    memberClient.getEmploymentInfo(memberPositionId, companyId);
+            if (employmentResponse != null && employmentResponse.getData() != null) {
+                employmentMap = employmentResponse.getData().stream()
+                        .filter(e -> memberIds.contains(e.getMemberId()))
+                        .collect(Collectors.toMap(MemberEmploymentInfoDto::getMemberId, e -> e));
+            }
+        } catch (Exception e) {
+            log.error("Failed to fetch employment info from member-service", e);
+        }
+
         // 6. 응답 조립
         final Map<UUID, MemberPositionListRes> finalPositionMap = positionMap;
-        return filteredBalances.stream()
+        final Map<UUID, MemberEmploymentInfoDto> finalEmploymentMap = employmentMap;
+        List<MemberBalanceSummaryRes> allResults = filteredBalances.stream()
                 .map(mb -> {
                     MemberPositionListRes position = finalPositionMap.get(mb.getMemberId());
+                    MemberEmploymentInfoDto employment = finalEmploymentMap.get(mb.getMemberId());
+
+                    // 전월 근속비율 계산
+                    double previousMonthAttendanceRate = annualLeaveAccrualService
+                            .calculatePreviousMonthAttendanceRate(mb.getMemberId(), today);
+
                     return MemberBalanceSummaryRes.builder()
                             .memberId(mb.getMemberId())
                             .memberName(position != null ? position.getMemberName() : null)
                             .organizationName(position != null ? position.getOrganizationName() : null)
                             .titleName(position != null ? position.getTitleName() : null)
+                            .joinDate(employment != null && employment.getJoinDate() != null
+                                      ? employment.getJoinDate().toString()
+                                      : null)
+                            .year(year)
                             .policyTypeCode(mb.getBalanceTypeCode().getCodeValue())
                             .policyTypeName(mb.getBalanceTypeCode().getCodeName())
                             .totalGranted(mb.getTotalGranted())
@@ -927,9 +920,56 @@ public class AttendanceService {
                             .remainingBalance(mb.getRemaining())
                             .isPaid(mb.getIsPaid())
                             .isUsable(mb.getIsUsable())
+                            .previousMonthAttendanceRate(previousMonthAttendanceRate)
                             .build();
                 })
                 .collect(Collectors.toList());
+
+        // 7. 필터링 (검색어, 정책 유형, 근속년수)
+        List<MemberBalanceSummaryRes> filteredResults = allResults.stream()
+                .filter(item -> {
+                    // 검색어 필터 (이름 또는 부서)
+                    boolean matchesSearch = searchQuery == null || searchQuery.trim().isEmpty() ||
+                            (item.getMemberName() != null && item.getMemberName().contains(searchQuery)) ||
+                            (item.getOrganizationName() != null && item.getOrganizationName().contains(searchQuery));
+
+                    // 정책 유형 필터
+                    boolean matchesPolicyType = policyTypeCode == null || policyTypeCode.trim().isEmpty() ||
+                            item.getPolicyTypeCode().equals(policyTypeCode);
+
+                    // 근속년수 필터
+                    boolean matchesYears = true;
+                    if (yearsOfService != null && !yearsOfService.trim().isEmpty() && item.getJoinDate() != null) {
+                        try {
+                            LocalDate joinDate = LocalDate.parse(item.getJoinDate());
+                            int years = Period.between(joinDate, today).getYears();
+
+                            if (yearsOfService.equals("<1")) {
+                                matchesYears = years < 1;
+                            } else if (yearsOfService.startsWith(">=")) {
+                                int minYears = Integer.parseInt(yearsOfService.substring(2));
+                                matchesYears = years >= minYears;
+                            }
+                        } catch (Exception e) {
+                            log.warn("Failed to parse joinDate or yearsOfService filter: {}", e.getMessage());
+                        }
+                    }
+
+                    return matchesSearch && matchesPolicyType && matchesYears;
+                })
+                .collect(Collectors.toList());
+
+        // 8. 페이징 처리 (메모리에서)
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), filteredResults.size());
+
+        if (start > filteredResults.size()) {
+            return Page.empty(pageable);
+        }
+
+        List<MemberBalanceSummaryRes> pagedResults = filteredResults.subList(start, end);
+
+        return new PageImpl<>(pagedResults, pageable, filteredResults.size());
     }
 
 
@@ -1307,7 +1347,11 @@ public class AttendanceService {
         }
 
         EventType lastEventType = getLastEventTypeToday(memberId);
-        return TodayAttendanceStatusResponse.from(dailyAttendance, lastEventType);
+
+        // 전월 근속비율 계산
+        double previousMonthAttendanceRate = annualLeaveAccrualService.calculatePreviousMonthAttendanceRate(memberId, today);
+
+        return TodayAttendanceStatusResponse.from(dailyAttendance, lastEventType, previousMonthAttendanceRate);
     }
 
     /**
@@ -1420,6 +1464,7 @@ public class AttendanceService {
                         .remaining(balance.getRemaining())
                         .expirationDate(balance.getExpirationDate())
                         .isPaid(policy.getIsPaid())
+                        .isUsable(balance.getIsUsable())
                         .maxSplitCount(maxSplitCount)
                         .currentSplitCount(currentSplitCount)
                         .build());
@@ -1448,6 +1493,7 @@ public class AttendanceService {
                         .remaining(remaining)
                         .expirationDate(null)
                         .isPaid(policy.getIsPaid())
+                        .isUsable(true)
                         .maxSplitCount(maxSplitCount)
                         .currentSplitCount(currentSplitCount)
                         .build());
@@ -1474,6 +1520,7 @@ public class AttendanceService {
                         .remaining(balance.getRemaining())
                         .expirationDate(balance.getExpirationDate())
                         .isPaid(balance.getIsPaid())
+                        .isUsable(false) // 정책이 없으므로 사용 불가
                         .maxSplitCount(null) // 정책이 없으므로
                         .currentSplitCount(null)
                         .build());
@@ -1669,6 +1716,7 @@ public class AttendanceService {
 
                 String status = null;
                 Boolean isLate = false;
+                Boolean isEarlyLeave = false;
                 String clockInTime = "-";
                 String clockOutTime = "-";
                 String workHours = "-";
@@ -1691,6 +1739,9 @@ public class AttendanceService {
 
                         // 지각 여부
                         isLate = attendance.getIsLate() != null && attendance.getIsLate();
+
+                        // 조퇴 여부
+                        isEarlyLeave = attendance.getIsEarlyLeave() != null && attendance.getIsEarlyLeave();
 
                         // 출근 시간 포맷팅
                         if (attendance.getFirstClockIn() != null) {
@@ -1731,6 +1782,7 @@ public class AttendanceService {
                         .date(currentDate.toString())
                         .status(status)
                         .isLate(isLate)
+                        .isEarlyLeave(isEarlyLeave)
                         .clockInTime(clockInTime)
                         .clockOutTime(clockOutTime)
                         .workHours(workHours)

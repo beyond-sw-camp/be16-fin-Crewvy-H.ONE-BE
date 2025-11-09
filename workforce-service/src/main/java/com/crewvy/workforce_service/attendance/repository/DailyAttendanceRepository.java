@@ -15,6 +15,8 @@ import java.util.UUID;
 public interface DailyAttendanceRepository extends JpaRepository<DailyAttendance, UUID> {
     Optional<DailyAttendance> findByMemberIdAndAttendanceDate(UUID memberId, LocalDate attendanceDate);
 
+    List<DailyAttendance> findByMemberIdAndAttendanceDateBetween(UUID memberId, LocalDate startDate, LocalDate endDate);
+
     /**
      * 기간별 전체 직원 일일 근태 조회
      * @param startDate 조회 시작일

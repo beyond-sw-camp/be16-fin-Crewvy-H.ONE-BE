@@ -15,11 +15,20 @@ public class TodayAttendanceStatusResponse {
 
     private DailyAttendance dailyAttendance;
     private EventType lastEventType;
+    private Double previousMonthAttendanceRate; // 전월 근속비율 (%)
 
     public static TodayAttendanceStatusResponse from(DailyAttendance dailyAttendance, EventType lastEventType) {
         return TodayAttendanceStatusResponse.builder()
                 .dailyAttendance(dailyAttendance)
                 .lastEventType(lastEventType)
+                .build();
+    }
+
+    public static TodayAttendanceStatusResponse from(DailyAttendance dailyAttendance, EventType lastEventType, Double previousMonthAttendanceRate) {
+        return TodayAttendanceStatusResponse.builder()
+                .dailyAttendance(dailyAttendance)
+                .lastEventType(lastEventType)
+                .previousMonthAttendanceRate(previousMonthAttendanceRate)
                 .build();
     }
 }
