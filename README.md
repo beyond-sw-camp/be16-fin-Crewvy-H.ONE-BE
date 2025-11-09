@@ -252,17 +252,61 @@
   <details>
     <summary><strong>급여</strong></summary>
     <blockquote>
-      <div class="content">
+      <div>
         <details>
-          <summary>급여 상세 토글</summary>
+          <summary>급여 지급일 관리</summary>
           <div>
-            <p>알아서</p>
+            <img src="https://github.com/user-attachments/assets/72ec1241-b67d-4bd9-bcd2-8b841cb75db8" alt="급여 지급일 관리">
           </div>
         </details>
         <details>
-          <summary>하위 토글 추가</summary>
+          <summary>급여 항목 관리</summary>
           <div>
-            <p>알아서</p>
+            <img src="https://github.com/user-attachments/assets/4611fc1a-2b04-4fa8-9b74-1402a6e098e1" alt="급여 항목 관리">
+          </div>
+        </details>
+        <details>
+          <summary>급여 계산</summary>
+          <div>
+            <img src="https://github.com/user-attachments/assets/01d2e6bd-ede8-4035-98df-57fc67990e79" alt="계산">
+          </div>
+        </details>
+        <details>
+          <summary>급여 이체 출력</summary>
+          <div>
+            <img src="https://github.com/user-attachments/assets/e6cc838e-c2c3-47da-9a61-b061bfda6c5b" alt="급여 이체 출력">
+          </div>
+        </details>
+        <details>
+          <summary>급여 명세서 출력</summary>
+          <div>
+            <img src="https://github.com/user-attachments/assets/bb027841-44a9-4016-a670-50c13f5487cd" alt="명세서 출력">
+          </div>
+        </details>
+        <details>
+          <summary>급여 항목별 조회</summary>
+          <div>
+            <img alt="급여 항목별 조회" src="https://github.com/user-attachments/assets/c98fd32d-f64c-4115-aa36-02ff5b2e20c3" />
+            <img alt="급여 항목별 조회 모달" src="https://github.com/user-attachments/assets/075fcd0a-bf72-4b02-9ab7-60ebc3117652" />
+            <img alt="급여 항목별 조회 모달" src="https://github.com/user-attachments/assets/9cd7b467-0d4f-4f75-8824-b475b32f4635" />
+          </div>
+        </details>
+        <details>
+          <summary>월별 보험료 공제 현황</summary>
+          <div>
+            <img alt="Image" src="https://github.com/user-attachments/assets/688eeb7e-bf2f-471b-ae58-f2b276c435ca" />
+          </div>
+        </details>
+        <details>
+          <summary>급여 현황 출력</summary>
+          <div>
+            <img alt="급여 현황 출력" src="https://github.com/user-attachments/assets/ea7187d8-c00e-4727-9b0f-46337315a5a6" />
+          </div>
+        </details>
+        <details>
+          <summary>내 급여 조회</summary>
+          <div>
+            <img alt="내 급여 조회" src="https://github.com/user-attachments/assets/520d8e79-842e-4dfe-975f-983d251d9a68" />
           </div>
         </details>
       </div>
@@ -272,17 +316,21 @@
   <details>
     <summary><strong>예약</strong></summary>
     <blockquote>
-      <div class="content">
+      <div>
         <details>
-          <summary>예약 상세 토글</summary>
+          <summary>예약 하기</summary>
           <div>
-            <p>알아서</p>
+            <img alt="예약 목록" src="https://github.com/user-attachments/assets/a4e24e84-dfa2-49a3-b574-4c6ddf3035b7" />
+            <img alt="예약하기" src="https://github.com/user-attachments/assets/a7f7e768-ff76-47b3-a148-4476f9adfc42" />
+            <img alt="내 예약" src="https://github.com/user-attachments/assets/082c58fe-fbf5-4ad8-99e5-75da41980306" />
           </div>
         </details>
         <details>
-          <summary>하위 토글 추가</summary>
+          <summary>자원 관리</summary>
           <div>
-            <p>알아서</p>
+            <img alt="자원목록" src="https://github.com/user-attachments/assets/17d8992a-5c7b-4fe7-ae90-7fd6bca291bd" />
+            <img alt="카테고리 추가" src="https://github.com/user-attachments/assets/62782a5c-f73a-47e2-93e1-e22c72e75b01" />
+            <img alt="자원등록" src="https://github.com/user-attachments/assets/9d3f4452-4a6f-4015-836a-759fb2c7066f" />
           </div>
         </details>
       </div>
