@@ -18,33 +18,37 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+from contextlib import asynccontextmanager
+from concurrent.futures import ProcessPoolExecutor
+
+# CPU-bound 작업을 위한 ProcessPoolExecutor 생성
+process_pool_executor = ProcessPoolExecutor(max_workers=1)
+
+
 @asynccontextmanager
 async def lifespan(app_: FastAPI):
     # Startup
-    # host_ip = "localhost"
-    # port = int(os.getenv("INSTANCE_PORT", 8000))
-    # logger.info(f"유레카 클라이언트 등록 시작 - host: {host_ip}, port: {port}")
-    # await eureka_client.init_async(
-    #     eureka_server="http://localhost:8761/eureka/",
-    #     app_name="ai-service",
-    #     instance_port=port,
-    #     instance_host=host_ip,
-    #     instance_ip=host_ip,
-    # )
-    # run_transcribe_pipeline()
+    loop = asyncio.get_running_loop()
+    kafka_task = loop.create_task(
+        run_pipeline_in_background(loop, process_pool_executor)
+    )
+    logger.info("AI 서비스 시작. 백그라운드에서 Kafka 컨슈머 실행.")
 
-    kafka_task = asyncio.create_task(run_pipeline_in_background())
-
-    logger.info("Eureka client initialization skipped for testing")
     yield
+
     # Shutdown
+    logger.info("AI 서비스 종료 시작.")
+    # Kafka 태스크 취소 및 종료 대기
     kafka_task.cancel()
     try:
         await kafka_task
     except asyncio.CancelledError:
-        logger.info("Kafka pipeline task cancelled successfully")
-    logger.info("Stopping Eureka client")
-    # await eureka_client.stop_async()
+        logger.info("Kafka 파이프라인 태스크가 성공적으로 취소되었습니다.")
+
+    # Executor 종료
+    process_pool_executor.shutdown(wait=True)
+    logger.info("ProcessPoolExecutor가 정상적으로 종료되었습니다.")
+    logger.info("AI 서비스 종료 완료.")
 
 
 app = FastAPI(lifespan=lifespan)

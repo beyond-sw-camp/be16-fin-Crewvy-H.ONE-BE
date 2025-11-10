@@ -27,9 +27,10 @@ public class ApprovalController {
     public ResponseEntity<?> getDocument(@PathVariable UUID id,
                                          @RequestParam(required = false) UUID requestId,
                                          @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                         @RequestHeader("X-User-UUID") UUID memberId
+                                         @RequestHeader("X-User-UUID") UUID memberId,
+                                         @RequestHeader("X-User-CompanyId") UUID companyId
     ) {
-        DocumentResponseDto document = approvalService.getDocument(id, requestId, memberPositionId, memberId);
+        DocumentResponseDto document = approvalService.getDocument(id, requestId, memberPositionId, memberId, companyId);
         return new ResponseEntity<>(
                 ApiResponse.success(document, "양식 상세 조회"),
                 HttpStatus.OK
@@ -211,9 +212,11 @@ public class ApprovalController {
 
     @PutMapping("/document-policy/{documentId}")
     public ResponseEntity<?> updateDocument(@PathVariable UUID documentId,
-                                            @RequestBody List<DocumentPolicyDto> dtoList
+                                            @RequestBody List<DocumentPolicyDto> dtoList,
+                                            @RequestHeader("X-User-CompanyId") UUID companyId,
+                                            @RequestHeader("X-User-MemberPositionId") UUID memberPositionId
     ) {
-        approvalService.setPolicies(documentId, dtoList);
+        approvalService.setPolicies(documentId, dtoList, companyId, memberPositionId);
         return new ResponseEntity<>(
                 ApiResponse.success(documentId, "문서 양식 수정"),
                 HttpStatus.OK
@@ -223,10 +226,11 @@ public class ApprovalController {
     @GetMapping("/get-policies/{documentId}")
     public ResponseEntity<?> getPolicies(@PathVariable UUID documentId,
                                          @RequestHeader("X-User-UUID") UUID memberId,
-                                         @RequestHeader("X-User-MemberPositionId") UUID memberPositionId
+                                         @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                         @RequestHeader("X-User-CompanyId") UUID companyId
     ) {
         return new ResponseEntity<>(
-                ApiResponse.success(approvalService.getPolicies(documentId, memberId, memberPositionId), "문서 정책 조회"),
+                ApiResponse.success(approvalService.getPolicies(documentId, memberId, memberPositionId, companyId), "문서 정책 조회"),
                 HttpStatus.OK
         );
     }
