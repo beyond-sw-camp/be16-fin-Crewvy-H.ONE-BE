@@ -11,4 +11,6 @@ import java.util.UUID;
 public interface ApprovalPolicyRepository extends JpaRepository<ApprovalPolicy, UUID> {
 
     List<ApprovalPolicy> findByApprovalDocument_Id(UUID documentId);
+
+    List<ApprovalPolicy> findByApprovalDocument_IdAndCompanyId(UUID documentId, UUID companyId);
 }
