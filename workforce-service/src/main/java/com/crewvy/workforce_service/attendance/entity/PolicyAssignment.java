@@ -1,6 +1,7 @@
 package com.crewvy.workforce_service.attendance.entity;
 
 import com.crewvy.workforce_service.attendance.constant.PolicyScopeType;
+import com.crewvy.workforce_service.attendance.converter.PolicyScopeTypeConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -30,7 +31,7 @@ public class PolicyAssignment {
     @Column(name = "target_id", nullable = false)
     private UUID targetId; // 할당 대상의 ID (회사, 부서, 직원 등)
 
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = PolicyScopeTypeConverter.class)
     @Column(name = "scope_type", nullable = false)
     private PolicyScopeType scopeType; // 할당 대상의 종류 (COMPANY, ORGANIZATION, MEMBER)
 

@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.attendance.entity;
 
 import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.workforce_service.attendance.constant.AttendanceStatus;
+import com.crewvy.workforce_service.attendance.converter.AttendanceStatusConverter;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -37,6 +38,7 @@ public class DailyAttendance extends BaseEntity {
     @Column(name = "attendance_date", nullable = false)
     private LocalDate attendanceDate;
 
+    @Convert(converter = AttendanceStatusConverter.class)
     @Column(name = "attendance_status", nullable = false)
     private AttendanceStatus status;
 

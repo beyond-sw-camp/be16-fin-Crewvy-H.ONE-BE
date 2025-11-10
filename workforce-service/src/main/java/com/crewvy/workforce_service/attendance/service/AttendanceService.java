@@ -1750,8 +1750,11 @@ public class AttendanceService {
                 // status가 여전히 null이면 날짜에 따라 기본값 설정
                 if (status == null) {
                     LocalDate today = LocalDate.now();
-                    if (currentDate.isBefore(today)) {
-                        status = "결근";  // 과거 날짜는 결근
+                    // 휴일(주말/공휴일)은 휴일근무 신청이 없으면 빈 값
+                    if (isHoliday(companyId, currentDate)) {
+                        status = null;  // 휴일은 근무 기록 없어도 정상
+                    } else if (currentDate.isBefore(today)) {
+                        status = "결근";  // 평일 과거 날짜는 결근
                     } else {
                         status = "미출근";  // 오늘 및 미래 날짜는 미출근
                     }
@@ -1849,7 +1852,12 @@ public class AttendanceService {
             return true;
         }
 
-        // 2. CompanyHoliday 확인
+        // 2. 국가 공휴일 확인 (Holidays 테이블)
+        if (holidayRepository.existsBySolarDate(date)) {
+            return true;
+        }
+
+        // 3. CompanyHoliday 확인
         return companyHolidayRepository.existsByCompanyIdAndHolidayDate(companyId, date);
     }
 
