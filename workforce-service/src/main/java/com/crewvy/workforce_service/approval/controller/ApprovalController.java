@@ -220,4 +220,15 @@ public class ApprovalController {
         );
     }
 
+    @GetMapping("/get-policies/{documentId}")
+    public ResponseEntity<?> getPolicies(@PathVariable UUID documentId,
+                                         @RequestHeader("X-User-UUID") UUID memberId,
+                                         @RequestHeader("X-User-MemberPositionId") UUID memberPositionId
+    ) {
+        return new ResponseEntity<>(
+                ApiResponse.success(approvalService.getPolicies(documentId, memberId, memberPositionId), "문서 정책 조회"),
+                HttpStatus.OK
+        );
+    }
+
 }

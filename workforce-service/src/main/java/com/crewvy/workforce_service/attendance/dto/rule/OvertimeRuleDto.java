@@ -11,25 +11,10 @@ import java.math.BigDecimal;
 public class OvertimeRuleDto {
 
     /**
-     * 연장근무 허용 여부.
-     */
-    private boolean allowOvertime;
-
-    /**
      * 주간 최대 연장근무 한도 (분 단위).
      * 근로기준법 제53조에 따라 주 12시간(720분)을 초과할 수 없습니다.
      */
     private Integer maxWeeklyOvertimeMinutes;
-
-    /**
-     * 야간근무(22:00 ~ 06:00) 허용 여부.
-     */
-    private boolean allowNightWork;
-
-    /**
-     * 휴일근무 허용 여부.
-     */
-    private boolean allowHolidayWork;
 
     /**
      * 연장근무에 대한 가산임금률.

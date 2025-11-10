@@ -27,9 +27,10 @@ public class PolicyAssignmentController {
     @PostMapping
     public ResponseEntity<ApiResponse<List<PolicyAssignmentResponse>>> createAssignments(
             @RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+            @RequestHeader("X-User-CompanyId") UUID companyId,
             @RequestBody @Valid PolicyAssignmentRequest assignmentRequest) {
-        
-        List<PolicyAssignmentResponse> response = policyAssignmentService.createAssignments(memberPositionId, assignmentRequest);
+
+        List<PolicyAssignmentResponse> response = policyAssignmentService.createAssignments(memberPositionId, companyId, assignmentRequest);
         return new ResponseEntity<>(ApiResponse.success(response, "정책이 성공적으로 할당되었습니다."), HttpStatus.CREATED);
     }
 

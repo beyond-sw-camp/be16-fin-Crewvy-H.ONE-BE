@@ -1,13 +1,8 @@
 package com.crewvy.workspace_service.meeting.service;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-import java.util.UUID;
-
 import com.crewvy.common.aes.AESUtil;
 import com.crewvy.common.dto.NotificationMessage;
+import com.crewvy.common.dto.ScheduleDeleteDto;
 import com.crewvy.common.dto.ScheduleDto;
 import com.crewvy.workspace_service.meeting.dto.*;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.crewvy.common.entity.Bool;
+import com.crewvy.common.event.MinuteSavedEvent;
 import com.crewvy.common.exception.*;
 import com.crewvy.workspace_service.feignClient.MemberFeignClient;
 import com.crewvy.workspace_service.feignClient.dto.IdListReq;
@@ -27,12 +23,10 @@ import com.crewvy.workspace_service.feignClient.dto.MemberNameListRes;
 import com.crewvy.workspace_service.meeting.constant.MinuteStatus;
 import com.crewvy.workspace_service.meeting.constant.VideoConferenceStatus;
 import com.crewvy.workspace_service.meeting.dto.ai.TranscribeRes;
-import com.crewvy.workspace_service.meeting.entity.Message;
-import com.crewvy.workspace_service.meeting.entity.Minute;
-import com.crewvy.workspace_service.meeting.entity.VideoConference;
-import com.crewvy.workspace_service.meeting.entity.VideoConferenceInvitee;
+import com.crewvy.workspace_service.meeting.entity.*;
 import com.crewvy.workspace_service.meeting.repository.MessageRepository;
 import com.crewvy.workspace_service.meeting.repository.MinuteRepository;
+import com.crewvy.workspace_service.meeting.repository.MinuteSearchOutboxEventRepository;
 import com.crewvy.workspace_service.meeting.repository.VideoConferenceRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,11 +36,15 @@ import livekit.LivekitEgress;
 import livekit.LivekitModels.DataPacket.Kind;
 import livekit.LivekitModels.ParticipantInfo;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 import retrofit2.internal.EverythingIsNonNull;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -61,12 +59,13 @@ public class VideoConferenceService {
     private final EgressServiceClient egressServiceClient;
     private final LivekitEgress.S3Upload s3Upload;
     private final MemberFeignClient memberFeignClient;
+    private final ApplicationEventPublisher eventPublisher;
 
     private final String LIVEKIT_API_KEY;
     private final String LIVEKIT_API_SECRET;
     private final MinuteRepository minuteRepository;
     private final AESUtil aesUtil;
-    private final ApplicationEventPublisher eventPublisher;
+    private final MinuteSearchOutboxEventRepository minuteSearchOutboxEventRepository;
 
     public VideoConferenceService(VideoConferenceRepository videoConferenceRepository,
                                   LiveKitWebhookService liveKitWebhookService,
@@ -79,7 +78,7 @@ public class VideoConferenceService {
                                   @Value("${livekit.apiSecret}") String LIVEKIT_API_SECRET,
                                   MinuteRepository minuteRepository,
                                   AESUtil aesUtil,
-                                  MemberFeignClient memberFeignClient, ApplicationEventPublisher eventPublisher) {
+                                  MemberFeignClient memberFeignClient, ApplicationEventPublisher eventPublisher, MinuteSearchOutboxEventRepository minuteSearchOutboxEventRepository) {
         this.videoConferenceRepository = videoConferenceRepository;
         this.objectMapper = objectMapper;
         this.messageRepository = messageRepository;
@@ -92,6 +91,7 @@ public class VideoConferenceService {
         this.aesUtil = aesUtil;
         this.memberFeignClient = memberFeignClient;
         this.eventPublisher = eventPublisher;
+        this.minuteSearchOutboxEventRepository = minuteSearchOutboxEventRepository;
     }
 
     public LiveKitSessionRes createVideoConference(UUID memberId, String memberName, VideoConferenceCreateReq videoConferenceCreateReq) {
@@ -117,10 +117,36 @@ public class VideoConferenceService {
 
     public VideoConferenceBookRes bookVideoConference(UUID memberId, VideoConferenceCreateReq videoConferenceCreateReq) {
         VideoConference videoConference = videoConferenceCreateReq.toEntity(memberId);
-        videoConferenceRepository.save(videoConference);
+
 
         videoConferenceCreateReq.getInviteeIdList().add(memberId);
         addInvitee(videoConference, videoConferenceCreateReq.getInviteeIdList());
+
+        videoConferenceRepository.save(videoConference);
+
+        for(VideoConferenceInvitee invitee : videoConference.getVideoConferenceInviteeSet()) {
+            ScheduleDto schedule = ScheduleDto.builder()
+                    .memberId(invitee.getMemberId())
+                    .originId(invitee.getId())
+                    .title(videoConference.getName())
+                    .contents(videoConference.getDescription())
+                    .startDate(videoConference.getScheduledStartTime())
+                    .type("CT001")
+                    .build();
+
+            eventPublisher.publishEvent(schedule);
+
+            if(!invitee.getMemberId().equals(memberId)) {
+                NotificationMessage message = NotificationMessage.builder()
+                        .memberId(invitee.getMemberId())
+                        .targetId(videoConference.getId())
+                        .notificationType("NT001")
+                        .content("화상회의 : " + videoConference.getName() + "에 초대되었습니다.")
+                        .build();
+
+                eventPublisher.publishEvent(message);
+            }
+        }
 
         return VideoConferenceBookRes.fromEntity(videoConference);
     }
@@ -371,6 +397,14 @@ public class VideoConferenceService {
 
         // TODO : soft-delete?
         videoConferenceRepository.delete(videoConference);
+
+        for(VideoConferenceInvitee invitee : videoConference.getVideoConferenceInviteeSet()) {
+            ScheduleDeleteDto scheduleDelete = ScheduleDeleteDto.builder()
+                    .originId(invitee.getId())
+                    .build();
+
+            eventPublisher.publishEvent(scheduleDelete);
+        }
     }
 
     public MinuteRes findMinute(UUID videoConferenceId) {
@@ -560,5 +594,38 @@ public class VideoConferenceService {
         ack.acknowledge();
 
         log.info("!!!!! vcs - 회의록 저장 완료 !!!!!!!! 영상 길이 : {}, 소요 시간 : {}", videoConference.getRecording().getDuration(), transcribeRes.getTurnaround());
+
+        MinuteSavedEvent minuteSavedEvent = MinuteSavedEvent.builder()
+                .videoConferenceId(videoConference.getId())
+                .name(videoConference.getName())
+                .summary(transcribeRes.getSummary())
+                .hostId(transcribeRes.getSummary())
+                .inviteeIdSet(videoConference.getVideoConferenceInviteeSet().stream()
+                        .map(vci -> vci.getMemberId().toString()).collect(Collectors.toSet()))
+                .createdAt(videoConference.getCreatedAt())
+                .build();
+        eventPublisher.publishEvent(minuteSavedEvent);
+    }
+
+    // 데이터 변경이 완료된 후 Elasticsearch 동기화를 위한 이벤트 저장
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void handleMinuteCompletedEvent(MinuteSavedEvent event) {
+        saveSearchOutboxEvent(event);
+    }
+
+    // elastic search에 저장
+    public void saveSearchOutboxEvent(MinuteSavedEvent event) {
+        try {
+            String payload = objectMapper.writeValueAsString(event);
+            MinuteSearchOutboxEvent outboxEvent = MinuteSearchOutboxEvent.builder()
+                    .topic("minute-completed-events")
+                    .aggregateId(event.getVideoConferenceId())
+                    .payload(payload)
+                    .build();
+            minuteSearchOutboxEventRepository.save(outboxEvent);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("데이터 직렬화 실패");
+        }
     }
 }

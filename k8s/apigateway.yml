@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apigateway-deployment
+  namespace: hone-namespace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: apigateway
+  template:
+    metadata:
+      labels:
+        app: apigateway
+    spec:
+      nodeSelector:
+        eks.amazonaws.com/nodegroup: hone-nodes
+      containers:
+      - name: apigateway
+        image: IMAGE_PLACEHOLDER
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            cpu: "1"
+            memory: "500Mi"
+          requests: 
+            cpu: "0.5"
+            memory: "250Mi"
+        env:
+        # TODO: apigateway에 필요한 환경 변수들을 여기에 정의해야 합니다.
+        - name: SECRET_KEY_AT
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: SECRET_KEY_AT
+
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 20
+          periodSeconds: 15
+
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 40
+          periodSeconds: 15
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apigateway
+  namespace: hone-namespace
+spec:
+  # ClusterIP: 클러스터 내부에서만 접근 가능한 IP를 할당합니다. Ingress 뒤에 위치하므로 ClusterIP가 올바른 타입입니다.
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: apigateway

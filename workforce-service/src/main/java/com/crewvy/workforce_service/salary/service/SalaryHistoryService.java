@@ -1,5 +1,7 @@
 package com.crewvy.workforce_service.salary.service;
 
+import com.crewvy.workforce_service.aop.AuthUser;
+import com.crewvy.workforce_service.aop.CheckPermission;
 import com.crewvy.workforce_service.salary.dto.request.SalaryHistoryCreateReq;
 import com.crewvy.workforce_service.salary.dto.request.SalaryHistoryListReq;
 import com.crewvy.workforce_service.salary.dto.response.SalaryHistoryRes;
@@ -12,8 +14,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 
 @Service
@@ -25,9 +30,34 @@ public class SalaryHistoryService {
     private final SalaryHistoryRepository salaryHistoryRepository;
     private final SalaryPolicyService salaryPolicyService;
 
-    public SalaryHistoryRes insertSalaryHistory(SalaryHistoryCreateReq req) {
-        SalaryHistory saved = salaryHistoryRepository.save(req.toEntity());
-        return SalaryHistoryRes.fromEntity(saved);
+    @Transactional
+    @CheckPermission(resource = "salary", action = "CREATE", scope = "COMPANY")
+    public void updateSalaryHistory(@AuthUser UUID memberPositionId, UUID companyId,
+                                    List<SalaryHistoryCreateReq> reqList) {
+
+        List<UUID> ids = reqList.stream()
+                .map(SalaryHistoryCreateReq::getId)
+                .toList();
+
+        Map<UUID, SalaryHistory> salaryHistoryMap = salaryHistoryRepository.findAllById(ids)
+                .stream()
+                .collect(Collectors.toMap(SalaryHistory::getId, entity -> entity));
+
+        List<SalaryHistory> saveList = new ArrayList<>();
+
+        for (SalaryHistoryCreateReq req : reqList) {
+
+            SalaryHistory salaryHistory = salaryHistoryMap.get(req.getId());
+
+            if (salaryHistory != null) {
+                salaryHistory.update(req, companyId);
+                saveList.add(salaryHistory);
+            } else {
+                saveList.add(req.toEntity(companyId));
+            }
+        }
+
+        salaryHistoryRepository.saveAll(saveList);
     }
 
     @Transactional(readOnly = true)

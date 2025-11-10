@@ -5,23 +5,27 @@ import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.dto.NotificationMessage;
 import com.crewvy.common.dto.ScheduleDto;
 import com.crewvy.common.entity.Bool;
+import com.crewvy.common.event.ApprovalCompletedEvent;
 import com.crewvy.common.exception.BusinessException;
+import com.crewvy.common.exception.SerializationException;
 import com.crewvy.workforce_service.approval.constant.ApprovalState;
 import com.crewvy.workforce_service.approval.constant.LineStatus;
 import com.crewvy.workforce_service.approval.constant.RequirementType;
 import com.crewvy.workforce_service.approval.dto.request.*;
 import com.crewvy.workforce_service.approval.dto.response.*;
 import com.crewvy.workforce_service.approval.entity.*;
-import com.crewvy.workforce_service.approval.event.ApprovalCompletedEvent;
 import com.crewvy.workforce_service.approval.repository.*;
 import com.crewvy.workforce_service.attendance.constant.RequestStatus;
 import com.crewvy.workforce_service.attendance.entity.Request;
+import com.crewvy.workforce_service.attendance.event.AttendanceRequestApprovedEvent;
 import com.crewvy.workforce_service.attendance.repository.RequestRepository;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberDto;
 import com.crewvy.workforce_service.feignClient.dto.response.OrganizationNodeDto;
 import com.crewvy.workforce_service.feignClient.dto.response.PositionDto;
+import com.crewvy.workforce_service.feignClient.dto.response.TitleRes;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -50,12 +54,13 @@ public class ApprovalService {
     private final ApprovalDocumentRepository approvalDocumentRepository;
     private final ApprovalLineRepository approvalLineRepository;
     private final ApprovalReplyRepository approvalReplyRepository;
+    private final ApprovalSearchOutboxEventRepository approvalSearchOutboxEventRepository;
     private final S3Uploader s3Uploader;
     private final MemberClient memberClient;
     private final ApplicationEventPublisher eventPublisher;
-    private final SearchOutboxEventRepository searchOutboxEventRepository;
     private final ObjectMapper objectMapper;
     private final RequestRepository requestRepository;
+    private final ApprovalPolicyRepository approvalPolicyRepository;
 
 //    문서 양식 생성
     public UUID uploadDocument(UploadDocumentDto dto) {
@@ -87,13 +92,18 @@ public class ApprovalService {
         // 3. 각 정책을 해석하여 '순서(lineIndex)'와 '찾아야 할 결재자 ID'를 Pair로 묶어 저장합니다.
         List<Pair<Integer, UUID>> resolvedPolicies = new ArrayList<>();
         for (ApprovalPolicy policy : document.getPolicyList()) {
+            // 1. null로 즉시 초기화 (컴파일 에러 해결)
             UUID approverId;
+
             if (policy.getRequirementType() == RequirementType.TITLE) {
-                approverId = findApproverByTitle(orgTree, memberPositionId, policy.getRequirementId());
-            } else { // MEMBER_POSITION 또는 ROLE
+                Optional<UUID> approverIdOptional = findApproverByTitle(orgTree, memberPositionId, policy.getRequirementId());
+
+                approverId = approverIdOptional.orElse(null);
+            } else {
                 approverId = policy.getRequirementId();
             }
 
+            // 3. approverId가 null이 아닌 경우 (값을 찾았거나, else 블록을 탄 경우)
             if (approverId != null) {
                 resolvedPolicies.add(Pair.of(policy.getLineIndex(), approverId));
             }
@@ -136,7 +146,7 @@ public class ApprovalService {
         RequestResDto dto = null;
         if(request != null) {
             dto = RequestResDto.builder()
-                    .requestType(request.getPolicy().getPolicyType().getTypeName())
+                    .requestType(request.getPolicy().getPolicyTypeCode().getCodeName())
                     .requestUnit(request.getRequestUnit().getCodeName())
                     .startDate(request.getStartDateTime())
                     .endDate(request.getEndDateTime())
@@ -155,31 +165,31 @@ public class ApprovalService {
                 .build();
     }
 
-    private UUID findApproverByTitle(List<OrganizationNodeDto> orgTree, UUID myMemberPositionId, UUID requiredTitleId) {
-        // 1. 먼저 조직도 전체에서 '나'의 위치와 경로를 찾습니다.
+    private Optional<UUID> findApproverByTitle(List<OrganizationNodeDto> orgTree, UUID myMemberPositionId, UUID requiredTitleId) {
+        // 1. '나'의 위치와 경로 찾기 (동일)
         List<OrganizationNodeDto> pathToMe = findPathToMember(orgTree, myMemberPositionId);
 
         if (pathToMe == null || pathToMe.isEmpty()) {
-            throw new EntityNotFoundException("요청자를 조직도에서 찾을 수 없습니다.");
+            throw new EntityNotFoundException("요청자를 조직도에서 찾을 수 없습니다."); // 이것은 유지 (로직 수행 전제조건)
         }
 
-        // 2. '나'와 가장 가까운 조직(팀)부터 상위 조직으로 거슬러 올라가며 탐색합니다.
+        // 2. '나'의 조직부터 상위로 올라가며 탐색 (동일)
         for (int i = pathToMe.size() - 1; i >= 0; i--) {
             OrganizationNodeDto currentOrg = pathToMe.get(i);
 
-            // 3. 현재 조직의 멤버들 중에서 필요한 직책(titleId)을 가진 사람을 찾습니다.
-            Optional<MemberDto> foundApprover = currentOrg.getMembers().stream() // .members() -> .getMembers()
-                    .filter(member -> requiredTitleId.equals(member.getTitleId())) // .titleId() -> .getTitleId()
+            // 3. 현재 조직에서 직책이 일치하는 멤버 찾기 (동일)
+            Optional<MemberDto> foundApprover = currentOrg.getMembers().stream()
+                    .filter(member -> requiredTitleId.equals(member.getTitleId()))
                     .findFirst();
 
             if (foundApprover.isPresent()) {
-                // 4. 찾았으면, 그 사람의 memberPositionId를 즉시 반환하고 종료합니다.
-                return foundApprover.get().getMemberPositionId(); // .memberPositionId() -> .getMemberPositionId()
+                // 4. 찾았으면 Optional.of(...)로 감싸서 반환
+                return Optional.of(foundApprover.get().getMemberPositionId());
             }
         }
 
-        // 5. 최상위 조직까지 올라갔는데도 못 찾은 경우
-        throw new BusinessException("해당 직책을 가진 상위 결재자를 찾을 수 없습니다.");
+        // 5. 최상위까지 못 찾은 경우, 예외 대신 Optional.empty() 반환
+        return Optional.empty();
     }
 
     private List<OrganizationNodeDto> findPathToMember(List<OrganizationNodeDto> nodes, UUID targetMemberPositionId) {
@@ -298,28 +308,10 @@ public class ApprovalService {
         // 4. 최종 상태 결정: 결재 라인이 1명뿐인 경우 최종 승인 처리
         if (dto.getLineDtoList().size() == 1) {
             approval.updateState(ApprovalState.APPROVED);
-
-            List<String> memberPositionIdList = approval.getApprovalLineList().stream()
-                    .map(line -> line.getMemberPositionId().toString())
-                    .collect(Collectors.toList());
-
-            List<PositionDto> requesterPositionInfo = memberClient.getPositionList(memberPositionId, new IdListReq(List.of(approval.getMemberPositionId()))).getData();
-            if (requesterPositionInfo != null && !requesterPositionInfo.isEmpty()) {
-                ApprovalCompletedEvent approvalEvent = new ApprovalCompletedEvent(
-                        approval.getId(),
-                        requesterPositionInfo.get(0).getMemberId(),
-                        approval.getTitle(),
-                        requesterPositionInfo.get(0).getTitleName(),
-                        requesterPositionInfo.get(0).getMemberName(),
-                        memberPositionIdList,
-                        approval.getCreatedAt()
-                );
-                eventPublisher.publishEvent(approvalEvent);
-            }
         }
 
         // 5. 부모 엔티티를 한 번만 저장
-        approvalRepository.save(approval);
+        Approval savedApproval = approvalRepository.saveAndFlush(approval);
 
 //        request에 approvalId 추가
         if(dto.getRequestId() != null) {
@@ -327,13 +319,29 @@ public class ApprovalService {
                     .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 신청입니다."));
 
             request.updateApprovalId(approval.getId());
+            requestRepository.save(request); // approval_id를 DB에 반영
+
+            // 근태 Request 승인 이벤트 발행 (AttendanceService에서 처리)
+            if(approval.getState().equals(ApprovalState.APPROVED) || approval.getState().equals(ApprovalState.REJECTED)) {
+                AttendanceRequestApprovedEvent attendanceEvent = new AttendanceRequestApprovedEvent(
+                        request.getId(),
+                        approval.getId(),
+                        approval.getState(),
+                        LocalDateTime.now()
+                );
+                eventPublisher.publishEvent(attendanceEvent);
+                log.info("근태 Request 승인 이벤트 발행: requestId={}, approvalState={}",
+                        request.getId(), approval.getState());
+            }
+
+            // 일정 등록 이벤트 발행 (출장/휴가)
             if(approval.getState().equals(ApprovalState.APPROVED)) {
-                request.updateStatus(RequestStatus.APPROVED);
-                if(request.getPolicy().getPolicyType().getTypeName().equals("출장")) {
+                String policyTypeName = request.getPolicy().getPolicyTypeCode().getCodeName();
+                if(policyTypeName.equals("출장")) {
                     ScheduleDto schedule = ScheduleDto.builder()
                             .originId(request.getId())
                             .type("CT004")
-                            .title(request.getPolicy().getPolicyType().getTypeName())
+                            .title(policyTypeName)
                             .contents(request.getReason())
                             .startDate(request.getStartDateTime())
                             .endDate(request.getEndDateTime())
@@ -341,7 +349,7 @@ public class ApprovalService {
                             .build();
                     eventPublisher.publishEvent(schedule);
                 }
-                else if(request.getPolicy().getPolicyType().getTypeName().contains("휴가")) {
+                else if(policyTypeName.contains("휴가")) {
                     ScheduleDto schedule = ScheduleDto.builder()
                             .originId(request.getId())
                             .type("CT003")
@@ -367,7 +375,25 @@ public class ApprovalService {
                     .build();
 
             eventPublisher.publishEvent(message);
+        }
 
+        // Elasticsearch 저장을 위한 이벤트 발행
+        List<PositionDto> requesterPositionInfo = memberClient.getPositionList(memberPositionId, new IdListReq(List.of(savedApproval.getMemberPositionId()))).getData();
+        if (requesterPositionInfo != null && !requesterPositionInfo.isEmpty()) {
+            List<String> approverIdList = savedApproval.getApprovalLineList().stream()
+                    .map(line -> line.getMemberPositionId().toString())
+                    .collect(Collectors.toList());
+
+            ApprovalCompletedEvent approvalEvent = new ApprovalCompletedEvent(
+                    savedApproval.getId(),
+                    memberPositionId,
+                    savedApproval.getTitle(),
+                    requesterPositionInfo.get(0).getTitleName(),
+                    requesterPositionInfo.get(0).getMemberName(),
+                    approverIdList,
+                    savedApproval.getCreatedAt()
+            );
+            eventPublisher.publishEvent(approvalEvent);
         }
 
         return approval.getId();
@@ -375,6 +401,8 @@ public class ApprovalService {
 
 //    결재 임시저장
     public UUID draftApproval(CreateApprovalDto dto, UUID memberPositionId) {
+        log.info("📝 [임시저장] 시작: approvalId={}, lineCount={}", dto.getApprovalId(), dto.getLineDtoList().size());
+
         Approval approval = null;
         if(dto.getApprovalId() == null) {
             ApprovalDocument document = approvalDocumentRepository.findById(dto.getDocumentId()).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 문서입니다."));
@@ -385,14 +413,15 @@ public class ApprovalService {
                     .state(ApprovalState.DRAFT)
                     .memberPositionId(memberPositionId)
                     .build();
+            log.info("📝 [임시저장] 새 Approval 생성");
         }
         else {
             approval = approvalRepository.findById(dto.getApprovalId()).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 결재입니다."));
+            log.info("📝 [임시저장] 기존 Approval 조회: 기존 lineCount={}", approval.getApprovalLineList().size());
             approval.updateApproval(dto.getTitle(), dto.getContents());
             approval.getApprovalLineList().clear();
+            log.info("📝 [임시저장] 기존 결재라인 clear 완료");
         }
-
-        approvalRepository.save(approval);
 
         // 2. 결재 라인 정렬
         dto.getLineDtoList().sort(Comparator.comparing(ApprovalLineRequestDto::getLineIndex));
@@ -407,22 +436,52 @@ public class ApprovalService {
                     .build();
 
             approval.getApprovalLineList().add(approvalLine);
+            log.info("📝 [임시저장] ApprovalLine 추가: memberPositionId={}, index={}",
+                    alDto.getMemberPositionId(), alDto.getLineIndex());
         }
+
+        log.info("📝 [임시저장] 저장 전 lineCount={}", approval.getApprovalLineList().size());
+
+        // 4. ApprovalLine을 추가한 후 저장 (중요!)
+        Approval savedApproval = approvalRepository.save(approval);
+
+        log.info("📝 [임시저장] 저장 완료: approvalId={}, lineCount={}",
+                savedApproval.getId(), savedApproval.getApprovalLineList().size());
 
 //        request에 approvalId 추가
         if(dto.getRequestId() != null) {
             Request request = requestRepository.findById(dto.getRequestId())
                     .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 신청입니다."));
 
-            request.updateApprovalId(approval.getId());
+            request.updateApprovalId(savedApproval.getId());
+            requestRepository.save(request);
+            log.info("📝 [임시저장] Request 연결: requestId={}", dto.getRequestId());
         }
 
-        return approval.getId();
+        return savedApproval.getId();
     }
 
 //    결재 삭제(임시저장된 상태의 문서 삭제)
     public void discardApproval(UUID approvalId) {
         Approval approval = approvalRepository.findById(approvalId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 결재입니다."));
+
+        // 연결된 Request가 있으면 취소 처리하고 잔액 복구
+        Optional<Request> requestOpt = requestRepository.findByApprovalId(approvalId);
+        if (requestOpt.isPresent()) {
+            Request request = requestOpt.get();
+
+            // Request 상태를 CANCELED로 변경하고 잔액 복구 이벤트 발행
+            AttendanceRequestApprovedEvent cancelEvent = new AttendanceRequestApprovedEvent(
+                    request.getId(),
+                    approvalId,
+                    ApprovalState.DISCARDED, // DISCARDED 상태로 전달하여 취소 처리
+                    LocalDateTime.now()
+            );
+            eventPublisher.publishEvent(cancelEvent);
+            log.info("결재 문서 삭제로 인한 Request 취소 이벤트 발행: requestId={}, approvalId={}",
+                    request.getId(), approvalId);
+        }
+
         approval.updateState(ApprovalState.DISCARDED);
     }
 
@@ -486,7 +545,7 @@ public class ApprovalService {
 
                 ApprovalCompletedEvent approvalEvent = new ApprovalCompletedEvent(
                         approval.getId(),
-                        requesterPositionInfo.get(0).getMemberId(),
+                        memberPositionId,
                         approval.getTitle(),
                         requesterPositionInfo.get(0).getTitleName(),
                         requesterPositionInfo.get(0).getMemberName(),
@@ -498,12 +557,23 @@ public class ApprovalService {
 
             Optional<Request> request = requestRepository.findByApprovalId(approval.getId());
             if(request.isPresent()) {
-                request.get().updateStatus(RequestStatus.APPROVED);
-                if(request.get().getPolicy().getPolicyType().getTypeName().equals("출장")) {
+                // 근태 Request 승인 이벤트 발행 (AttendanceService에서 처리)
+                AttendanceRequestApprovedEvent attendanceEvent = new AttendanceRequestApprovedEvent(
+                        request.get().getId(),
+                        approval.getId(),
+                        ApprovalState.APPROVED,
+                        LocalDateTime.now()
+                );
+                eventPublisher.publishEvent(attendanceEvent);
+                log.error("============ [마지막 승인자] 근태 Request 승인 이벤트 발행: requestId={} ============", request.get().getId());
+
+                // 일정 등록 이벤트 발행
+                String policyTypeName = request.get().getPolicy().getPolicyTypeCode().getCodeName();
+                if(policyTypeName.equals("출장")) {
                     ScheduleDto schedule = ScheduleDto.builder()
                             .originId(request.get().getId())
                             .type("CT004")
-                            .title(request.get().getPolicy().getPolicyType().getTypeName())
+                            .title(policyTypeName)
                             .contents(request.get().getReason())
                             .startDate(request.get().getStartDateTime())
                             .endDate(request.get().getEndDateTime())
@@ -511,7 +581,7 @@ public class ApprovalService {
                             .build();
                     eventPublisher.publishEvent(schedule);
                 }
-                else if(request.get().getPolicy().getPolicyType().getTypeName().contains("휴가")) {
+                else if(policyTypeName.contains("휴가")) {
                     ScheduleDto schedule = ScheduleDto.builder()
                             .originId(request.get().getId())
                             .type("CT003")
@@ -565,8 +635,18 @@ public class ApprovalService {
         // 5. 문서 전체 상태를 '반려'로 즉시 변경
         approval.updateState(ApprovalState.REJECTED);
 
+        // 6. 근태 Request 반려 이벤트 발행 (AttendanceService에서 처리)
         Optional<Request> request = requestRepository.findByApprovalId(approval.getId());
-        request.ifPresent(value -> value.updateStatus(RequestStatus.REJECTED));
+        if(request.isPresent()) {
+            AttendanceRequestApprovedEvent attendanceEvent = new AttendanceRequestApprovedEvent(
+                    request.get().getId(),
+                    approval.getId(),
+                    ApprovalState.REJECTED,
+                    LocalDateTime.now()
+            );
+            eventPublisher.publishEvent(attendanceEvent);
+            log.info("근태 Request 반려 이벤트 발행: requestId={}", request.get().getId());
+        }
 
         UUID nextApproverId = approval.getMemberPositionId();
 
@@ -585,9 +665,13 @@ public class ApprovalService {
 //    결재 상세 조회
     @Transactional(readOnly = true)
     public ApprovalResponseDto getApproval(UUID id) {
+        log.info("🔍 [결재조회] 시작: approvalId={}", id);
+
         // 1. N+1 문제 방지를 위해 Fetch Join으로 연관 엔티티를 한 번에 조회합니다.
         Approval approval = approvalRepository.findByIdWithDetails(id)
                 .orElseThrow(() -> new EntityNotFoundException("결재 내역이 없습니다."));
+
+        log.info("🔍 [결재조회] Approval 조회 완료: lineCount={}", approval.getApprovalLineList().size());
 
         // 2. positionMap을 final로 선언하고, 할당은 if-else 블록 안에서 한 번만 하도록 변경
         final Map<UUID, PositionDto> positionMap;
@@ -596,16 +680,21 @@ public class ApprovalService {
                 .distinct()
                 .toList();
 
+        log.info("🔍 [결재조회] 결재라인 memberPositionId 목록: {}", mpidList);
+
         if (!mpidList.isEmpty()) {
             ApiResponse<List<PositionDto>> response = memberClient.getPositionList(approval.getMemberPositionId(), new IdListReq(mpidList));
             if (response.isSuccess() && response.getData() != null) {
                 positionMap = response.getData().stream()
                         .collect(Collectors.toMap(PositionDto::getMemberPositionId, position -> position));
+                log.info("🔍 [결재조회] member-service 조회 성공: count={}", positionMap.size());
             } else {
                 positionMap = Collections.emptyMap(); // API 호출 실패 시 빈 맵 할당
+                log.warn("🔍 [결재조회] member-service 조회 실패");
             }
         } else {
             positionMap = Collections.emptyMap(); // 결재 라인이 없을 시 빈 맵 할당
+            log.warn("🔍 [결재조회] 결재 라인이 비어있음");
         }
 
         // 3. 결재 라인 DTO 리스트를 Stream으로 생성합니다. (이제 에러 없이 동작)
@@ -1083,6 +1172,54 @@ public class ApprovalService {
         }
     }
 
+//    문서 정책 조회
+    public List<PolicyResDto> getPolicies(UUID documentId, UUID memberId, UUID memberPositionId) {
+        List<ApprovalPolicy> policies = approvalPolicyRepository.findByApprovalDocument_Id(documentId);
+
+        IdListReq idListReq = new IdListReq(policies.stream().filter(a->a.getRequirementType()
+                .equals(RequirementType.MEMBER_POSITION)).map(ApprovalPolicy::getRequirementId).toList());
+
+        List<PositionDto> position = memberClient.getPositionList(memberPositionId, idListReq).getData();
+        Map<UUID, PositionDto> positionMap = new HashMap<>();
+        if(!position.isEmpty()) {
+            positionMap = position.stream().collect(Collectors.toMap(PositionDto::getMemberPositionId, pos -> pos));
+        }
+        else {
+            positionMap = Collections.emptyMap();
+        }
+
+        List<TitleRes> titles = memberClient.getTitle(memberId, memberPositionId).getData();
+        Map<UUID, TitleRes> titleMap = new HashMap<>();
+        if(!titles.isEmpty()) {
+            titleMap = titles.stream().collect(Collectors.toMap(TitleRes::getId, pos -> pos));
+        }
+        else {
+            titleMap = Collections.emptyMap();
+        }
+
+
+        List<PolicyResDto> dtoList = new ArrayList<>();
+        for(ApprovalPolicy p : policies) {
+            String name;
+            if(p.getRequirementType().equals(RequirementType.MEMBER_POSITION)) {
+                name = positionMap.get(p.getRequirementId()).getMemberName();
+                name += "(" + positionMap.get(p.getRequirementId()).getTitleName() + ")";
+            }
+            else {
+                name = titleMap.get(p.getRequirementId()).getName();
+            }
+            PolicyResDto dto = PolicyResDto.builder()
+                    .requirementType(p.getRequirementType())
+                    .requirementId(p.getRequirementId())
+                    .name(name)
+                    .lineIndex(p.getLineIndex())
+                    .build();
+            dtoList.add(dto);
+        }
+
+        return dtoList;
+    }
+
     // 결재 데이터 변경이 완료된 후 Elasticsearch 동기화를 위한 이벤트 저장
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -1099,9 +1236,9 @@ public class ApprovalService {
                     .aggregateId(event.getApprovalId())
                     .payload(payload)
                     .build();
-            searchOutboxEventRepository.save(outboxEvent);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            throw new RuntimeException("Failed to serialize approval event", e);
+            approvalSearchOutboxEventRepository.save(outboxEvent);
+        } catch (JsonProcessingException e) {
+            throw new SerializationException("데이터 직렬화 실패");
         }
     }
 }

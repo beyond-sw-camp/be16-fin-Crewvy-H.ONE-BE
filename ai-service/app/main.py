@@ -21,16 +21,16 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app_: FastAPI):
     # Startup
-    host_ip = "localhost"
-    port = int(os.getenv("INSTANCE_PORT", 8000))
-    logger.info(f"유레카 클라이언트 등록 시작 - host: {host_ip}, port: {port}")
-    await eureka_client.init_async(
-        eureka_server="http://localhost:8761/eureka/",
-        app_name="ai-service",
-        instance_port=port,
-        instance_host=host_ip,
-        instance_ip=host_ip,
-    )
+    # host_ip = "localhost"
+    # port = int(os.getenv("INSTANCE_PORT", 8000))
+    # logger.info(f"유레카 클라이언트 등록 시작 - host: {host_ip}, port: {port}")
+    # await eureka_client.init_async(
+    #     eureka_server="http://localhost:8761/eureka/",
+    #     app_name="ai-service",
+    #     instance_port=port,
+    #     instance_host=host_ip,
+    #     instance_ip=host_ip,
+    # )
     # run_transcribe_pipeline()
 
     kafka_task = asyncio.create_task(run_pipeline_in_background())

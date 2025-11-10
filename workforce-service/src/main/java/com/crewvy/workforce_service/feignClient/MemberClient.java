@@ -28,6 +28,10 @@ public interface MemberClient {
     @GetMapping("/organization/tree-with-members")
     ApiResponse<List<OrganizationNodeDto>> getOrganization(@RequestHeader("X-User-UUID") UUID uuid);
 
+    @GetMapping("/member/title")
+    ApiResponse<List<TitleRes>>  getTitle(@RequestHeader("X-User-UUID") UUID uuid,
+                                          @RequestHeader("X-User-MemberPositionId") UUID memberPositionId);
+
     // 권한 확인
     @GetMapping("/member/check-permission")
     ApiResponse<Boolean> checkPermission(
@@ -51,8 +55,19 @@ public interface MemberClient {
                                                          @PathVariable UUID companyId);
 
     // 연차 발생 계산용 회원 고용 정보 조회 (companyId로 조회)
-    // TODO: member-service에 해당 엔드포인트 구현 필요
     @GetMapping("/member/employment-info")
     ApiResponse<List<MemberEmploymentInfoDto>> getEmploymentInfo(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
                                                                   @RequestParam UUID companyId);
+
+    // 내부 전용: 회원 고용 정보 조회 (시스템 배치/내부 작업용 - 권한 체크 없음)
+    @GetMapping("/member/internal/company/{companyId}/employment-info")
+    ApiResponse<List<MemberEmploymentInfoDto>> getEmploymentInfoInternal(@PathVariable("companyId") UUID companyId);
+
+    // 내부 전용: 단일 회원 고용 정보 조회 (Kafka 이벤트/내부 작업용 - 권한 체크 없음)
+    @GetMapping("/member/internal/member/{memberId}/employment-info")
+    ApiResponse<MemberEmploymentInfoDto> getMemberEmploymentInfoInternal(@PathVariable("memberId") UUID memberId);
+
+    // 내부 전용: 첫 번째 회사 ID 조회 (테스트 데이터 초기화용 - 권한 체크 없음)
+    @GetMapping("/member/internal/first-company-id")
+    ApiResponse<UUID> getFirstCompanyId();
 }

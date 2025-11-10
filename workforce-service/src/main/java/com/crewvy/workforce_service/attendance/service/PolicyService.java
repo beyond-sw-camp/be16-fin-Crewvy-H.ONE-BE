@@ -11,10 +11,8 @@ import com.crewvy.workforce_service.attendance.dto.response.PolicyResponse;
 import com.crewvy.workforce_service.attendance.dto.response.PolicyTypeResponse;
 import com.crewvy.workforce_service.attendance.dto.rule.PolicyRuleDetails;
 import com.crewvy.workforce_service.attendance.entity.Policy;
-import com.crewvy.workforce_service.attendance.entity.PolicyType;
 import com.crewvy.workforce_service.attendance.repository.PolicyAssignmentRepository;
 import com.crewvy.workforce_service.attendance.repository.PolicyRepository;
-import com.crewvy.workforce_service.attendance.repository.PolicyTypeRepository;
 import com.crewvy.workforce_service.attendance.validation.PolicyRuleValidator;
 import com.crewvy.workforce_service.attendance.validation.PolicyValidatorFactory;
 import com.crewvy.workforce_service.feignClient.MemberClient;
@@ -34,7 +32,6 @@ import java.util.stream.Collectors;
 public class PolicyService {
 
     private final PolicyRepository policyRepository;
-    private final PolicyTypeRepository policyTypeRepository;
     private final PolicyAssignmentService policyAssignmentService;
     private final PolicyAssignmentRepository policyAssignmentRepository;
     private final ObjectMapper objectMapper;
@@ -44,18 +41,21 @@ public class PolicyService {
     public PolicyResponse createPolicy(UUID memberpositionId, UUID companyId, UUID organizationId, PolicyCreateRequest request) {
 //        checkPermissionOrThrow(memberpositionId, "CREATE", "COMPANY", "회사 정책 생성 권한이 없습니다.");
 
-//        PolicyType policyType = policyTypeRepository.findByCompanyIdAndTypeCode(companyId, request.getTypeCode())
-        PolicyType policyType =  policyTypeRepository.findByTypeCode(request.getTypeCode())
-                .orElseThrow(() -> new ResourceNotFoundException("해당 회사에 존재하지 않는 정책 유형입니다."));
-
+        // PolicyType 엔티티 제거 - PolicyTypeCode enum 직접 사용
         // 법정 필수 유급 휴가 검증
         validateMandatoryPaidLeave(request.getTypeCode(), request.getIsPaid());
 
+        // 정책 유효 기간 논리적 일관성 검증
+        validatePolicyEffectiveDates(request.getEffectiveFrom(), request.getEffectiveTo());
+
         PolicyRuleDetails ruleDetails = convertAndValidateRuleDetails(request.getRuleDetails(), request.getTypeCode());
+
+        // 법정 최소 일수 검증
+        validateLegalMinimumDays(request.getTypeCode(), ruleDetails);
 
         Policy newPolicy = Policy.builder()
                 .companyId(companyId)
-                .policyType(policyType)
+                .policyTypeCode(request.getTypeCode())
                 .name(request.getName())
                 .isPaid(request.getIsPaid())
                 .isActive(false)
@@ -92,20 +92,22 @@ public class PolicyService {
         Policy policy = policyRepository.findById(policyId)
                 .orElseThrow(() -> new ResourceNotFoundException("ID에 해당하는 정책을 찾을 수 없습니다: " + policyId));
 
-        // 2. PolicyType이 존재하는지 확인
-//        PolicyType policyType = policyTypeRepository.findByCompanyIdAndTypeCode(policy.getCompanyId(), request.getTypeCode())
-        PolicyType policyType = policyTypeRepository.findByTypeCode(request.getTypeCode())
-                .orElseThrow(() -> new ResourceNotFoundException("존재하지 않는 정책 유형입니다."));
-
+        // 2. PolicyType 엔티티 제거 - PolicyTypeCode enum 직접 사용
         // 3. 법정 필수 유급 휴가 검증
         validateMandatoryPaidLeave(request.getTypeCode(), request.getIsPaid());
 
-        // 4. ruleDetails 변환 및 검증
-        PolicyRuleDetails ruleDetails = convertAndValidateRuleDetails(request.getRuleDetails(), policyType.getTypeCode());
+        // 3. 정책 유효 기간 논리적 일관성 검증
+        validatePolicyEffectiveDates(request.getEffectiveFrom(), request.getEffectiveTo());
 
-        // 5. 엔티티 내용 업데이트
+        // 4. ruleDetails 변환 및 검증
+        PolicyRuleDetails ruleDetails = convertAndValidateRuleDetails(request.getRuleDetails(), request.getTypeCode());
+
+        // 5. 법정 최소 일수 검증
+        validateLegalMinimumDays(request.getTypeCode(), ruleDetails);
+
+        // 6. 엔티티 내용 업데이트
         policy.update(
-                policyType,
+                request.getTypeCode(),
                 request.getName(),
                 request.getIsPaid(),
                 request.getEffectiveFrom(),
@@ -152,9 +154,10 @@ public class PolicyService {
     public List<PolicyTypeResponse> findPolicyTypesByCompany(UUID memberpositionId, UUID companyId) {
         checkPermission(memberpositionId, "attendance", "READ", "COMPANY");
 
-//        List<PolicyType> policyTypes = policyTypeRepository.findByCompanyId(companyId);
-        List<PolicyType> policyTypes = policyTypeRepository.findAll();
-        return policyTypes.stream().map(PolicyTypeResponse::new).collect(Collectors.toList());
+        // PolicyTypeCode enum의 모든 값을 PolicyTypeResponse로 변환
+        return Arrays.stream(PolicyTypeCode.values())
+                .map(PolicyTypeResponse::new)
+                .collect(Collectors.toList());
     }
 
     public PolicyResponse findMyEffectivePolicy(UUID memberId, UUID memberPositionId, UUID companyId) {
@@ -242,6 +245,60 @@ public class PolicyService {
                 case PATERNITY_LEAVE:
                     throw new BusinessException("배우자 출산휴가는 반드시 유급이어야 합니다. (남녀고용평등법 제18조의2)");
             }
+        }
+    }
+
+    /**
+     * 정책 유효 기간의 논리적 일관성을 검증합니다.
+     * - effectiveFrom이 effectiveTo보다 이후일 수 없음
+     *
+     * @param effectiveFrom 정책 시작일
+     * @param effectiveTo 정책 종료일
+     */
+    private void validatePolicyEffectiveDates(java.time.LocalDate effectiveFrom, java.time.LocalDate effectiveTo) {
+        // 둘 다 null이면 무기한 정책으로 간주하여 검증 스킵
+        if (effectiveFrom == null || effectiveTo == null) {
+            return;
+        }
+
+        // 시작일이 종료일보다 이후인 경우
+        if (effectiveFrom.isAfter(effectiveTo)) {
+            throw new BusinessException(
+                String.format("정책 시작일(%s)은 종료일(%s)보다 이후일 수 없습니다.",
+                    effectiveFrom, effectiveTo));
+        }
+    }
+
+    /**
+     * 법정 최소 일수를 검증합니다.
+     * 법정 휴가의 경우 최소 일수 이상이어야 합니다.
+     *
+     * @param typeCode 정책 타입 코드
+     * @param ruleDetails 정책 규칙 상세 정보
+     * @throws BusinessException 법정 최소 일수 미만으로 설정된 경우
+     */
+    private void validateLegalMinimumDays(PolicyTypeCode typeCode, PolicyRuleDetails ruleDetails) {
+        // 법정 최소 일수가 정의되지 않은 정책 타입은 검증 스킵
+        if (typeCode.getLegalMinimumDays() == null) {
+            return;
+        }
+
+        // leaveRule이 없으면 검증 스킵 (근로시간 관련 정책 등)
+        if (ruleDetails == null || ruleDetails.getLeaveRule() == null) {
+            return;
+        }
+
+        Double defaultDays = ruleDetails.getLeaveRule().getDefaultDays();
+        Double minimumDays = typeCode.getLegalMinimumDays();
+
+        // defaultDays가 null이거나 법정 최소값보다 작은 경우
+        if (defaultDays == null || defaultDays < minimumDays) {
+            throw new BusinessException(
+                String.format("%s는 법정 최소 %.0f일 이상이어야 합니다. (입력: %s일)",
+                    typeCode.getCodeName(),
+                    minimumDays,
+                    defaultDays == null ? "미입력" : String.format("%.1f", defaultDays))
+            );
         }
     }
 }

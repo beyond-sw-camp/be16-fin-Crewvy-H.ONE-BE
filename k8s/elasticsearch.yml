@@ -1,0 +1,101 @@
+# 1. 데이터를 영구 저장하기 위한 PersistentVolumeClaim (PVC) 생성
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: es-data-pvc
+  namespace: hone-namespace
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: gp2
+---
+# 2. 기존 Deployment 수정
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elasticsearch-deployment
+  namespace: hone-namespace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: elasticsearch
+  template:
+    metadata:
+      labels:
+        app: elasticsearch
+    spec:
+      initContainers:
+        - name: install-nori-plugin
+          image: docker.elastic.co/elasticsearch/elasticsearch:8.18.6
+          command:
+            - /usr/share/elasticsearch/bin/elasticsearch-plugin
+            - install
+            - analysis-nori
+            - --batch
+          volumeMounts:
+            - name: es-plugins
+              mountPath: /usr/share/elasticsearch/plugins
+      containers:
+        - name: elasticsearch
+          image: docker.elastic.co/elasticsearch/elasticsearch:8.18.6
+          ports:
+            - containerPort: 9200
+              name: http
+            - containerPort: 9300
+              name: transport
+          env:
+            - name: discovery.type
+              value: "single-node"
+            - name: bootstrap.memory_lock
+              value: "true"
+            - name: "ES_JAVA_OPTS"
+              value: "-Xms1g -Xmx1g"
+            - name: xpack.security.enabled
+              value: "false"
+            - name: xpack.security.http.ssl.enabled
+              value: "false"
+          resources:
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+            requests:
+              cpu: "0.5"
+              memory: "512Mi"
+          volumeMounts:
+            - name: es-data
+              mountPath: /usr/share/elasticsearch/data
+            - name: es-plugins
+              mountPath: /usr/share/elasticsearch/plugins
+
+      volumes:
+        - name: es-data
+          persistentVolumeClaim:
+            claimName: es-data-pvc
+        - name: es-plugins
+          emptyDir: { }
+
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+---
+# 3. Service (변경 없음)
+apiVersion: v1
+kind: Service
+metadata:
+  name: search-service
+  namespace: hone-namespace
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 9200
+      targetPort: 9200
+    - name: transport
+      port: 9300
+      targetPort: 9300
+  selector:
+    app: elasticsearch

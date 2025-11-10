@@ -1,10 +1,6 @@
 package com.crewvy.search_service.service;
 
-import com.crewvy.common.event.ApprovalCompletedEvent;
-import com.crewvy.common.event.MemberDeletedEvent;
-import com.crewvy.common.event.MemberSavedEvent;
-import com.crewvy.common.event.OrganizationSavedEvent;
-import com.crewvy.search_service.dto.event.MinuteSavedEvent;
+import com.crewvy.common.event.*;
 import com.crewvy.search_service.dto.response.ApprovalSearchRes;
 import com.crewvy.search_service.dto.response.EmployeeSearchRes;
 import com.crewvy.search_service.dto.response.SearchResult;
@@ -14,7 +10,7 @@ import com.crewvy.search_service.entity.MinuteDocument;
 import com.crewvy.search_service.entity.OrganizationDocument;
 import com.crewvy.search_service.repository.ApprovalSearchRepository;
 import com.crewvy.search_service.repository.MemberSearchRepository;
-import com.crewvy.search_service.repository.MinuteRepository;
+import com.crewvy.search_service.repository.MinuteSearchRepository;
 import com.crewvy.search_service.repository.OrganizationSearchRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +23,7 @@ import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHitSupport;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.query.Query;
+import org.springframework.data.elasticsearch.core.query.UpdateQuery;
 import org.springframework.data.elasticsearch.core.suggest.Completion;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
@@ -43,7 +40,7 @@ public class SearchService {
     private final MemberSearchRepository memberSearchRepository;
     private final OrganizationSearchRepository organizationSearchRepository;
     private final ApprovalSearchRepository approvalSearchRepository;
-    private final MinuteRepository minuteRepository;
+    private final MinuteSearchRepository minuteSearchRepository;
     private final ElasticsearchOperations elasticsearchOperations;
 
     // 직원 추가
@@ -134,16 +131,19 @@ public class SearchService {
                 () -> new EntityNotFoundException("존재하지 않는 직원입니다.")));
     }
 
+    // 조직 삭제
+    @KafkaListener(topics = "organization-deleted-events", groupId = "search-service-group")
+    public void listenOrganizationDeletedEvent(OrganizationDeletedEvent event) {
+        organizationSearchRepository.delete(organizationSearchRepository.findById(event.getOrganizationId().toString())
+                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 조직입니다.")));
+    }
+
     // 결재 문서 저장
     @KafkaListener(topics = "approval-completed-events", groupId = "search-service-group")
     public void listenApprovalCompletedEvent(ApprovalCompletedEvent event) {
-        if (event.getApprovalId() == null) {
-            log.error("Received ApprovalCompletedEvent with null approvalId. Discarding event: {}", event);
-            return;
-        }
         ApprovalDocument approvalDocument = ApprovalDocument.builder()
                 .approvalId(event.getApprovalId().toString())
-                .memberId(event.getMemberId().toString())
+                .memberPositionId(event.getMemberPositionId().toString())
                 .title(event.getTitle())
                 .titleName(event.getTitleName())
                 .memberName(event.getMemberName())
@@ -157,13 +157,49 @@ public class SearchService {
     @KafkaListener(topics = "minute-saved-events", groupId = "search-service-group")
     public void listenMinuteSavedEvent(MinuteSavedEvent event) {
         MinuteDocument minuteDocument = MinuteDocument.builder()
-                .minuteId(event.getMinuteId())
-                .title(event.getTitle())
+                .videoConferenceId(String.valueOf(event.getVideoConferenceId()))
+                .name(event.getName())
                 .summary(event.getSummary())
-                .memberId(event.getMemberId())
-                .createDateTime(event.getCreateDateTime())
+                .hostId(event.getHostId())
+                .inviteeIdSet(event.getInviteeIdSet())
+                .createAt(event.getCreatedAt())
                 .build();
-        minuteRepository.save(minuteDocument);
+        minuteSearchRepository.save(minuteDocument);
+    }
+
+    // 직책 이름 변경
+    @KafkaListener(topics = "position-name-changed-events", groupId = "search-service-group")
+    public void listenPositionNameChangedEvent(PositionNameChangedEvent event) {
+        log.info("Received PositionNameChangedEvent: oldPositionName={}, newPositionName={}, companyId={}",
+                event.getOldPositionName(), event.getNewPositionName(), event.getCompanyId());
+
+        // 1. 쿼리 빌더: oldPositionName을 포함하고 companyId에 해당하는 MemberDocument를 찾습니다.
+        org.springframework.data.elasticsearch.core.query.Query searchQuery = new NativeQueryBuilder()
+                .withQuery(q -> q.bool(b -> b
+                        .must(m -> m.term(t -> t.field("companyId.keyword").value(event.getCompanyId())))
+                        .must(m -> m.term(t -> t.field("titleName.keyword").value(event.getOldPositionName())))
+                )).build();
+
+        // 2. 스크립트: titleName 리스트에서 oldPositionName을 newPositionName으로 교체합니다.
+        //    titleName은 List<String>이므로, 스크립트를 사용하여 리스트 내의 값을 변경해야 합니다.
+        String painlessScript = "if (ctx._source.titleName != null) { " +
+                "  for (int i = 0; i < ctx._source.titleName.size(); i++) { " +
+                "    if (ctx._source.titleName.get(i).equals(\'" + event.getOldPositionName() + "\')) { " +
+                "      ctx._source.titleName.set(i, \'" + event.getNewPositionName() + "\'); " +
+                "    } " +
+                "  } " +
+                "}";
+
+        // 3. UpdateQuery 생성
+        UpdateQuery updateQuery = UpdateQuery.builder(searchQuery)
+                .withScript(painlessScript)
+                .build();
+
+        // 4. UpdateByQuery 실행
+        elasticsearchOperations.updateByQuery(updateQuery, elasticsearchOperations.getIndexCoordinatesFor(MemberDocument.class));
+
+        log.info("Completed updating MemberDocuments for position name change from {} to {} for companyId {}",
+                event.getOldPositionName(), event.getNewPositionName(), event.getCompanyId());
     }
 
     // 직원 검색
@@ -194,11 +230,17 @@ public class SearchService {
 
     // 결재 문서 페이징 검색
     public Page<ApprovalDocument> searchApprovals(String query, String memberPositionId, Pageable pageable) {
-        Query searchQuery = new NativeQueryBuilder()
-                .withQuery(q -> q.bool(b -> b
-                        .must(m -> m.queryString(qs -> qs.fields("title").query("*".concat(query).concat("*"))))))
-                .withPageable(pageable)
-                .build();
+        NativeQueryBuilder queryBuilder = new NativeQueryBuilder();
+        queryBuilder.withQuery(q -> {
+            co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery.Builder boolQueryBuilder = new co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery.Builder();
+            if (query != null && !query.trim().isEmpty()) {
+                boolQueryBuilder.must(m -> m.multiMatch(mm -> mm.query(query).fields("title", "titleName", "memberName")));
+            }
+            boolQueryBuilder.filter(f -> f.term(t -> t.field("approverIdList").value(memberPositionId)));
+            return q.bool(boolQueryBuilder.build());
+        });
+        queryBuilder.withPageable(pageable);
+        Query searchQuery = queryBuilder.build();
         SearchHits<ApprovalDocument> searchHits = elasticsearchOperations.search(searchQuery, ApprovalDocument.class);
         return SearchHitSupport.searchPageFor(searchHits, pageable).map(SearchHit::getContent);
     }

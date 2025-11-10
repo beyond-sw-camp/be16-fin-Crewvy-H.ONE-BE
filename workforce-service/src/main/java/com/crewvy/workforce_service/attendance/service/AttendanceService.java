@@ -4,6 +4,8 @@ import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.exception.*;
 import com.crewvy.workforce_service.attendance.constant.*;
 import com.crewvy.workforce_service.attendance.dto.request.EventRequest;
+import com.crewvy.workforce_service.attendance.dto.request.UpdateDailyAttendanceReq;
+import com.crewvy.workforce_service.attendance.dto.request.UpdateMemberBalanceRequest;
 import com.crewvy.workforce_service.attendance.dto.response.*;
 import com.crewvy.workforce_service.attendance.dto.rule.*;
 import com.crewvy.workforce_service.attendance.entity.*;
@@ -12,22 +14,21 @@ import com.crewvy.workforce_service.attendance.util.DistanceCalculator;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberDto;
+import com.crewvy.workforce_service.feignClient.dto.response.MemberEmploymentInfoDto;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberPositionListRes;
 import com.crewvy.workforce_service.feignClient.dto.response.OrganizationNodeDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -41,6 +42,7 @@ public class AttendanceService {
     private final DailyAttendanceRepository dailyAttendanceRepository;
     private final RequestRepository requestRepository;
     private final PolicyRepository policyRepository;
+    private final PolicyAssignmentRepository policyAssignmentRepository;
     private final MemberClient memberClient;
     private final PolicyAssignmentService policyAssignmentService;
     private final MemberBalanceRepository memberBalanceRepository;
@@ -50,6 +52,7 @@ public class AttendanceService {
     // 분리된 서비스들
     private final AttendanceValidator attendanceValidator;
     private final AttendanceCalculator attendanceCalculator;
+    private final AnnualLeaveAccrualService annualLeaveAccrualService;
 
     // 로컬 개발 환경 설정
     @Value("${attendance.dev-mode.enabled:false}")
@@ -75,20 +78,8 @@ public class AttendanceService {
             case CLOCK_OUT:
                 ClockOutResponse clockOutResponse = clockOut(memberId, memberPositionId, companyId, request);
                 return ApiResponse.success(clockOutResponse, "퇴근 등록 완료.");
-            case GO_OUT:
-                GoOutResponse goOutResponse = goOut(memberId, memberPositionId, companyId, request);
-                return ApiResponse.success(goOutResponse, "외출 등록 완료.");
-            case COME_BACK:
-                ComeBackResponse comeBackResponse = comeBack(memberId, memberPositionId, companyId, request);
-                return ApiResponse.success(comeBackResponse, "복귀 등록 완료.");
-            case BREAK_START:
-                BreakStartResponse breakStartResponse = breakStart(memberId, memberPositionId, companyId, request);
-                return ApiResponse.success(breakStartResponse, "휴게 시작 등록 완료.");
-            case BREAK_END:
-                BreakEndResponse breakEndResponse = breakEnd(memberId, memberPositionId, companyId, request);
-                return ApiResponse.success(breakEndResponse, "휴게 종료 등록 완료.");
             default:
-                throw new BusinessException("지원하지 않는 이벤트 타입입니다.");
+                throw new BusinessException("지원하지 않는 이벤트 타입입니다. 출근/퇴근만 지원됩니다.");
         }
     }
 
@@ -117,11 +108,21 @@ public class AttendanceService {
         LocalDateTime clockInTime = LocalDateTime.now();
 
         // 1. 오늘 승인된 휴가/휴직이 있는지 확인 (종일 휴가만 차단, 반차/시차는 허용)
+        // BUSINESS_TRIP은 제외 (출장은 근무로 간주)
+        java.util.List<PolicyTypeCode> fullDayBlockingTypes = java.util.List.of(
+                PolicyTypeCode.ANNUAL_LEAVE,
+                PolicyTypeCode.MATERNITY_LEAVE,
+                PolicyTypeCode.PATERNITY_LEAVE,
+                PolicyTypeCode.CHILDCARE_LEAVE,
+                PolicyTypeCode.FAMILY_CARE_LEAVE,
+                PolicyTypeCode.MENSTRUAL_LEAVE
+        );
         boolean hasFullDayLeave = requestRepository.hasApprovedFullDayLeaveOnDate(
                 memberId,
                 today.atStartOfDay(),
                 today.atTime(23, 59, 59),
-                RequestStatus.APPROVED
+                RequestStatus.APPROVED,
+                fullDayBlockingTypes
         );
 
         if (hasFullDayLeave) {
@@ -192,7 +193,26 @@ public class AttendanceService {
 
         AttendanceLog newLog = createAttendanceLog(memberId, clockInTime, EventType.CLOCK_IN, request.getLatitude(), request.getLongitude());
 
-        return new ClockInResponse(newLog.getId(), newLog.getEventTime());
+        // 월별 지각 횟수 조회
+        LocalDate monthStart = today.withDayOfMonth(1);
+        LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
+        int monthlyLatenessCount = dailyAttendanceRepository.countMonthlyLateness(memberId, monthStart, monthEnd);
+
+        // 월별 허용 횟수
+        Integer monthlyAllowedCount = null;
+        if (standardWorkPolicy.getRuleDetails() != null
+            && standardWorkPolicy.getRuleDetails().getLatenessRule() != null) {
+            monthlyAllowedCount = standardWorkPolicy.getRuleDetails().getLatenessRule().getMonthlyAllowedCount();
+        }
+
+        return ClockInResponse.builder()
+                .attendanceLogId(newLog.getId())
+                .eventTime(newLog.getEventTime())
+                .lateMinutes(dailyAttendance.getLateMinutes())
+                .isLate(dailyAttendance.getIsLate())
+                .monthlyLatenessCount(monthlyLatenessCount)
+                .monthlyAllowedCount(monthlyAllowedCount)
+                .build();
     }
 
     private ClockOutResponse clockOut(UUID memberId, UUID memberPositionId, UUID companyId, EventRequest request) {
@@ -200,19 +220,12 @@ public class AttendanceService {
         DailyAttendance dailyAttendance = getTodaysAttendanceOrThrow(memberId, today);
 
         EventType lastEvent = getLastEventTypeToday(memberId);
-        validateStateTransition(lastEvent, EventType.CLOCK_OUT);
+        // validateStateTransition(lastEvent, EventType.CLOCK_OUT); // 퇴근은 여러 번 가능하므로 상태 전환 검증 제거
 
         Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
                 memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
 
-        // 퇴근 중복 허용 정책 체크
-        if (lastEvent == EventType.CLOCK_OUT) {
-            ClockOutRuleDto clockOutRule = (standardWorkPolicy != null && standardWorkPolicy.getRuleDetails() != null)
-                    ? standardWorkPolicy.getRuleDetails().getClockOutRule() : null;
-            if (clockOutRule == null || !Boolean.TRUE.equals(clockOutRule.getAllowDuplicateClockOut())) {
-                throw new BusinessException("이미 퇴근 처리되었습니다.");
-            }
-        }
+        // 퇴근 중복 허용 (항상 허용 - 마지막 퇴근 시간이 최종 기록됨)
 
         LocalDateTime clockOutTime = LocalDateTime.now();
 
@@ -249,110 +262,28 @@ public class AttendanceService {
         // 법정 최소 휴게 시간 검증 (근로기준법 제54조)
         attendanceValidator.validateMandatoryBreakTime(dailyAttendance, standardWorkPolicy);
 
-        return new ClockOutResponse(
-                newLog.getId(),
-                newLog.getEventTime(),
-                dailyAttendance.getWorkedMinutes(),
-                dailyAttendance.getOvertimeMinutes()
-        );
-    }
+        // 월별 조퇴 횟수 조회
+        LocalDate monthStart = today.withDayOfMonth(1);
+        LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
+        int monthlyEarlyLeaveCount = dailyAttendanceRepository.countMonthlyEarlyLeave(memberId, monthStart, monthEnd);
 
-    private GoOutResponse goOut(UUID memberId, UUID memberPositionId, UUID companyId, EventRequest request) {
-        LocalDate today = LocalDate.now();
-        DailyAttendance dailyAttendance = getTodaysAttendanceOrThrow(memberId, today);
-        EventType lastEvent = getLastEventTypeToday(memberId);
-        validateStateTransition(lastEvent, EventType.GO_OUT);
-
-        LocalDateTime goOutTime = LocalDateTime.now();
-        Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
-                memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
-        validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), standardWorkPolicy, goOutTime, dailyAttendance.getFirstClockIn());
-
-        AttendanceLog newLog = createAttendanceLog(memberId, goOutTime, EventType.GO_OUT, request.getLatitude(), request.getLongitude());
-        return new GoOutResponse(newLog.getId(), newLog.getEventTime());
-    }
-
-    private ComeBackResponse comeBack(UUID memberId, UUID memberPositionId, UUID companyId, EventRequest request) {
-        LocalDate today = LocalDate.now();
-        DailyAttendance dailyAttendance = getTodaysAttendanceOrThrow(memberId, today);
-        EventType lastEvent = getLastEventTypeToday(memberId);
-        validateStateTransition(lastEvent, EventType.COME_BACK);
-
-        AttendanceLog lastGoOut = attendanceLogRepository.findTopByMemberIdAndEventTypeOrderByEventTimeDesc(memberId, EventType.GO_OUT)
-                .orElseThrow(() -> new BusinessException("외출 시작 기록을 찾을 수 없습니다."));
-
-        // 오늘 날짜 외출 기록인지 확인
-        if (!lastGoOut.getEventTime().toLocalDate().equals(today)) {
-            throw new BusinessException("오늘 외출 기록이 없습니다. 외출 후 복귀해 주세요.");
+        // 월별 허용 횟수
+        Integer monthlyAllowedCount = null;
+        if (standardWorkPolicy.getRuleDetails() != null
+            && standardWorkPolicy.getRuleDetails().getLatenessRule() != null) {
+            monthlyAllowedCount = standardWorkPolicy.getRuleDetails().getLatenessRule().getMonthlyAllowedCount();
         }
 
-        LocalDateTime comeBackTime = LocalDateTime.now();
-        Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
-                memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
-        validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), standardWorkPolicy, comeBackTime, dailyAttendance.getFirstClockIn());
-
-        AttendanceLog newLog = createAttendanceLog(memberId, comeBackTime, EventType.COME_BACK, request.getLatitude(), request.getLongitude());
-
-        long goOutMinutes = java.time.Duration.between(lastGoOut.getEventTime(), comeBackTime).toMinutes();
-        if (goOutMinutes < 0) {
-            throw new BusinessException("복귀 시각이 외출 시각보다 이릅니다. 시스템 시간을 확인해주세요.");
-        }
-
-        dailyAttendance.addGoOutMinutes((int) goOutMinutes);
-        Policy policy = policyAssignmentService.findEffectivePolicyForMemberByType(memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
-        attendanceValidator.validateGoOutTimePolicy(dailyAttendance, policy, (int) goOutMinutes);
-
-        return new ComeBackResponse(newLog.getId(), newLog.getEventTime(), dailyAttendance.getTotalGoOutMinutes());
-    }
-
-    private BreakStartResponse breakStart(UUID memberId, UUID memberPositionId, UUID companyId, EventRequest request) {
-        LocalDate today = LocalDate.now();
-        DailyAttendance dailyAttendance = getTodaysAttendanceOrThrow(memberId, today);
-        EventType lastEvent = getLastEventTypeToday(memberId);
-        validateStateTransition(lastEvent, EventType.BREAK_START);
-
-        LocalDateTime breakStartTime = LocalDateTime.now();
-        Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
-                memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
-        validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), standardWorkPolicy, breakStartTime, dailyAttendance.getFirstClockIn());
-        attendanceValidator.validateBreakIsManualMode(standardWorkPolicy);
-
-        AttendanceLog newLog = createAttendanceLog(memberId, breakStartTime, EventType.BREAK_START, request.getLatitude(), request.getLongitude());
-        return new BreakStartResponse(newLog.getId(), newLog.getEventTime());
-    }
-
-    private BreakEndResponse breakEnd(UUID memberId, UUID memberPositionId, UUID companyId, EventRequest request) {
-        LocalDate today = LocalDate.now();
-        DailyAttendance dailyAttendance = getTodaysAttendanceOrThrow(memberId, today);
-        EventType lastEvent = getLastEventTypeToday(memberId);
-        validateStateTransition(lastEvent, EventType.BREAK_END);
-
-        AttendanceLog lastBreakStart = attendanceLogRepository.findTopByMemberIdAndEventTypeOrderByEventTimeDesc(memberId, EventType.BREAK_START)
-                .orElseThrow(() -> new BusinessException("휴게 시작 기록을 찾을 수 없습니다."));
-
-        // 오늘 날짜 휴게 기록인지 확인
-        if (!lastBreakStart.getEventTime().toLocalDate().equals(today)) {
-            throw new BusinessException("오늘 휴게 시작 기록이 없습니다. 휴게 시작 후 종료해 주세요.");
-        }
-
-        LocalDateTime breakEndTime = LocalDateTime.now();
-        Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
-                memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
-        validateWorkingHoursLimit(dailyAttendance.getAttendanceDate(), standardWorkPolicy, breakEndTime, dailyAttendance.getFirstClockIn());
-        attendanceValidator.validateBreakIsManualMode(standardWorkPolicy);
-
-        AttendanceLog newLog = createAttendanceLog(memberId, breakEndTime, EventType.BREAK_END, request.getLatitude(), request.getLongitude());
-
-        long breakMinutes = java.time.Duration.between(lastBreakStart.getEventTime(), breakEndTime).toMinutes();
-        if (breakMinutes < 0) {
-            throw new BusinessException("휴게 종료 시각이 휴게 시작 시각보다 이릅니다. 시스템 시간을 확인해주세요.");
-        }
-
-        dailyAttendance.addBreakMinutes((int) breakMinutes);
-        Policy policy = policyAssignmentService.findEffectivePolicyForMemberByType(memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
-        attendanceValidator.validateBreakTimePolicy(dailyAttendance, policy, (int) breakMinutes);
-
-        return new BreakEndResponse(newLog.getId(), newLog.getEventTime(), dailyAttendance.getTotalBreakMinutes());
+        return ClockOutResponse.builder()
+                .attendanceLogId(newLog.getId())
+                .eventTime(newLog.getEventTime())
+                .totalWorkedMinutes(dailyAttendance.getWorkedMinutes())
+                .totalOvertimeMinutes(dailyAttendance.getOvertimeMinutes())
+                .earlyLeaveMinutes(dailyAttendance.getEarlyLeaveMinutes())
+                .isEarlyLeave(dailyAttendance.getIsEarlyLeave())
+                .monthlyEarlyLeaveCount(monthlyEarlyLeaveCount)
+                .monthlyAllowedCount(monthlyAllowedCount)
+                .build();
     }
 
     private AttendanceLog createAttendanceLog(UUID memberId, LocalDateTime eventTime, EventType eventType, Double latitude, Double longitude) {
@@ -387,12 +318,31 @@ public class AttendanceService {
 
     // --- 이하 검증(validate) 관련 헬퍼 메서드들 ---
     private void validate(UUID memberId, UUID memberPositionId, UUID companyId, DeviceType deviceType, Double latitude, Double longitude, String clientIp, String wifiSsid) {
-        // 기본근무 정책에서 AuthRule 조회
-        Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
-                memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
-        if (standardWorkPolicy != null) {
-            PolicyRuleDetails ruleDetails = standardWorkPolicy.getRuleDetails();
-            validateAuthRule(ruleDetails, deviceType, latitude, longitude, clientIp, wifiSsid);
+        LocalDate today = LocalDate.now();
+
+        // 1. 오늘 승인된 출장 Request 확인
+        Optional<Request> activeTrip = requestRepository.findApprovedTripForMemberAndDate(
+                memberId,
+                today.atStartOfDay(),
+                today.atTime(23, 59, 59),
+                PolicyTypeCode.BUSINESS_TRIP
+        );
+
+        if (activeTrip.isPresent()) {
+            // 2. 출장자면 출장 정책으로 GPS 검증
+            Policy businessTripPolicy = activeTrip.get().getPolicy();
+            if (businessTripPolicy != null) {
+                PolicyRuleDetails ruleDetails = businessTripPolicy.getRuleDetails();
+                validateTripLocation(ruleDetails, latitude, longitude);
+            }
+        } else {
+            // 3. 일반 근무자면 기본근무 정책으로 GPS 검증
+            Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
+                    memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
+            if (standardWorkPolicy != null) {
+                PolicyRuleDetails ruleDetails = standardWorkPolicy.getRuleDetails();
+                validateAuthRule(ruleDetails, deviceType, latitude, longitude, clientIp, wifiSsid);
+            }
         }
     }
 
@@ -450,19 +400,10 @@ public class AttendanceService {
                     authRule.getAllowedWorkLocationIds().size(), allowedLocations.size());
         }
 
-        // 디바이스 타입별 필수 인증 정보 검증
-        if (deviceType == DeviceType.LAPTOP) {
-            // 노트북/데스크톱: IP 주소 또는 WiFi 정보 필요
-            if ((clientIp == null || clientIp.trim().isEmpty()) && (wifiSsid == null || wifiSsid.trim().isEmpty())) {
-                throw new AuthenticationFailedException("노트북/데스크톱 출퇴근은 네트워크 정보(IP 주소 또는 WiFi)가 필요합니다.");
-            }
-        } else if (deviceType == DeviceType.MOBILE) {
-            // 모바일: GPS 또는 WiFi 중 하나 필요
-            boolean hasGps = (latitude != null && longitude != null);
-            boolean hasWifi = (wifiSsid != null && !wifiSsid.trim().isEmpty());
-            if (!hasGps && !hasWifi) {
-                throw new AuthenticationFailedException("모바일 출퇴근은 GPS 위치 정보 또는 WiFi 네트워크 정보가 필요합니다.");
-            }
+        // GPS 위치 정보 필수 검증 (모든 디바이스 타입)
+        boolean hasGps = (latitude != null && longitude != null);
+        if (!hasGps) {
+            throw new AuthenticationFailedException("출퇴근은 GPS 위치 정보가 필요합니다.");
         }
 
         // 사용자 위치/네트워크 정보로 매칭되는 근무지 찾기
@@ -470,47 +411,14 @@ public class AttendanceService {
         List<String> failureReasons = new ArrayList<>();
 
         for (WorkLocation location : allowedLocations) {
-            boolean isMatched = false;
-            List<String> locationFailures = new ArrayList<>();
+            // GPS 매칭만 수행 (모든 디바이스 타입)
+            boolean gpsMatched = isGpsMatched(location, latitude, longitude);
 
-            if (deviceType == DeviceType.LAPTOP) {
-                // 노트북/데스크톱: IP 또는 WiFi 매칭
-                boolean ipMatched = isIpMatched(location, clientIp);
-                boolean wifiMatched = isWifiMatched(location, wifiSsid);
-
-                if (ipMatched || wifiMatched) {
-                    isMatched = true;
-                } else {
-                    if (clientIp != null && !clientIp.trim().isEmpty()) {
-                        locationFailures.add("IP 불일치");
-                    }
-                    if (wifiSsid != null && !wifiSsid.trim().isEmpty()) {
-                        locationFailures.add("WiFi 불일치");
-                    }
-                }
-            } else if (deviceType == DeviceType.MOBILE) {
-                // 모바일: GPS 또는 WiFi 매칭
-                boolean gpsMatched = isGpsMatched(location, latitude, longitude);
-                boolean wifiMatched = isWifiMatched(location, wifiSsid);
-
-                if (gpsMatched || wifiMatched) {
-                    isMatched = true;
-                } else {
-                    if (latitude != null && longitude != null) {
-                        locationFailures.add("GPS 범위 초과");
-                    }
-                    if (wifiSsid != null && !wifiSsid.trim().isEmpty()) {
-                        locationFailures.add("WiFi 불일치");
-                    }
-                }
-            }
-
-            // 매칭되면 해당 근무지로 설정
-            if (isMatched) {
+            if (gpsMatched) {
                 matchedLocation = location;
                 break;
             } else {
-                failureReasons.add(String.format("%s (%s)", location.getName(), String.join(", ", locationFailures)));
+                failureReasons.add(String.format("%s (GPS 범위 초과)", location.getName()));
             }
         }
 
@@ -528,6 +436,74 @@ public class AttendanceService {
         }
 
         log.info("근무지 인증 성공: {} ({}) - 디바이스: {}", matchedLocation.getName(), matchedLocation.getId(), deviceType);
+    }
+
+    /**
+     * 출장 정책의 출장지 WorkLocation으로 GPS 검증
+     *
+     * @param ruleDetails 출장 정책의 규칙 상세
+     * @param latitude 사용자 위도
+     * @param longitude 사용자 경도
+     */
+    private void validateTripLocation(PolicyRuleDetails ruleDetails, Double latitude, Double longitude) {
+        // 로컬 개발 환경에서 근무지 인증 완전히 스킵
+        if (skipLocationAuth) {
+            log.debug("개발 모드: 출장지 인증 스킵 (skip-location-auth=true)");
+            return;
+        }
+
+        if (ruleDetails == null || ruleDetails.getTripRule() == null) {
+            return; // 출장 규칙이 없으면 통과
+        }
+
+        TripRuleDto tripRule = ruleDetails.getTripRule();
+
+        // 허용된 출장지 이름 목록이 없으면 통과
+        if (tripRule.getAllowedWorkLocations() == null || tripRule.getAllowedWorkLocations().isEmpty()) {
+            return;
+        }
+
+        // GPS 위치 정보 필수 검증
+        if (latitude == null || longitude == null) {
+            throw new AuthenticationFailedException("출장 중 출퇴근은 GPS 위치 정보가 필요합니다.");
+        }
+
+        // 이름으로 WorkLocation 조회
+        List<WorkLocation> allowedLocations = workLocationRepository.findByNameIn(tripRule.getAllowedWorkLocations());
+
+        // 정책에 설정된 출장지가 실제로 존재하지 않는 경우
+        if (allowedLocations.isEmpty()) {
+            log.error("출장 정책에 설정된 출장지가 DB에 존재하지 않습니다. 설정된 이름: {}", tripRule.getAllowedWorkLocations());
+            throw new InvalidPolicyRuleException("출장 정책에 설정된 출장지 정보를 찾을 수 없습니다. 관리자에게 문의하세요.");
+        }
+
+        // 사용자 위치로 매칭되는 출장지 찾기
+        WorkLocation matchedLocation = null;
+        List<String> failureReasons = new ArrayList<>();
+
+        for (WorkLocation location : allowedLocations) {
+            boolean gpsMatched = isGpsMatched(location, latitude, longitude);
+
+            if (gpsMatched) {
+                matchedLocation = location;
+                break;
+            } else {
+                failureReasons.add(String.format("%s (GPS 범위 초과)", location.getName()));
+            }
+        }
+
+        // 매칭된 출장지가 없으면 인증 실패
+        if (matchedLocation == null) {
+            String detailedMessage = String.format(
+                "허용된 출장지에서의 인증에 실패했습니다.%n시도한 출장지: %s",
+                String.join(" / ", failureReasons)
+            );
+            log.warn("출장지 인증 실패 - GPS({}, {}), 실패 상세: {}",
+                    latitude, longitude, String.join(" / ", failureReasons));
+            throw new AuthenticationFailedException(detailedMessage);
+        }
+
+        log.info("출장지 인증 성공: {} ({}) - 출장 중", matchedLocation.getName(), matchedLocation.getId());
     }
 
     /**
@@ -765,6 +741,7 @@ public class AttendanceService {
                 .map(mb -> {
                     MemberPositionListRes position = finalPositionMap.get(mb.getMemberId());
                     return MemberBalanceSummaryRes.builder()
+                            .balanceId(mb.getId())
                             .memberId(mb.getMemberId())
                             .memberName(position != null ? position.getMemberName() : null)
                             .organizationName(position != null ? position.getOrganizationName() : null)
@@ -792,13 +769,20 @@ public class AttendanceService {
      * @return 권한 범위 내 직원들의 연차 현황 리스트
      */
     @Transactional(readOnly = true)
-    public List<MemberBalanceSummaryRes> getLeaveBalanceStatus(
+    public Page<MemberBalanceSummaryRes> getLeaveBalanceStatus(
             UUID memberId,
             UUID memberPositionId,
             UUID companyId,
-            Integer year) {
+            Integer year,
+            String searchQuery,
+            String policyTypeCode,
+            String yearsOfService,
+            Pageable pageable) {
 
         validateYear(year);
+
+        // 현재 날짜 (전월 근속비율 계산 및 근속년수 계산에 사용)
+        LocalDate today = LocalDate.now();
 
         // 1. member-service에서 조직 트리 가져오기
         List<OrganizationNodeDto> organizationTree;
@@ -835,20 +819,20 @@ public class AttendanceService {
             UUID myOrganizationId = findMemberOrganization(organizationTree, memberId);
             if (myOrganizationId == null) {
                 log.warn("Member {} not found in organization tree", memberId);
-                return new ArrayList<>();
+                return Page.empty(pageable);
             }
             targetMemberIds = extractMemberIdsFromOrganization(organizationTree, myOrganizationId);
         }
 
         if (targetMemberIds.isEmpty()) {
-            return new ArrayList<>();
+            return Page.empty(pageable);
         }
 
         // 3. 해당 연도의 MemberBalance 조회 (개선)
         List<MemberBalance> filteredBalances = memberBalanceRepository.findAllByMemberIdInAndYear(targetMemberIds, year);
 
         if (filteredBalances.isEmpty()) {
-            return new ArrayList<>();
+            return Page.empty(pageable);
         }
 
         // 5. 직책 정보 조회 (member-service)
@@ -873,25 +857,99 @@ public class AttendanceService {
             }
         }
 
+        // 5-1. 입사일 정보 조회 (member-service) - 프론트 요청사항
+        Map<UUID, MemberEmploymentInfoDto> employmentMap = new HashMap<>();
+        try {
+            ApiResponse<List<MemberEmploymentInfoDto>> employmentResponse =
+                    memberClient.getEmploymentInfo(memberPositionId, companyId);
+            if (employmentResponse != null && employmentResponse.getData() != null) {
+                employmentMap = employmentResponse.getData().stream()
+                        .filter(e -> memberIds.contains(e.getMemberId()))
+                        .collect(Collectors.toMap(MemberEmploymentInfoDto::getMemberId, e -> e));
+            }
+        } catch (Exception e) {
+            log.error("Failed to fetch employment info from member-service", e);
+        }
+
         // 6. 응답 조립
         final Map<UUID, MemberPositionListRes> finalPositionMap = positionMap;
-        return filteredBalances.stream()
+        final Map<UUID, MemberEmploymentInfoDto> finalEmploymentMap = employmentMap;
+        List<MemberBalanceSummaryRes> allResults = filteredBalances.stream()
                 .map(mb -> {
                     MemberPositionListRes position = finalPositionMap.get(mb.getMemberId());
+                    MemberEmploymentInfoDto employment = finalEmploymentMap.get(mb.getMemberId());
+
+                    // 전월 근속비율 계산
+                    double previousMonthAttendanceRate = annualLeaveAccrualService
+                            .calculatePreviousMonthAttendanceRate(mb.getMemberId(), today);
+
                     return MemberBalanceSummaryRes.builder()
+                            .balanceId(mb.getId())
                             .memberId(mb.getMemberId())
                             .memberName(position != null ? position.getMemberName() : null)
                             .organizationName(position != null ? position.getOrganizationName() : null)
                             .titleName(position != null ? position.getTitleName() : null)
+                            .joinDate(employment != null && employment.getJoinDate() != null
+                                      ? employment.getJoinDate().toString()
+                                      : null)
+                            .year(year)
                             .policyTypeCode(mb.getBalanceTypeCode().getCodeValue())
                             .policyTypeName(mb.getBalanceTypeCode().getCodeName())
                             .totalGranted(mb.getTotalGranted())
                             .totalUsed(mb.getTotalUsed())
                             .remainingBalance(mb.getRemaining())
                             .isPaid(mb.getIsPaid())
+                            .isUsable(mb.getIsUsable())
+                            .previousMonthAttendanceRate(previousMonthAttendanceRate)
                             .build();
                 })
                 .collect(Collectors.toList());
+
+        // 7. 필터링 (검색어, 정책 유형, 근속년수)
+        List<MemberBalanceSummaryRes> filteredResults = allResults.stream()
+                .filter(item -> {
+                    // 검색어 필터 (이름 또는 부서)
+                    boolean matchesSearch = searchQuery == null || searchQuery.trim().isEmpty() ||
+                            (item.getMemberName() != null && item.getMemberName().contains(searchQuery)) ||
+                            (item.getOrganizationName() != null && item.getOrganizationName().contains(searchQuery));
+
+                    // 정책 유형 필터
+                    boolean matchesPolicyType = policyTypeCode == null || policyTypeCode.trim().isEmpty() ||
+                            item.getPolicyTypeCode().equals(policyTypeCode);
+
+                    // 근속년수 필터
+                    boolean matchesYears = true;
+                    if (yearsOfService != null && !yearsOfService.trim().isEmpty() && item.getJoinDate() != null) {
+                        try {
+                            LocalDate joinDate = LocalDate.parse(item.getJoinDate());
+                            int years = Period.between(joinDate, today).getYears();
+
+                            if (yearsOfService.equals("<1")) {
+                                matchesYears = years < 1;
+                            } else if (yearsOfService.startsWith(">=")) {
+                                int minYears = Integer.parseInt(yearsOfService.substring(2));
+                                matchesYears = years >= minYears;
+                            }
+                        } catch (Exception e) {
+                            log.warn("Failed to parse joinDate or yearsOfService filter: {}", e.getMessage());
+                        }
+                    }
+
+                    return matchesSearch && matchesPolicyType && matchesYears;
+                })
+                .collect(Collectors.toList());
+
+        // 8. 페이징 처리 (메모리에서)
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), filteredResults.size());
+
+        if (start > filteredResults.size()) {
+            return Page.empty(pageable);
+        }
+
+        List<MemberBalanceSummaryRes> pagedResults = filteredResults.subList(start, end);
+
+        return new PageImpl<>(pagedResults, pageable, filteredResults.size());
     }
 
 
@@ -1269,7 +1327,11 @@ public class AttendanceService {
         }
 
         EventType lastEventType = getLastEventTypeToday(memberId);
-        return TodayAttendanceStatusResponse.from(dailyAttendance, lastEventType);
+
+        // 전월 근속비율 계산
+        double previousMonthAttendanceRate = annualLeaveAccrualService.calculatePreviousMonthAttendanceRate(memberId, today);
+
+        return TodayAttendanceStatusResponse.from(dailyAttendance, lastEventType, previousMonthAttendanceRate);
     }
 
     /**
@@ -1319,8 +1381,7 @@ public class AttendanceService {
         // 3. 휴가/휴직 타입 정책만 필터링
         List<Policy> leavePolicies = allPolicies.stream()
                 .filter(policy -> {
-                    if (policy.getPolicyType() == null) return false;
-                    PolicyTypeCode typeCode = policy.getPolicyType().getTypeCode();
+                    PolicyTypeCode typeCode = policy.getPolicyTypeCode();
                     return typeCode == PolicyTypeCode.ANNUAL_LEAVE
                             || typeCode == PolicyTypeCode.MATERNITY_LEAVE
                             || typeCode == PolicyTypeCode.PATERNITY_LEAVE
@@ -1331,83 +1392,122 @@ public class AttendanceService {
                 .toList();
 
         // 4. N+1 문제 해결: 정책별 사용 횟수와 차감일 합계를 한 번의 쿼리로 조회
+        // PENDING과 APPROVED 모두 포함 (Request 생성 시 즉시 차감되므로)
+        List<RequestStatus> activeStatuses = List.of(RequestStatus.PENDING, RequestStatus.APPROVED);
+
         Map<UUID, Long> approvedCountsMap = requestRepository
-                .countApprovedRequestsForMemberAndYear(memberId, RequestStatus.APPROVED, yearStart, yearEnd)
+                .countApprovedRequestsForMemberAndYear(memberId, activeStatuses, yearStart, yearEnd)
                 .stream()
                 .collect(Collectors.toMap(com.crewvy.workforce_service.attendance.dto.query.PolicyUsageStats::getPolicyId, com.crewvy.workforce_service.attendance.dto.query.PolicyUsageStats::getCount));
 
         Map<UUID, Double> deductionDaysMap = requestRepository
-                .sumDeductionDaysForMemberAndYear(memberId, RequestStatus.APPROVED, yearStart, yearEnd)
+                .sumDeductionDaysForMemberAndYear(memberId, activeStatuses, yearStart, yearEnd)
                 .stream()
                 .collect(Collectors.toMap(com.crewvy.workforce_service.attendance.dto.query.PolicyUsageStats::getPolicyId, com.crewvy.workforce_service.attendance.dto.query.PolicyUsageStats::getSum));
 
-        // 5. 각 정책에 대해 잔액 정보 생성
-        return leavePolicies.stream()
-                .map(policy -> {
-                    MemberBalance balance = balances.stream()
-                            .filter(b -> b.getBalanceTypeCode().equals(policy.getPolicyType().getTypeCode()))
-                            .findFirst()
-                            .orElse(null);
+        // 5. 각 정책에 대해 잔액 정보 생성 (정책 기반)
+        List<MyBalanceRes> resultList = new ArrayList<>();
+        Set<PolicyTypeCode> processedTypeCodes = new HashSet<>();
 
-                    PolicyTypeCode typeCode = policy.getPolicyType().getTypeCode();
-                    boolean isBalanceDeductible = typeCode.name().contains("PTC00");
+        for (Policy policy : leavePolicies) {
+            PolicyTypeCode typeCode = policy.getPolicyTypeCode();
+            processedTypeCodes.add(typeCode);
 
-                    Integer maxSplitCount = null;
-                    Integer currentSplitCount = null;
-                    if (policy.getRuleDetails() != null && policy.getRuleDetails().getLeaveRule() != null) {
-                        LeaveRuleDto leaveRule = policy.getRuleDetails().getLeaveRule();
-                        maxSplitCount = leaveRule.getMaxSplitCount();
-                        if (maxSplitCount != null) {
-                            currentSplitCount = approvedCountsMap.getOrDefault(policy.getId(), 0L).intValue();
-                        }
+            MemberBalance balance = balances.stream()
+                    .filter(b -> b.getBalanceTypeCode().equals(typeCode))
+                    .findFirst()
+                    .orElse(null);
+
+            boolean isBalanceDeductible = typeCode.name().contains("PTC00");
+
+            Integer maxSplitCount = null;
+            Integer currentSplitCount = null;
+            if (policy.getRuleDetails() != null && policy.getRuleDetails().getLeaveRule() != null) {
+                LeaveRuleDto leaveRule = policy.getRuleDetails().getLeaveRule();
+                maxSplitCount = leaveRule.getMaxSplitCount();
+                if (maxSplitCount != null) {
+                    currentSplitCount = approvedCountsMap.getOrDefault(policy.getId(), 0L).intValue();
+                }
+            }
+
+            if (balance != null) {
+                // member_balance 레코드가 있는 경우
+                resultList.add(MyBalanceRes.builder()
+                        .balanceTypeCode(MyBalanceRes.BalanceTypeInfo.builder()
+                                .codeValue(typeCode.getCodeValue())
+                                .codeName(typeCode.getCodeName())
+                                .isBalanceDeductible(isBalanceDeductible)
+                                .build())
+                        .year(balance.getYear())
+                        .totalGranted(balance.getTotalGranted())
+                        .totalUsed(balance.getTotalUsed())
+                        .remaining(balance.getRemaining())
+                        .expirationDate(balance.getExpirationDate())
+                        .isPaid(policy.getIsPaid())
+                        .isUsable(balance.getIsUsable())
+                        .maxSplitCount(maxSplitCount)
+                        .currentSplitCount(currentSplitCount)
+                        .build());
+            } else {
+                // member_balance가 없는 경우 정책 기반 fallback
+                Double totalGranted = 0.0;
+                if (policy.getRuleDetails() != null && policy.getRuleDetails().getLeaveRule() != null) {
+                    Double defaultDays = policy.getRuleDetails().getLeaveRule().getDefaultDays();
+                    if (defaultDays != null) {
+                        totalGranted = defaultDays;
                     }
+                }
 
-                    if (balance != null) {
-                        return MyBalanceRes.builder()
-                                .balanceTypeCode(MyBalanceRes.BalanceTypeInfo.builder()
-                                        .codeValue(policy.getPolicyType().getTypeCode().getCodeValue())
-                                        .codeName(policy.getPolicyType().getTypeCode().getCodeName())
-                                        .isBalanceDeductible(isBalanceDeductible)
-                                        .build())
-                                .year(balance.getYear())
-                                .totalGranted(balance.getTotalGranted())
-                                .totalUsed(balance.getTotalUsed())
-                                .remaining(balance.getRemaining())
-                                .expirationDate(balance.getExpirationDate())
-                                .isPaid(policy.getIsPaid())
-                                .maxSplitCount(maxSplitCount)
-                                .currentSplitCount(currentSplitCount)
-                                .build();
-                    } else {
-                        Double totalGranted = 0.0;
-                        if (policy.getRuleDetails() != null && policy.getRuleDetails().getLeaveRule() != null) {
-                            Double defaultDays = policy.getRuleDetails().getLeaveRule().getDefaultDays();
-                            if (defaultDays != null) {
-                                totalGranted = defaultDays;
-                            }
-                        }
+                Double totalUsed = deductionDaysMap.getOrDefault(policy.getId(), 0.0);
+                Double remaining = totalGranted - totalUsed;
 
-                        Double totalUsed = deductionDaysMap.getOrDefault(policy.getId(), 0.0);
-                        Double remaining = totalGranted - totalUsed;
+                resultList.add(MyBalanceRes.builder()
+                        .balanceTypeCode(MyBalanceRes.BalanceTypeInfo.builder()
+                                .codeValue(typeCode.getCodeValue())
+                                .codeName(typeCode.getCodeName())
+                                .isBalanceDeductible(isBalanceDeductible)
+                                .build())
+                        .year(currentYear)
+                        .totalGranted(totalGranted)
+                        .totalUsed(totalUsed)
+                        .remaining(remaining)
+                        .expirationDate(null)
+                        .isPaid(policy.getIsPaid())
+                        .isUsable(true)
+                        .maxSplitCount(maxSplitCount)
+                        .currentSplitCount(currentSplitCount)
+                        .build());
+            }
+        }
 
-                        return MyBalanceRes.builder()
-                                .balanceTypeCode(MyBalanceRes.BalanceTypeInfo.builder()
-                                        .codeValue(policy.getPolicyType().getTypeCode().getCodeValue())
-                                        .codeName(policy.getPolicyType().getTypeCode().getCodeName())
-                                        .isBalanceDeductible(isBalanceDeductible)
-                                        .build())
-                                .year(currentYear)
-                                .totalGranted(totalGranted)
-                                .totalUsed(totalUsed)
-                                .remaining(remaining)
-                                .expirationDate(null)
-                                .isPaid(policy.getIsPaid())
-                                .maxSplitCount(maxSplitCount)
-                                .currentSplitCount(currentSplitCount)
-                                .build();
-                    }
-                })
-                .toList();
+        // 6. 정책 할당이 없지만 member_balance 레코드가 있는 경우 추가
+        // (배치로 생성된 잔액은 있지만 정책 할당이 삭제된 경우)
+        for (MemberBalance balance : balances) {
+            if (!processedTypeCodes.contains(balance.getBalanceTypeCode())) {
+                // 아직 처리하지 않은 타입 → 정책 없이 member_balance만 있는 경우
+                PolicyTypeCode typeCode = balance.getBalanceTypeCode();
+                boolean isBalanceDeductible = typeCode.name().contains("PTC00");
+
+                resultList.add(MyBalanceRes.builder()
+                        .balanceTypeCode(MyBalanceRes.BalanceTypeInfo.builder()
+                                .codeValue(typeCode.getCodeValue())
+                                .codeName(typeCode.getCodeName())
+                                .isBalanceDeductible(isBalanceDeductible)
+                                .build())
+                        .year(balance.getYear())
+                        .totalGranted(balance.getTotalGranted())
+                        .totalUsed(balance.getTotalUsed())
+                        .remaining(balance.getRemaining())
+                        .expirationDate(balance.getExpirationDate())
+                        .isPaid(balance.getIsPaid())
+                        .isUsable(false) // 정책이 없으므로 사용 불가
+                        .maxSplitCount(null) // 정책이 없으므로
+                        .currentSplitCount(null)
+                        .build());
+            }
+        }
+
+        return resultList;
     }
 
 
@@ -1431,8 +1531,8 @@ public class AttendanceService {
                     return AssignedPolicyRes.builder()
                             .policyId(policy.getId())
                             .name(policy.getName())
-                            .typeCode(policy.getPolicyType().getTypeCode().getCodeValue())
-                            .typeName(policy.getPolicyType().getTypeCode().getCodeName())
+                            .typeCode(policy.getPolicyTypeCode().getCodeValue())
+                            .typeName(policy.getPolicyTypeCode().getCodeName())
                             .isActive(policy.getIsActive())
                             .allowedRequestUnits(allowedRequestUnits)
                             .ruleDetails(policy.getRuleDetails()) // 정책 규칙 상세 포함 (출장지 필터링 등에 사용)
@@ -1442,18 +1542,27 @@ public class AttendanceService {
     }
 
     /**
-     * 근태 현황 조회 (권한에 따라 조회 범위 자동 결정)
+     * 근태 현황 조회 (권한에 따라 조회 범위 자동 결정, 날짜 범위 및 페이징 지원)
      * - COMPANY 권한: 전사 직원 조회
      * - TEAM/DEPARTMENT 권한: 요청자가 속한 조직 및 하위 조직 직원 조회
      *
      * @param memberId 요청자 ID
      * @param memberPositionId 요청자 직책 ID
      * @param companyId 회사 ID
-     * @return 권한 범위 내 직원들의 근태 현황 리스트
+     * @param startDate 시작 날짜 (null이면 오늘)
+     * @param endDate 종료 날짜 (null이면 오늘)
+     * @param pageable 페이징 정보
+     * @return 권한 범위 내 직원들의 근태 현황 페이지
      */
     @Transactional(readOnly = true)
-    public List<TeamMemberAttendanceRes> getTeamAttendanceStatus(UUID memberId, UUID memberPositionId, UUID companyId) {
-        log.info("getTeamAttendanceStatus called with memberId={}, memberPositionId={}, companyId={}", memberId, memberPositionId, companyId);
+    public Page<TeamMemberAttendanceRes> getTeamAttendanceStatus(UUID memberId, UUID memberPositionId, UUID companyId,
+                                                                   LocalDate startDate, LocalDate endDate, Pageable pageable) {
+        log.info("getTeamAttendanceStatus called with memberId={}, memberPositionId={}, companyId={}, startDate={}, endDate={}",
+                memberId, memberPositionId, companyId, startDate, endDate);
+
+        // 날짜 기본값 설정
+        LocalDate queryStartDate = (startDate != null) ? startDate : LocalDate.now();
+        LocalDate queryEndDate = (endDate != null) ? endDate : LocalDate.now();
 
         // 1. member-service에서 조직 트리 가져오기
         List<OrganizationNodeDto> organizationTree;
@@ -1494,22 +1603,38 @@ public class AttendanceService {
             UUID myOrganizationId = findMemberOrganization(organizationTree, memberId);
             if (myOrganizationId == null) {
                 log.warn("Member {} not found in organization tree", memberId);
-                return new ArrayList<>();
+                return Page.empty(pageable);
             }
             targetMemberIds = extractMemberIdsFromOrganization(organizationTree, myOrganizationId);
         }
 
         if (targetMemberIds.isEmpty()) {
-            return new ArrayList<>();
+            return Page.empty(pageable);
         }
 
-        // 3. 오늘 날짜의 DailyAttendance 조회 (개선)
-        LocalDate today = LocalDate.now();
-        List<DailyAttendance> todayAttendances = dailyAttendanceRepository
-                .findAllByMemberIdInAndAttendanceDateBetween(targetMemberIds, today, today);
+        // 3. 날짜 범위 내의 DailyAttendance 조회
+        List<DailyAttendance> attendances = dailyAttendanceRepository
+                .findAllByMemberIdInAndAttendanceDateBetween(targetMemberIds, queryStartDate, queryEndDate);
 
-        Map<UUID, DailyAttendance> attendanceMap = todayAttendances.stream()
-                .collect(Collectors.toMap(DailyAttendance::getMemberId, da -> da));
+        // 4. 승인된 Request 조회 (날짜 범위 내)
+        LocalDateTime startDateTime = queryStartDate.atStartOfDay();
+        LocalDateTime endDateTime = queryEndDate.atTime(23, 59, 59);
+        List<Request> approvedRequests = requestRepository
+                .findApprovedRequestsByMemberIdsAndDateRange(targetMemberIds, startDateTime, endDateTime);
+
+        // memberId + date 조합을 키로 하는 Request Map 생성
+        Map<String, Request> requestMap = approvedRequests.stream()
+                .flatMap(req -> {
+                    LocalDate start = req.getStartDateTime().toLocalDate();
+                    LocalDate end = req.getEndDateTime().toLocalDate();
+                    List<Map.Entry<String, Request>> entries = new ArrayList<>();
+                    for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+                        String key = req.getMemberId() + "_" + date.toString();
+                        entries.add(Map.entry(key, req));
+                    }
+                    return entries.stream();
+                })
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (r1, r2) -> r1));
 
         // 5. 직책 정보 조회 (member-service)
         Map<UUID, MemberPositionListRes> positionMap = new HashMap<>();
@@ -1528,27 +1653,75 @@ public class AttendanceService {
             }
         }
 
-        // 6. 응답 데이터 조립
+        // 6. 활성화된 정책 할당 조회 (N+1 방지 위해 batch 조회)
+        List<PolicyAssignment> activeAssignments = policyAssignmentRepository
+                .findActiveAssignmentsByTargets(targetMemberIds, companyId, queryStartDate);
+
+        // memberId별 정책 이름 Map 생성 (MEMBER 스코프 우선, 없으면 ORGANIZATION)
+        Map<UUID, String> policyNameMap = new HashMap<>();
+        for (PolicyAssignment assignment : activeAssignments) {
+            UUID targetId = assignment.getTargetId();
+            String policyName = assignment.getPolicy().getName();
+
+            // MEMBER 스코프가 이미 있으면 건너뜀 (개인 정책 우선)
+            if (assignment.getScopeType() == PolicyScopeType.MEMBER) {
+                policyNameMap.put(targetId, policyName);
+            } else if (!policyNameMap.containsKey(targetId)) {
+                // ORGANIZATION 스코프는 개인 정책이 없을 때만 사용
+                policyNameMap.put(targetId, policyName);
+            }
+        }
+
+        // 7. 응답 데이터 조립 (모든 memberId x 날짜 조합 생성)
         final Map<UUID, MemberPositionListRes> finalPositionMap = positionMap;
-        return targetMemberIds.stream()
-                .map(targetMemberId -> {
-                    MemberPositionListRes position = finalPositionMap.get(targetMemberId);
-                    DailyAttendance attendance = attendanceMap.get(targetMemberId);
+        final Map<String, Request> finalRequestMap = requestMap;
+        final Map<UUID, String> finalPolicyNameMap = policyNameMap;
 
-                    String statusCode = null;
-                    Boolean isLate = false;
-                    String clockInTime = "-";
-                    String clockOutTime = "-";
-                    String workHours = "-";
+        List<TeamMemberAttendanceRes> allResults = new ArrayList<>();
 
-                    if (attendance != null) {
-                        // 근태 상태 코드 (원본 영문 코드 반환)
-                        if (attendance.getStatus() != null) {
-                            statusCode = attendance.getStatus().getCodeValue(); // 영문 코드 (예: NORMAL_WORK)
-                        }
+        for (UUID targetMemberId : targetMemberIds) {
+            for (LocalDate date = queryStartDate; !date.isAfter(queryEndDate); date = date.plusDays(1)) {
+                final LocalDate currentDate = date;
+                MemberPositionListRes position = finalPositionMap.get(targetMemberId);
+
+                // 해당 memberId + date의 DailyAttendance 찾기
+                DailyAttendance attendance = attendances.stream()
+                        .filter(da -> da.getMemberId().equals(targetMemberId) && da.getAttendanceDate().equals(currentDate))
+                        .findFirst()
+                        .orElse(null);
+
+                // 해당 memberId + date의 Request 찾기
+                String requestKey = targetMemberId + "_" + currentDate.toString();
+                Request request = finalRequestMap.get(requestKey);
+
+                String status = null;
+                Boolean isLate = false;
+                Boolean isEarlyLeave = false;
+                String clockInTime = "-";
+                String clockOutTime = "-";
+                String workHours = "-";
+                String requestType = null;
+                String requestReason = null;
+
+                // Request 정보 우선 (승인된 휴가, 출장 등)
+                if (request != null && request.getPolicy() != null) {
+                    requestType = request.getPolicy().getPolicyTypeCode().getCodeName();
+                    requestReason = request.getReason();
+                    // Request가 있으면 status도 설정
+                    status = requestType;
+                }
+
+                if (attendance != null) {
+                    // 근태 상태 (한글명) - Request가 없을 때만 DailyAttendance의 상태 사용
+                    if (status == null && attendance.getStatus() != null) {
+                        status = attendance.getStatus().getCodeName(); // 한글 (예: "정상근무")
+                    }
 
                         // 지각 여부
                         isLate = attendance.getIsLate() != null && attendance.getIsLate();
+
+                        // 조퇴 여부
+                        isEarlyLeave = attendance.getIsEarlyLeave() != null && attendance.getIsEarlyLeave();
 
                         // 출근 시간 포맷팅
                         if (attendance.getFirstClockIn() != null) {
@@ -1572,21 +1745,42 @@ public class AttendanceService {
                         }
                     }
 
-                    return TeamMemberAttendanceRes.builder()
-                            .memberId(targetMemberId)
-                            .name(position != null ? position.getMemberName() : "알 수 없음")
-                            .department(position != null ? position.getOrganizationName() : "-")
-                            .title(position != null ? position.getTitleName() : "-")
-                            .date(today.toString())
-                            .statusCode(statusCode)
-                            .isLate(isLate)
-                            .clockInTime(clockInTime)
-                            .clockOutTime(clockOutTime)
-                            .workHours(workHours)
-                            .effectivePolicy("[기본] 근무 정책") // TODO: 실제 정책명 조회 필요 시 추가
-                            .build();
-                })
-                .collect(Collectors.toList());
+                // status가 여전히 null이면 기본값 설정
+                if (status == null) {
+                    status = "미출근";
+                }
+
+                // 적용 정책 이름 가져오기
+                String effectivePolicy = finalPolicyNameMap.getOrDefault(targetMemberId, "-");
+
+                TeamMemberAttendanceRes res = TeamMemberAttendanceRes.builder()
+                        .dailyAttendanceId(attendance != null ? attendance.getId() : null)
+                        .memberId(targetMemberId)
+                        .name(position != null ? position.getMemberName() : "알 수 없음")
+                        .department(position != null ? position.getOrganizationName() : "-")
+                        .title(position != null ? position.getTitleName() : "-")
+                        .date(currentDate.toString())
+                        .status(status)
+                        .isLate(isLate)
+                        .isEarlyLeave(isEarlyLeave)
+                        .clockInTime(clockInTime)
+                        .clockOutTime(clockOutTime)
+                        .workHours(workHours)
+                        .effectivePolicy(effectivePolicy)
+                        .requestType(requestType)
+                        .requestReason(requestReason)
+                        .build();
+
+                allResults.add(res);
+            }
+        }
+
+        // 7. 페이징 처리
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), allResults.size());
+
+        List<TeamMemberAttendanceRes> pagedResults = allResults.subList(start, end);
+        return new PageImpl<>(pagedResults, pageable, allResults.size());
     }
 
     // --- Private Helper Methods ---
@@ -1773,13 +1967,13 @@ public class AttendanceService {
      */
     @Transactional
     public void updateDailyAttendance(UUID dailyAttendanceId, UUID memberPositionId,
-                                      com.crewvy.workforce_service.attendance.dto.request.UpdateDailyAttendanceReq request) {
+                                      UpdateDailyAttendanceReq request) {
         // 1. 근태 기록 조회
         DailyAttendance dailyAttendance = dailyAttendanceRepository.findById(dailyAttendanceId)
                 .orElseThrow(() -> new ResourceNotFoundException("근태 기록을 찾을 수 없습니다."));
 
         // 2. 권한 검증 (TEAM 이상 권한 필요)
-        boolean hasPermission = hasPermission(memberPositionId, "attendance", "UPDATE", "TEAM");
+        boolean hasPermission = hasPermission(memberPositionId, "attendance", "UPDATE", "COMPANY");
         if (!hasPermission) {
             throw new PermissionDeniedException("근태 기록을 수정할 권한이 없습니다.");
         }
@@ -1826,5 +2020,39 @@ public class AttendanceService {
         if (request.getTotalBreakMinutes() != null && request.getTotalBreakMinutes() < 0) {
             throw new BusinessException("휴게 시간은 0분 이상이어야 합니다.");
         }
+    }
+
+    /**
+     * 관리자가 회원의 연차 잔액을 직접 수정
+     * @param balanceId 수정할 MemberBalance ID
+     * @param request 수정 요청 데이터
+     * @param adminMemberId 관리자 ID (권한 검증용)
+     * @param companyId 회사 ID (권한 검증용)
+     */
+    @Transactional
+    public void updateMemberBalance(UUID balanceId, UpdateMemberBalanceRequest request, UUID adminMemberId, UUID companyId) {
+        // 1. MemberBalance 조회
+        MemberBalance balance = memberBalanceRepository.findById(balanceId)
+                .orElseThrow(() -> new BusinessException("해당 연차 잔액을 찾을 수 없습니다."));
+
+        // 2. 회사 권한 검증
+        if (!balance.getCompanyId().equals(companyId)) {
+            throw new BusinessException("해당 연차 잔액을 수정할 권한이 없습니다.");
+        }
+
+        // 3. 유효성 검증
+        if (request.getTotalUsed() > request.getTotalGranted()) {
+            throw new BusinessException("사용일수가 부여일수를 초과할 수 없습니다.");
+        }
+
+        // 4. 잔액 업데이트
+        balance.updateBalance(request.getTotalGranted(), request.getTotalUsed());
+
+        // 5. 저장
+        memberBalanceRepository.save(balance);
+
+        log.info("💾 [연차 수정] balanceId={}, totalGranted={}, totalUsed={}, remaining={}, adminMemberId={}",
+                balanceId, request.getTotalGranted(), request.getTotalUsed(),
+                balance.getRemaining(), adminMemberId);
     }
 }

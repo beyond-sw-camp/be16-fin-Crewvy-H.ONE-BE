@@ -169,7 +169,7 @@ public class AttendanceBatchJobConfig {
                 .pageSize(CHUNK_SIZE)
                 .queryString("SELECT r FROM Request r " +
                              "WHERE r.status = :status " +
-                             "AND r.policy IS NOT NULL AND r.policy.policyType.isBalanceDeductible = true " +
+                             "AND r.policy IS NOT NULL AND r.policy.policyTypeCode.isBalanceDeductible = true " +
                              "AND r.endDateTime >= :start AND r.startDateTime <= :end")
                 .parameterValues(Map.of("status", RequestStatus.APPROVED, "start", startOfDay, "end", endOfDay))
                 .build();
@@ -211,10 +211,10 @@ public class AttendanceBatchJobConfig {
 
 
     /**
-     * Request의 PolicyType을 AttendanceStatus로 매핑
+     * Request의 PolicyTypeCode를 AttendanceStatus로 매핑
      */
     private AttendanceStatus mapPolicyTypeToAttendanceStatus(Request request) {
-        return switch (request.getPolicy().getPolicyType().getTypeCode()) {
+        return switch (request.getPolicy().getPolicyTypeCode()) {
             case ANNUAL_LEAVE -> AttendanceStatus.ANNUAL_LEAVE;
             case MATERNITY_LEAVE -> AttendanceStatus.MATERNITY_LEAVE;
             case PATERNITY_LEAVE -> AttendanceStatus.PATERNITY_LEAVE;
@@ -249,17 +249,36 @@ public class AttendanceBatchJobConfig {
     @Bean
     @StepScope
     public JpaPagingItemReader<DailyAttendance> incompleteAttendanceReader(@Value("#{jobParameters[date]}") String date) {
-        LocalDate yesterday = (date == null) ? LocalDate.now().minusDays(1) : LocalDate.parse(date).minusDays(1);
+        // 과거 30일치 미완료 데이터를 모두 처리 (특정 날짜 지정 시 해당 날짜만 처리)
+        LocalDate targetDate = (date == null) ? null : LocalDate.parse(date).minusDays(1);
+        LocalDate startDate = LocalDate.now().minusDays(30);
+
+        String queryString;
+        Map<String, Object> params;
+
+        if (targetDate != null) {
+            // 특정 날짜만 처리
+            queryString = "SELECT da FROM DailyAttendance da " +
+                    "WHERE da.attendanceDate = :date " +
+                    "AND da.firstClockIn IS NOT NULL AND da.lastClockOut IS NULL " +
+                    "AND da.status != com.crewvy.workforce_service.attendance.constant.AttendanceStatus.ABSENT";
+            params = Map.of("date", targetDate);
+        } else {
+            // 과거 30일 모든 미완료 데이터 처리
+            queryString = "SELECT da FROM DailyAttendance da " +
+                    "WHERE da.attendanceDate >= :startDate AND da.attendanceDate < :endDate " +
+                    "AND da.firstClockIn IS NOT NULL AND da.lastClockOut IS NULL " +
+                    "AND da.status != com.crewvy.workforce_service.attendance.constant.AttendanceStatus.ABSENT " +
+                    "ORDER BY da.attendanceDate ASC";
+            params = Map.of("startDate", startDate, "endDate", LocalDate.now());
+        }
 
         return new JpaPagingItemReaderBuilder<DailyAttendance>()
                 .name("incompleteAttendanceReader")
                 .entityManagerFactory(entityManagerFactory)
                 .pageSize(CHUNK_SIZE)
-                .queryString("SELECT da FROM DailyAttendance da " +
-                             "WHERE da.attendanceDate = :date " +
-                             "AND da.firstClockIn IS NOT NULL AND da.lastClockOut IS NULL " +
-                             "AND da.status IN (com.crewvy.workforce_service.attendance.constant.AttendanceStatus.NORMAL_WORK, com.crewvy.workforce_service.attendance.constant.AttendanceStatus.BUSINESS_TRIP)")
-                .parameterValues(Map.of("date", yesterday))
+                .queryString(queryString)
+                .parameterValues(params)
                 .build();
     }
 
@@ -268,7 +287,26 @@ public class AttendanceBatchJobConfig {
     public ItemProcessor<DailyAttendance, DailyAttendance> incompleteAttendanceProcessor() {
         return attendance -> {
             LocalDate yesterday = attendance.getAttendanceDate();
-            LocalDateTime autoClockOutTime = attendance.getFirstClockIn().plusHours(9);
+
+            // 상태별로 자동 퇴근 시간 계산
+            LocalDateTime autoClockOutTime;
+            int standardWorkMinutes;
+
+            switch (attendance.getStatus()) {
+                case HALF_DAY_PM:  // 오후 반차 (오전만 근무)
+                    autoClockOutTime = attendance.getFirstClockIn().plusHours(4);
+                    standardWorkMinutes = 240;  // 4시간
+                    break;
+                case HALF_DAY_AM:  // 오전 반차 (오후만 근무)
+                    autoClockOutTime = attendance.getFirstClockIn().plusHours(5);
+                    standardWorkMinutes = 240;  // 4시간
+                    break;
+                default:  // 정상 출근, 출장, 지각 등
+                    autoClockOutTime = attendance.getFirstClockIn().plusHours(9);
+                    standardWorkMinutes = 480;  // 8시간
+                    break;
+            }
+
             LocalDateTime endOfDay = yesterday.atTime(23, 59, 59);
 
             if (autoClockOutTime.isAfter(endOfDay)) {
@@ -278,10 +316,11 @@ public class AttendanceBatchJobConfig {
             boolean isHoliday = yesterday.getDayOfWeek() == java.time.DayOfWeek.SATURDAY
                     || yesterday.getDayOfWeek() == java.time.DayOfWeek.SUNDAY;
 
-            Integer standardWorkMinutes = 480;
-
             if (attendance.getTotalBreakMinutes() == null || attendance.getTotalBreakMinutes() == 0) {
-                attendance.setTotalBreakMinutes(60);
+                // 반차는 휴게시간 30분, 전일 근무는 60분
+                int breakMinutes = (attendance.getStatus() == AttendanceStatus.HALF_DAY_PM
+                                    || attendance.getStatus() == AttendanceStatus.HALF_DAY_AM) ? 30 : 60;
+                attendance.setTotalBreakMinutes(breakMinutes);
             }
 
             attendance.updateClockOut(autoClockOutTime, standardWorkMinutes, isHoliday);
@@ -308,17 +347,20 @@ public class AttendanceBatchJobConfig {
 
     /**
      * 연차 자동 발생 Tasklet
-     * 매월 1일 또는 매년 1월 1일에 실행하여 직원들에게 연차 발생
+     * - 스케줄러에서 매월 1일 실행 (cron: "0 0 3 1 * *")
+     * - 1년 미만 근로자: 월별 연차 발생 (Kafka 이벤트 기반 초기 발생 + 배치 안전망)
+     * - 1년 이상 근로자: 매년 1월 1일 연차 발생
+     * - 수동 실행 시에도 날짜 체크 없이 실행 (테스트 목적)
      */
     @Bean
     @Transactional
     public Tasklet annualLeaveAccrualTasklet() {
         return (contribution, chunkContext) -> {
-            LocalDate today = LocalDate.now();
-            log.info(">>> [연차 자동 발생 배치 시작] 실행 날짜: {}", today);
+            LocalDate referenceDate = LocalDate.now();
+            log.info(">>> [연차 자동 발생 배치 시작] 실행 날짜: {}", referenceDate);
 
             try {
-                // 1. 모든 회사 ID 조회 (개선)
+                // 1. 모든 회사 ID 조회
                 List<UUID> companyIds = policyRepository.findDistinctCompanyIds();
 
                 log.info(">>> 연차 발생 대상 회사 수: {}", companyIds.size());
@@ -334,14 +376,12 @@ public class AttendanceBatchJobConfig {
 
                 for (UUID companyId : companyIds) {
                     try {
-                        // 매월 1일: 1년 미만 근로자 월별 연차 발생
-                        if (today.getDayOfMonth() == 1) {
-                            annualLeaveAccrualService.monthlyAccrualForFirstYearEmployees(companyId, today);
-                        }
+                        // 1. 1년 미만 근로자 월별 연차 발생 (매월 1일)
+                        annualLeaveAccrualService.monthlyAccrualForFirstYearEmployees(companyId, referenceDate);
 
-                        // 매년 1월 1일: 전체 직원 연차 발생 (1년 이상 근로자 포함)
-                        if (today.getMonthValue() == 1 && today.getDayOfMonth() == 1) {
-                            annualLeaveAccrualService.accrueAnnualLeaveForCompany(companyId, today);
+                        // 2. 1년 이상 근로자 연차 발생 (1월 1일만)
+                        if (referenceDate.getMonthValue() == 1 && referenceDate.getDayOfMonth() == 1) {
+                            annualLeaveAccrualService.accrueAnnualLeaveForCompany(companyId, referenceDate);
                         }
 
                         successCompanyCount++;

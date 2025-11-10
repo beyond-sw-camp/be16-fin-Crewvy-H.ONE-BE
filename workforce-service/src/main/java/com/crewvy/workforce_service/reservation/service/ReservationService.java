@@ -9,6 +9,7 @@ import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
 import com.crewvy.workforce_service.feignClient.dto.response.NameDto;
 import com.crewvy.workforce_service.reservation.constant.DayOfWeek;
+import com.crewvy.workforce_service.reservation.constant.ReservationStatus;
 import com.crewvy.workforce_service.reservation.dto.request.ReservationCreateReq;
 import com.crewvy.workforce_service.reservation.dto.request.ReservationUpdateReq;
 import com.crewvy.workforce_service.reservation.dto.request.ReservationUpdateStatusReq;
@@ -235,13 +236,34 @@ public class ReservationService {
         eventPublisher.publishEvent(scheduleDto);
     }
 
+    @Transactional
     public ReservationRes updateReservationStatus(UUID id, ReservationUpdateStatusReq req) {
         Reservation reservation = reservationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("예약을 찾을 수 없습니다."));
 
-        reservation.setStatus(req.getReservationStatus());
-        Reservation saved = reservationRepository.save(reservation);
-        return ReservationRes.fromEntity(saved);
+        ReservationStatus status = req.getReservationStatus();
+
+        if (status == ReservationStatus.USED) {
+
+            if (reservation.getStatus() == ReservationStatus.USED) {
+                throw new IllegalStateException("이미 완료되었거나 취소된 예약입니다.");
+            }
+
+            LocalDateTime now = LocalDateTime.now();
+            reservation.setEndDateTime(now);
+
+            if (now.isBefore(reservation.getStartDateTime())) {
+                reservation.setStartDateTime(now);
+            }
+
+            reservation.setStatus(status);
+
+        }
+        else {
+            reservation.setStatus(status);
+        }
+
+        return ReservationRes.fromEntity(reservation);
     }
 }
 

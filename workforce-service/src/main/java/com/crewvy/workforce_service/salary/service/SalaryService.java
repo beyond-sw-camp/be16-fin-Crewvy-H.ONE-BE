@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.salary.service;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.common.exception.PermissionDeniedException;
+import com.crewvy.workforce_service.aop.AuthUser;
 import com.crewvy.workforce_service.aop.CheckPermission;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberSalaryListRes;
@@ -48,14 +49,7 @@ public class SalaryService {
     // 급여 저장 메서드
     @Transactional
     @CheckPermission(resource = "salary", action = "CREATE", scope = "COMPANY")
-    public void saveSalary(UUID memberPositionId, UUID companyId, List<SalaryCreateReq> salaryCreateReqList) {
-        // 권한 검증
-//        ApiResponse<Boolean> hasPermission = memberClient.checkPermission(memberPositionId,
-//                "salary", "CREATE", "COMPANY");
-//
-//        if (Boolean.FALSE.equals(hasPermission.getData())) {
-//            throw new PermissionDeniedException("이 리소스에 접근할 권한이 없습니다.");
-//        }
+    public void saveSalary(@AuthUser UUID memberPositionId, UUID companyId, List<SalaryCreateReq> salaryCreateReqList) {
 
         List<UUID> memberIdList = salaryCreateReqList.stream()
                 .map(SalaryCreateReq::getMemberId)
@@ -136,7 +130,7 @@ public class SalaryService {
     // 급여 일괄 수정
     @Transactional
     @CheckPermission(resource = "salary", action = "UPDATE", scope = "COMPANY")
-    public List<SalaryCalculationRes> updateSalaries(UUID memberPositionId, List<SalaryUpdateReq> updateRequests) {
+    public List<SalaryCalculationRes> updateSalaries(@AuthUser UUID memberPositionId, List<SalaryUpdateReq> updateRequests) {
         List<SalaryCalculationRes> result = new ArrayList<>();
 
         for (SalaryUpdateReq request : updateRequests) {

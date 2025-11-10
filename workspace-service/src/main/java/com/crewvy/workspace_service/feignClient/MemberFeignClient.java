@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import java.util.List;
 import java.util.UUID;
 
-@FeignClient(name = "member-service", path = "/member")
+@FeignClient(name = "member-service", path = "/member", url = "${feign.client.member-service.url}")
 public interface MemberFeignClient {
     @PostMapping("/name-list")
     ApiResponse<List<MemberNameListRes>> getNameList(@RequestHeader("X-User-MemberPositionId") UUID MemberPositionId, @RequestBody IdListReq idListReq);
