@@ -13,9 +13,9 @@ import java.util.UUID;
 public class ReservationCategoryCreateReq {
 
     private String name;
-    private UUID companyId;
+//    private UUID companyId;
 
-    public ReservationCategory toEntity() {
+    public ReservationCategory toEntity(UUID companyId) {
         return ReservationCategory.builder()
                 .name(name)
                 .companyId(companyId)

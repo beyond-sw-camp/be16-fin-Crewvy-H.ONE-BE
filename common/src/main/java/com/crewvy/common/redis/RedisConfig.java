@@ -107,4 +107,13 @@ public class RedisConfig {
                 .cacheDefaults(redisCacheConfiguration)
                 .build();
     }
+
+    @Bean(name = "shedLockConnectionFactory")
+    public RedisConnectionFactory shedLockConnectionFactory() {
+        RedisStandaloneConfiguration redisConfig = new RedisStandaloneConfiguration(host, port);
+        redisConfig.setDatabase(5);
+
+        // 필요하다면 LettucePoolingClientConfiguration 등을 사용하여 커넥션 풀 설정을 별도로 할 수도 있음
+        return new LettuceConnectionFactory(redisConfig);
+    }
 }

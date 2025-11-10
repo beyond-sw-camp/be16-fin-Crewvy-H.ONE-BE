@@ -16,13 +16,12 @@ import java.util.UUID;
 @AllArgsConstructor
 public class PayrollItemCreateReq {
 
-    private UUID companyId;
     private SalaryType salaryType;
     private String name;
     private Bool isActive;
     private String description;
 
-    public PayrollItem toEntity() {
+    public PayrollItem toEntity(UUID companyId) {
         return PayrollItem.builder()
                 .companyId(companyId)
                 .salaryType(salaryType)

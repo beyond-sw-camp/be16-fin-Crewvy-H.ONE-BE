@@ -63,13 +63,13 @@ public class PayrollItemService {
     }
 
     @CheckPermission(resource = "salary", action = "CREATE", scope = "COMPANY")
-    public PayrollItemRes createPayrollItem(@AuthUser UUID memberPositionId, PayrollItemCreateReq req) {
+    public PayrollItemRes createPayrollItem(@AuthUser UUID memberPositionId, UUID companyId, PayrollItemCreateReq req) {
 
         if (payrollItemRepository.existsByName(req.getName())) {
             throw new DuplicateResourceException("이미 동일한 이름의 급여 항목이 존재합니다.");
         }
 
-        PayrollItem item = req.toEntity();
+        PayrollItem item = req.toEntity(companyId);
         PayrollItem savedItem = payrollItemRepository.save(item);
         return PayrollItemRes.fromEntity(savedItem);
     }

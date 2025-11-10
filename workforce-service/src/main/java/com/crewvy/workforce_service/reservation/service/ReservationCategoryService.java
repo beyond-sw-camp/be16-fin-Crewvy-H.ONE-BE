@@ -1,6 +1,8 @@
 package com.crewvy.workforce_service.reservation.service;
 
 import com.crewvy.common.exception.ResourceNotFoundException;
+import com.crewvy.workforce_service.aop.AuthUser;
+import com.crewvy.workforce_service.aop.CheckPermission;
 import com.crewvy.workforce_service.reservation.dto.request.ReservationCategoryCreateReq;
 import com.crewvy.workforce_service.reservation.dto.request.ReservationCategoryUpdateReq;
 import com.crewvy.workforce_service.reservation.dto.response.ReservationCategoryCreateRes;
@@ -25,8 +27,11 @@ public class ReservationCategoryService {
 
     private final ReservationCategoryRepository reservationCategoryRepository;
 
-    public ReservationCategoryCreateRes saveReservationCategory(ReservationCategoryCreateReq reservationCategoryCreateReq) {
-        ReservationCategory reservationCategory = reservationCategoryRepository.save(reservationCategoryCreateReq.toEntity());
+    @CheckPermission(resource = "reservation", action = "CREATE", scope = "COMPANY")
+    public ReservationCategoryCreateRes saveReservationCategory(@AuthUser UUID memberPositionId, UUID companyId,
+                                    ReservationCategoryCreateReq reservationCategoryCreateReq) {
+        ReservationCategory reservationCategory
+                = reservationCategoryRepository.save(reservationCategoryCreateReq.toEntity(companyId));
         return ReservationCategoryCreateRes.fromEntity(reservationCategory);
     }
 
@@ -37,7 +42,9 @@ public class ReservationCategoryService {
     }
 
     @Transactional
-    public ReservationCategoryUpdateRes update(UUID id, ReservationCategoryUpdateReq req) {
+    @CheckPermission(resource = "reservation", action = "UPDATE", scope = "COMPANY")
+    public ReservationCategoryUpdateRes update(@AuthUser UUID memberPositionId, UUID id,
+                                               ReservationCategoryUpdateReq req) {
         ReservationCategory category = reservationCategoryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("예약 카테고리를 찾을 수 없습니다."));
 
@@ -46,7 +53,8 @@ public class ReservationCategoryService {
         return ReservationCategoryUpdateRes.fromEntity(category);
     }
 
-    public void delete(UUID id) {
+    @CheckPermission(resource = "reservation", action = "DELETE", scope = "COMPANY")
+    public void delete(@AuthUser UUID memberPositionId, UUID id) {
         if (!reservationCategoryRepository.existsById(id)) {
             throw new ResourceNotFoundException("예약 카테고리를 찾을 수 없습니다.");
         }

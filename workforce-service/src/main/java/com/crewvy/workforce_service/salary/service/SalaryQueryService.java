@@ -47,15 +47,18 @@ public class SalaryQueryService {
     // 회사 전체 급여 조회
     @Transactional(readOnly = true)
     @CheckPermission(resource = "salary", action = "READ", scope = "COMPANY")
-    public List<SalaryStatusRes> getSalaryListByCompany(@AuthUser UUID memberPositionId, UUID companyId, YearMonth yearMonth) {
+    public List<SalaryStatusRes> getSalaryListByCompany(@AuthUser UUID memberPositionId, UUID companyId,
+                                                        YearMonth yearMonth) {
+
+        LocalDate startDate = yearMonth.atDay(1);
+        LocalDate endDate = yearMonth.atEndOfMonth();
 
         // 급여 지급일 조회
-        LocalDate paymentDate = salaryPolicyService.getPaymentDate(companyId, yearMonth);
+//        LocalDate paymentDate = salaryPolicyService.getPaymentDate(companyId, yearMonth);
 
         // Salary 엔티티 조회
-        List<Salary> salaryList = salaryRepository.findByCompanyIdAndSalaryStatusNotAndPaymentDate(companyId,
-                SalaryStatus.CANCELED,
-                paymentDate);
+        List<Salary> salaryList = salaryRepository.findByCompanyIdAndSalaryStatusNotAndPaymentDateBetween(companyId,
+                SalaryStatus.CANCELED, startDate, endDate);
 
         // 회원 정보 조회
         ApiResponse<List<MemberSalaryListRes>> salaryListResponse =
@@ -88,15 +91,15 @@ public class SalaryQueryService {
 
     @Transactional(readOnly = true)
     @CheckPermission(resource = "salary", action = "READ", scope = "COMPANY")
-    public List<SalaryOutputRes> getSalaryOutputByCompany(@AuthUser UUID memberPositionId, UUID companyId, YearMonth yearMonth) {
+    public List<SalaryOutputRes> getSalaryOutputByCompany(@AuthUser UUID memberPositionId,
+                                                          UUID companyId, YearMonth yearMonth) {
 
-        // 급여 지급일 조회
-        LocalDate paymentDate = salaryPolicyService.getPaymentDate(companyId, yearMonth);
+        LocalDate startDate = yearMonth.atDay(1);
+        LocalDate endDate = yearMonth.atEndOfMonth();
 
         // Salary 엔티티 조회
-        List<Salary> salaryList = salaryRepository.findByCompanyIdAndSalaryStatusNotAndPaymentDate(companyId,
-                SalaryStatus.CANCELED,
-                paymentDate);
+        List<Salary> salaryList = salaryRepository.findByCompanyIdAndSalaryStatusNotAndPaymentDateBetween(companyId,
+                SalaryStatus.CANCELED, startDate, endDate);
 
         // 회원 정보 조회
         ApiResponse<List<MemberSalaryListRes>> salaryListResponse =
@@ -347,8 +350,8 @@ public class SalaryQueryService {
     @CheckPermission(resource = "salary", action = "READ", scope = "COMPANY")
     public List<PayrollStatementRes> getSalaryStatement(@AuthUser UUID memberPositionId, UUID companyId, YearMonth yearMonth) {
 
-        // 급여 지급일 조회
-        LocalDate paymentDate = salaryPolicyService.getPaymentDate(companyId, yearMonth);
+        LocalDate startDate = yearMonth.atDay(1);
+        LocalDate endDate = yearMonth.atEndOfMonth();
 
         ApiResponse<List<MemberSalaryListRes>> salaryListResponse =
                 memberClient.getSalaryList(memberPositionId, companyId);
@@ -359,7 +362,8 @@ public class SalaryQueryService {
         List<UUID> memberIdList = new ArrayList<>(memberMap.keySet());
 
         // 급여 조회
-        List<Salary> salaryList = salaryRepository.findByMemberIdInAndPaymentDate(memberIdList, paymentDate);
+        List<Salary> salaryList = salaryRepository.findByCompanyIdAndSalaryStatusNotAndPaymentDateBetween(companyId,
+                SalaryStatus.CANCELED, startDate, endDate);
 
         Map<UUID, Salary> salaryByMemberId = salaryList.stream()
                 .collect(Collectors.toMap(Salary::getMemberId, Function.identity()));

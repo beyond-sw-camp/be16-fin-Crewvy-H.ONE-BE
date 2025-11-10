@@ -5,6 +5,7 @@ import com.crewvy.common.dto.ScheduleDeleteDto;
 import com.crewvy.common.dto.ScheduleDto;
 import com.crewvy.common.entity.Bool;
 import com.crewvy.common.exception.ResourceNotFoundException;
+import com.crewvy.workforce_service.aop.CheckPermission;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
 import com.crewvy.workforce_service.feignClient.dto.response.NameDto;
@@ -47,24 +48,27 @@ public class ReservationService {
     private final RecurringSettingRepository recurringSettingRepository;
     private final MemberClient memberClient;
 
-    public ReservationRes create(ReservationCreateReq reservationCreateReq) {
+    @CheckPermission(resource = "reservation", action = "CREATE", scope = "INDIVIDUAL")
+    public ReservationRes create(UUID memberId, UUID companyId, ReservationCreateReq reservationCreateReq) {
         ReservationType type = reservationTypeRepository.findWithLockById(reservationCreateReq.getReservationTypeId())
                 .orElseThrow(() -> new ResourceNotFoundException("예약 자원을 찾을 수 없습니다."));
 
         if (reservationCreateReq.getIsRepeated() == Bool.TRUE && reservationCreateReq.getRepeatCreateReq() != null) {
-            return createRecurringReservations(reservationCreateReq, type);
+            return createRecurringReservations(memberId, companyId, reservationCreateReq, type);
         } else {
-            return createSingleReservation(reservationCreateReq, type);
+            return createSingleReservation(memberId, companyId, reservationCreateReq, type);
         }
     }
 
-    private ReservationRes createSingleReservation(ReservationCreateReq reservationCreateReq, ReservationType type) {
+    private ReservationRes createSingleReservation(UUID memberId, UUID companyId,
+                                                   ReservationCreateReq reservationCreateReq,
+                                                   ReservationType type) {
 
         checkOverlapping(reservationCreateReq.getReservationTypeId()
                 , reservationCreateReq.getStartDateTime()
                 , reservationCreateReq.getEndDateTime());
 
-        Reservation reservation = reservationCreateReq.toEntity(type);
+        Reservation reservation = reservationCreateReq.toEntity(memberId,companyId, type);
         Reservation savedReservation = reservationRepository.save(reservation);
 
         ScheduleDto scheduleDto = ScheduleDto.builder()
@@ -80,7 +84,9 @@ public class ReservationService {
         return ReservationRes.fromEntity(savedReservation);
     }
 
-    private ReservationRes createRecurringReservations(ReservationCreateReq reservationCreateReq, ReservationType type) {
+    private ReservationRes createRecurringReservations(UUID memberId, UUID companyId,
+                                                       ReservationCreateReq reservationCreateReq,
+                                                       ReservationType type) {
         RecurringSetting recurringSetting = reservationCreateReq.getRepeatCreateReq().toEntity();
         RecurringSetting saved = recurringSettingRepository.save(recurringSetting);
 
@@ -97,7 +103,7 @@ public class ReservationService {
 
             LocalDateTime endTime = startTime.plus(duration);
             checkOverlapping(reservationCreateReq.getReservationTypeId(), startTime, endTime);
-            Reservation reservation = reservationCreateReq.toEntity(type, startTime, endTime);
+            Reservation reservation = reservationCreateReq.toEntity(memberId, companyId, type, startTime, endTime);
             reservation.setRecurringSetting(saved);
             reservationsList.add(reservation);
         }
@@ -168,6 +174,7 @@ public class ReservationService {
     }
 
     @Transactional(readOnly = true)
+    @CheckPermission(resource = "reservation", action = "CREATE", scope = "INDIVIDUAL")
     public List<ReservationRes> listByCompany(UUID memberPositionId, UUID companyId) {
         List<ReservationRes> response = reservationRepository.findByCompanyId(companyId)
                 .stream()
@@ -197,6 +204,7 @@ public class ReservationService {
     }
 
     @Transactional(readOnly = true)
+    @CheckPermission(resource = "reservation", action = "CREATE", scope = "INDIVIDUAL")
     public List<ReservationRes> listByCompanyAndMember(UUID companyId, UUID memberId) {
 
         return reservationRepository.findByCompanyIdAndMemberId(companyId, memberId)
@@ -237,6 +245,7 @@ public class ReservationService {
     }
 
     @Transactional
+    @CheckPermission(resource = "reservation", action = "CREATE", scope = "INDIVIDUAL")
     public ReservationRes updateReservationStatus(UUID id, ReservationUpdateStatusReq req) {
         Reservation reservation = reservationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("예약을 찾을 수 없습니다."));

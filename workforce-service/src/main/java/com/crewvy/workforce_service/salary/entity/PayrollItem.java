@@ -48,13 +48,13 @@ public class PayrollItem extends BaseEntity {
 
     private String description;
 
-    @PrePersist // 엔티티가 처음 저장될 때
-    @PreUpdate  // 엔티티가 업데이트될 때
-    public void validate() {
-        if (this.companyId == null && this.calculationCode == null) {
-            throw new IllegalStateException("companyId와 calculationCode 중 하나는 반드시 값이 있어야 합니다.");
-        }
-    }
+//    @PrePersist // 엔티티가 처음 저장될 때
+//    @PreUpdate  // 엔티티가 업데이트될 때
+//    public void validate() {
+//        if (this.companyId == null && this.calculationCode == null) {
+//            throw new IllegalStateException("companyId와 calculationCode 중 하나는 반드시 값이 있어야 합니다.");
+//        }
+//    }
 
     public void updateItem(SalaryType salaryType, String name, Bool isActive, String description) {
         this.salaryType = salaryType;

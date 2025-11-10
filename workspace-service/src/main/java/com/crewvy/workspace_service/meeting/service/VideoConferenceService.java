@@ -4,6 +4,16 @@ import com.crewvy.common.aes.AESUtil;
 import com.crewvy.common.dto.NotificationMessage;
 import com.crewvy.common.dto.ScheduleDeleteDto;
 import com.crewvy.common.dto.ScheduleDto;
+import com.crewvy.workspace_service.meeting.dto.*;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.crewvy.common.entity.Bool;
 import com.crewvy.common.event.MinuteSavedEvent;
 import com.crewvy.common.exception.*;
@@ -12,7 +22,6 @@ import com.crewvy.workspace_service.feignClient.dto.IdListReq;
 import com.crewvy.workspace_service.feignClient.dto.MemberNameListRes;
 import com.crewvy.workspace_service.meeting.constant.MinuteStatus;
 import com.crewvy.workspace_service.meeting.constant.VideoConferenceStatus;
-import com.crewvy.workspace_service.meeting.dto.*;
 import com.crewvy.workspace_service.meeting.dto.ai.TranscribeRes;
 import com.crewvy.workspace_service.meeting.entity.*;
 import com.crewvy.workspace_service.meeting.repository.MessageRepository;
@@ -27,15 +36,7 @@ import livekit.LivekitEgress;
 import livekit.LivekitModels.DataPacket.Kind;
 import livekit.LivekitModels.ParticipantInfo;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.support.Acknowledgment;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import retrofit2.Call;
@@ -126,7 +127,7 @@ public class VideoConferenceService {
         for(VideoConferenceInvitee invitee : videoConference.getVideoConferenceInviteeSet()) {
             ScheduleDto schedule = ScheduleDto.builder()
                     .memberId(invitee.getMemberId())
-                    .originId(invitee.getId())
+                    .originId(videoConference.getId())
                     .title(videoConference.getName())
                     .contents(videoConference.getDescription())
                     .startDate(videoConference.getScheduledStartTime())
@@ -322,11 +323,64 @@ public class VideoConferenceService {
         if (videoConferenceUpdateReq.getIsRecording() != null)
             videoConference.updateIsRecording(Bool.fromBoolean(videoConferenceUpdateReq.getIsRecording()));
 
-        if (videoConferenceUpdateReq.getScheduledStartTime() != null)
+        if (videoConferenceUpdateReq.getScheduledStartTime() != null && !videoConferenceUpdateReq.getScheduledStartTime().isEqual(videoConference.getScheduledStartTime())) {
             videoConference.updateScheduledStartTime(videoConferenceUpdateReq.getScheduledStartTime());
 
+            videoConferenceUpdateReq.getInviteeIdList().add(memberId);
+            // 여전히 초대자 목록에 포함되어 있는 유저들에게 회의 예정 시간 변경 알림
+            videoConferenceUpdateReq.getInviteeIdList().forEach(inviteeId -> {
+                ScheduleDto schedule = ScheduleDto.builder()
+                        .memberId(inviteeId)
+                        .originId(videoConference.getId())
+                        .title(videoConference.getName())
+                        .contents(videoConference.getDescription())
+                        .startDate(videoConference.getScheduledStartTime())
+                        .type("CT001")
+                        .build();
+
+                eventPublisher.publishEvent(schedule);
+
+                if (inviteeId.equals(memberId)) return;
+
+                if (videoConference.getVideoConferenceInviteeSet().stream().anyMatch(invitee -> inviteeId.equals(invitee.getMemberId()))) {
+                    NotificationMessage message = NotificationMessage.builder()
+                            .memberId(inviteeId)
+                            .targetId(videoConference.getId())
+                            .notificationType("NT000")
+                            .content("화상회의 : " + videoConference.getName() + "의 예정 시간이 " + videoConference.getScheduledStartTime() + "으로 변경되었습니다.")
+                            .build();
+
+                    eventPublisher.publishEvent(message);
+                }
+            });
+        }
+
+        // 새로 추가된 유저들에게 초대 알림
+        videoConferenceUpdateReq.getInviteeIdList().stream().distinct().forEach(inviteeId -> {
+            if (videoConference.getVideoConferenceInviteeSet().stream().noneMatch(invitee -> inviteeId.equals(invitee.getMemberId()))) {
+                NotificationMessage message = NotificationMessage.builder()
+                        .memberId(inviteeId)
+                        .targetId(videoConference.getId())
+                        .notificationType("NT001")
+                        .content("화상회의 : " + videoConference.getName() + "에 초대되었습니다.")
+                        .build();
+
+                eventPublisher.publishEvent(message);
+
+                ScheduleDto schedule = ScheduleDto.builder()
+                        .memberId(inviteeId)
+                        .originId(videoConference.getId())
+                        .title(videoConference.getName())
+                        .contents(videoConference.getDescription())
+                        .startDate(videoConference.getScheduledStartTime())
+                        .type("CT001")
+                        .build();
+
+                eventPublisher.publishEvent(schedule);
+            }
+        });
+
         videoConference.getVideoConferenceInviteeSet().clear();
-        videoConferenceUpdateReq.getInviteeIdList().add(memberId);
         addInvitee(videoConference, videoConferenceUpdateReq.getInviteeIdList());
 
         return VideoConferenceUpdateRes.fromEntity(videoConference);
@@ -344,13 +398,12 @@ public class VideoConferenceService {
         // TODO : soft-delete?
         videoConferenceRepository.delete(videoConference);
 
-        for(VideoConferenceInvitee invitee : videoConference.getVideoConferenceInviteeSet()) {
-            ScheduleDeleteDto scheduleDelete = ScheduleDeleteDto.builder()
-                    .originId(invitee.getId())
-                    .build();
 
-            eventPublisher.publishEvent(scheduleDelete);
-        }
+        ScheduleDeleteDto scheduleDelete = ScheduleDeleteDto.builder()
+                .originId(videoConference.getId())
+                .build();
+
+        eventPublisher.publishEvent(scheduleDelete);
     }
 
     public MinuteRes findMinute(UUID videoConferenceId) {
