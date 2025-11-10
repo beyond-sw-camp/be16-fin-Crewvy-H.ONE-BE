@@ -132,10 +132,11 @@ public class CalendarService {
 
 //    개인 일정 외 일정 저장 및 수정
     public void saveSchedule(ScheduleDto dto) {
-        Optional<Calendar> optionalCalendar = calendarRepository.findByOriginId(dto.getOriginId());
+        Optional<Calendar> optionalCalendar = calendarRepository.findByOriginIdAndMemberId(dto.getOriginId(), dto.getMemberId());
 
         if (optionalCalendar.isPresent()) {
             // [수정 로직] 이미 존재하면, 기존 일정을 업데이트
+
             Calendar calendar = optionalCalendar.get();
             calendar.updateSchedule(dto.getTitle(), dto.getContents(), dto.getStartDate(), dto.getEndDate());
 
@@ -160,7 +161,9 @@ public class CalendarService {
 
 //    개인 일정 외 일정 삭제
     public void deleteSchedule(ScheduleDeleteDto dto) {
-        Calendar calendar = calendarRepository.findByOriginId(dto.getOriginId()).orElseThrow(() -> new EntityNotFoundException(""));
-        calendar.deleteSchedule();
+        List<Calendar> calendarList = calendarRepository.findByOriginId(dto.getOriginId());
+        for(Calendar c : calendarList) {
+            c.deleteSchedule();
+        }
     }
 }

@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.performance.batch;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersBuilder;
@@ -35,6 +36,11 @@ public class BatchScheduler {
      */
     @Scheduled(cron = "0 10 1 * * *")
     @Async // (권장) 스케줄러 스레드가 아닌 별도 스레드에서 배치를 비동기로 실행
+    @SchedulerLock(
+            name = "runAllExpiredStatusUpdateJobs", // ★ 중요: 작업별로 고유한 이름 지정
+            lockAtMostFor = "PT10M",  // 작업이 10분 이상 걸리면 강제 잠금 해제
+            lockAtLeastFor = "PT30S"  // 작업이 빨리 끝나도 최소 30초간 잠금 유지
+    )
     public void runAllExpiredStatusUpdateJobs() {
         log.info("스케줄러 실행: 마감된 목표 상태 변경 배치 시작");
 

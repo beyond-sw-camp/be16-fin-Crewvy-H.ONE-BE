@@ -4,7 +4,8 @@ name: CI/CD for AI Service
 # 워크플로우가 트리거될 이벤트를 정의합니다.
 on:
   push:
-    branches: [ "qwer" ]
+    branches:
+      - main
     paths:
       - 'ai-service/**' # ai-service 디렉터리에 변경이 있을 때
 
@@ -47,7 +48,7 @@ jobs:
       # 6. Docker 이미지 빌드 및 ECR에 푸시
       - name: Build, tag, and push image to Amazon ECR
         env:
-          ECR_REGISTRY: 565393066924.dkr.ecr.ap-northeast-2.amazonaws.com
+          ECR_REGISTRY: 346903264902.dkr.ecr.ap-northeast-2.amazonaws.com
           ECR_REPOSITORY: hone-namespace/ai-service
           IMAGE_TAG_SHA: ${{ github.sha }}
         run: |
