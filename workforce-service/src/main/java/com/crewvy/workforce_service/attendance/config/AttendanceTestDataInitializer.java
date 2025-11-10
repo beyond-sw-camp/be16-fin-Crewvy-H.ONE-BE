@@ -7,7 +7,9 @@ import com.crewvy.workforce_service.attendance.repository.*;
 import com.crewvy.workforce_service.approval.constant.ApprovalState;
 import com.crewvy.workforce_service.approval.constant.LineStatus;
 import com.crewvy.workforce_service.approval.entity.Approval;
+import com.crewvy.workforce_service.approval.entity.ApprovalDocument;
 import com.crewvy.workforce_service.approval.entity.ApprovalLine;
+import com.crewvy.workforce_service.approval.repository.ApprovalDocumentRepository;
 import com.crewvy.workforce_service.approval.repository.ApprovalLineRepository;
 import com.crewvy.workforce_service.approval.repository.ApprovalRepository;
 import com.crewvy.workforce_service.feignClient.MemberClient;
@@ -29,10 +31,10 @@ import java.util.*;
  *
  * ✅ 생성 데이터:
  * - 직원 정보: member-service에서 동적 조회 (FeignClient)
- * - 근태 정책: 연차, 기본근무, 출장, 연장근무 등
+ * - 근태 정책: 연차, 기본근무, 출장, 연장근무, 야간근무, 휴일근무 등
  * - 정책 할당 → 자동 연차 부여 트리거
- * - 근태 기록: 최근 4~6개월, 출근율 85~95%
- * - 연차 요청: APPROVED/PENDING 상태
+ * - 근태 기록: 최근 3개월, 출근율 85~95%
+ * - 다양한 신청: 연차/출장/연장근무/야간근무/휴일근무 (APPROVED/PENDING/REJECTED 상태)
  *
  * ✅ 테스트 시나리오:
  * - 1년 미만 직원 2명: 월별 연차 발생 배치 테스트
@@ -54,6 +56,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     private final RequestRepository requestRepository;
     private final MemberBalanceRepository memberBalanceRepository;
     private final ApprovalRepository approvalRepository;
+    private final ApprovalDocumentRepository approvalDocumentRepository;
     private final ApprovalLineRepository approvalLineRepository;
     private final MemberClient memberClient;
 
@@ -75,6 +78,8 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     private Policy annualLeavePolicy;
     private Policy basicWorkPolicy;
     private Policy overtimePolicy;
+    private Policy nightWorkPolicy;
+    private Policy holidayWorkPolicy;
     private Policy businessTripPolicy;
     private Policy maternityLeavePolicy;
     private Policy paternityLeavePolicy;
@@ -111,7 +116,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                 return;
             }
 
-            log.info("📅 데이터 범위: {} ~ {} (최대 3년)", LocalDate.now().minusYears(3), LocalDate.now());
+            log.info("📅 데이터 범위: {} ~ {} (최대 3개월)", LocalDate.now().minusMonths(3), LocalDate.now());
             log.info("");
 
             logEmployeesSummary(employees);
@@ -129,12 +134,16 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
             assignPoliciesToCompany();
 
             // 5단계: 근태 기록 생성
-            log.info("📋 [5/6] 근태 기록 생성 중 (최대 3년치)...");
+            log.info("📋 [5/6] 근태 기록 생성 중 (최대 3개월치)...");
             createAttendanceRecords(employees);
 
             // 6단계: 휴가 신청 및 결재 연동 데이터 생성
             log.info("📋 [6/6] 휴가 신청 및 결재 데이터 생성 중 (Request-Approval 완전 연동)...");
             createLeaveRequests(employees);
+
+            // 7단계: 추가근무 신청 및 DailyAttendance 연동 데이터 생성
+            log.info("📋 [7/7] 추가근무 신청 데이터 생성 중 (연장/야간/휴일근무, 출장)...");
+            createExtraWorkRequests(employees);
 
             log.info("");
             log.info("========================================");
@@ -337,19 +346,27 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         overtimePolicy = createOvertimePolicy();
         log.info("   ✓ 연장근무 정책 생성: {}", overtimePolicy.getName());
 
-        // 4. 출장 정책
+        // 4. 야간근무 정책
+        nightWorkPolicy = createNightWorkPolicy();
+        log.info("   ✓ 야간근무 정책 생성: {}", nightWorkPolicy.getName());
+
+        // 5. 휴일근무 정책
+        holidayWorkPolicy = createHolidayWorkPolicy();
+        log.info("   ✓ 휴일근무 정책 생성: {}", holidayWorkPolicy.getName());
+
+        // 6. 출장 정책
         businessTripPolicy = createBusinessTripPolicy();
         log.info("   ✓ 출장 정책 생성: {}", businessTripPolicy.getName());
 
-        // 5. 출산전후휴가 정책
+        // 7. 출산전후휴가 정책
         maternityLeavePolicy = createMaternityLeavePolicy();
         log.info("   ✓ 출산전후휴가 정책 생성: {}", maternityLeavePolicy.getName());
 
-        // 6. 배우자출산휴가 정책
+        // 8. 배우자출산휴가 정책
         paternityLeavePolicy = createPaternityLeavePolicy();
         log.info("   ✓ 배우자출산휴가 정책 생성: {}", paternityLeavePolicy.getName());
 
-        // 7. 생리휴가 정책
+        // 9. 생리휴가 정책
         menstrualLeavePolicy = createMenstrualLeavePolicy();
         log.info("   ✓ 생리휴가 정책 생성: {}", menstrualLeavePolicy.getName());
 
@@ -503,6 +520,52 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                 .effectiveTo(null)
                 .ruleDetails(ruleDetails)
                 .autoApprove(true)  // 자동 승인
+                .isActive(true)
+                .build();
+
+        return policyRepository.save(policy);
+    }
+
+    /**
+     * 야간근무 정책 생성
+     * - 22시~06시 야간근무 (시간만 기록, 가산율은 급여서비스에서 계산)
+     */
+    private Policy createNightWorkPolicy() {
+        PolicyRuleDetails ruleDetails = new PolicyRuleDetails();
+        // 야간근무는 별도 rule 없이 시간만 기록
+
+        Policy policy = Policy.builder()
+                .companyId(companyId)
+                .policyTypeCode(PolicyTypeCode.NIGHT_WORK)
+                .name("야간근무")
+                .isPaid(true)
+                .effectiveFrom(LocalDate.of(2020, 1, 1))
+                .effectiveTo(null)
+                .ruleDetails(ruleDetails)
+                .autoApprove(true)
+                .isActive(true)
+                .build();
+
+        return policyRepository.save(policy);
+    }
+
+    /**
+     * 휴일근무 정책 생성
+     * - 휴일(주말/공휴일)에 근무 (시간만 기록, 가산율은 급여서비스에서 계산)
+     */
+    private Policy createHolidayWorkPolicy() {
+        PolicyRuleDetails ruleDetails = new PolicyRuleDetails();
+        // 휴일근무는 별도 rule 없이 시간만 기록
+
+        Policy policy = Policy.builder()
+                .companyId(companyId)
+                .policyTypeCode(PolicyTypeCode.HOLIDAY_WORK)
+                .name("휴일근무")
+                .isPaid(true)
+                .effectiveFrom(LocalDate.of(2020, 1, 1))
+                .effectiveTo(null)
+                .ruleDetails(ruleDetails)
+                .autoApprove(true)
                 .isActive(true)
                 .build();
 
@@ -679,8 +742,8 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         for (MemberEmploymentInfoDto member : employees.all) {
             // 각 직원별로 입사일 이후부터 근태 기록 생성
             LocalDate startDate = member.getJoinDate();
-            if (startDate.isBefore(today.minusYears(3))) {
-                startDate = today.minusYears(3);  // 최대 3년 전부터
+            if (startDate.isBefore(today.minusMonths(3))) {
+                startDate = today.minusMonths(3);  // 최대 3개월 전부터
             }
 
             // 1년 미만 직원 여부 확인
@@ -688,6 +751,10 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
 
             int daysCreated = 0;
             int logsCreated = 0;
+
+            // 근태보정 시연용: 각 직원당 최소 1개의 퇴근 누락 보장 (어제 또는 그제)
+            LocalDate forcedIncompleteDate = today.minusDays(random.nextInt(2) + 1); // 어제 또는 그제
+            boolean forcedIncompleteCreated = false;
 
             for (LocalDate date = startDate; date.isBefore(today); date = date.plusDays(1)) {
                 // 주말/공휴일 스킵 (85% 확률로 출근하지 않음)
@@ -706,8 +773,18 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                 }
 
                 if (random.nextDouble() < attendanceProbability) {
-                    // 최근 3일: 30% 확률로 퇴근 미완료 케이스 생성 (근태 보정 배치 테스트용)
-                    boolean skipClockOut = date.isAfter(today.minusDays(4)) && random.nextDouble() < 0.30;
+                    // 퇴근 미완료 케이스 생성 로직
+                    boolean skipClockOut = false;
+
+                    // 1. 강제 퇴근 누락 날짜면 무조건 퇴근 누락 생성
+                    if (date.equals(forcedIncompleteDate) && !isWeekendOrHoliday(date)) {
+                        skipClockOut = true;
+                        forcedIncompleteCreated = true;
+                    }
+                    // 2. 최근 3일: 추가로 30% 확률로 퇴근 미완료 케이스 생성
+                    else if (date.isAfter(today.minusDays(4)) && random.nextDouble() < 0.30) {
+                        skipClockOut = true;
+                    }
 
                     int logs = createDailyAttendanceRecord(member, date, skipClockOut);
                     logsCreated += logs;
@@ -716,6 +793,17 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                     if (skipClockOut) {
                         incompleteClockOuts++;
                     }
+                }
+            }
+
+            // 강제 퇴근 누락이 생성되지 않았으면 어제 날짜로 강제 생성
+            if (!forcedIncompleteCreated) {
+                LocalDate yesterday = today.minusDays(1);
+                if (!isWeekendOrHoliday(yesterday)) {
+                    int logs = createDailyAttendanceRecord(member, yesterday, true);
+                    logsCreated += logs;
+                    daysCreated++;
+                    incompleteClockOuts++;
                 }
             }
 
@@ -899,10 +987,17 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                         .build();
                 balance = memberBalanceRepository.save(updatedBalance);
 
-                // 2. Approval 생성 (시연용: memberPositionId는 companyId 사용)
+                // 2. ApprovalDocument 생성
+                ApprovalDocument document = ApprovalDocument.builder()
+                        .documentName("연차 신청서")
+                        .metadata(Map.of("type", "ANNUAL_LEAVE"))
+                        .build();
+                approvalDocumentRepository.save(document);
+
+                // 3. Approval 생성 (시연용: memberPositionId는 companyId 사용)
                 Approval approval = Approval.builder()
                         .memberPositionId(companyId)
-                        .approvalDocument(null) // 시연용: null
+                        .approvalDocument(document)
                         .title(member.getName() + "님의 연차 신청")
                         .contents(Map.of(
                                 "startDate", leaveDate.toString(),
@@ -919,7 +1014,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                 request.updateApprovalId(approval.getId());
                 requestRepository.save(request);
 
-                // 3. ApprovalLine 생성 (80% 단일 결재자, 20% 2단계 결재)
+                // 4. ApprovalLine 생성 (80% 단일 결재자, 20% 2단계 결재)
                 boolean isSingleApprover = random.nextDouble() < 0.80;
                 UUID approverPositionId = companyId; // 시연용: companyId 사용
 
@@ -980,7 +1075,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
 
                 approvalRepository.save(approval);
 
-                // 4. Request 상태 업데이트 및 후처리
+                // 5. Request 상태 업데이트 및 후처리
                 if (targetStatus == RequestStatus.APPROVED) {
                     request.updateStatus(RequestStatus.APPROVED); // updateStatus가 completedAt도 자동 설정
                     requestRepository.save(request);
@@ -1041,8 +1136,262 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     }
 
     /**
-     * 주말 또는 공휴일 체크
+     * 7단계: 추가근무 신청 생성 (연장/야간/휴일근무, 출장)
+     * - memberBalance 차감 없음
+     * - DailyAttendance에 각 시간 필드 업데이트 (급여 계산용)
      */
+    private void createExtraWorkRequests(TestEmployees employees) {
+        int totalRequests = 0;
+        int overtimeCount = 0;
+        int nightWorkCount = 0;
+        int holidayWorkCount = 0;
+        int tripCount = 0;
+        LocalDate today = LocalDate.now();
+
+        for (MemberEmploymentInfoDto member : employees.all) {
+            // 각 직원별로 5~10개의 추가근무 신청 생성
+            int numRequests = random.nextInt(6) + 5; // 5~10개
+
+            for (int i = 0; i < numRequests; i++) {
+                // 60% 과거(승인), 30% 미래(대기), 10% 과거(반려)
+                double rand = random.nextDouble();
+                int daysOffset;
+                RequestStatus targetStatus;
+
+                if (rand < 0.60) {
+                    daysOffset = -(random.nextInt(60) + 1); // 과거 1~60일
+                    targetStatus = RequestStatus.APPROVED;
+                } else if (rand < 0.90) {
+                    daysOffset = random.nextInt(20) + 1; // 미래 1~20일
+                    targetStatus = RequestStatus.PENDING;
+                } else {
+                    daysOffset = -(random.nextInt(30) + 1); // 과거 1~30일
+                    targetStatus = RequestStatus.REJECTED;
+                }
+
+                LocalDate requestDate = today.plusDays(daysOffset);
+
+                // 신청 유형 랜덤 선택: 연장(30%), 야간(20%), 휴일(20%), 출장(30%)
+                double typeRand = random.nextDouble();
+                Policy targetPolicy;
+                PolicyTypeCode policyType;
+                String requestReason;
+                LocalDateTime startDateTime;
+                LocalDateTime endDateTime;
+                int workMinutes = 0;
+
+                if (typeRand < 0.30) {
+                    // 연장근무: 평일 18:00~21:00 (3시간)
+                    while (isWeekendOrHoliday(requestDate)) {
+                        requestDate = requestDate.plusDays(1);
+                    }
+                    targetPolicy = overtimePolicy;
+                    policyType = PolicyTypeCode.OVERTIME;
+                    requestReason = "프로젝트 마감";
+                    startDateTime = LocalDateTime.of(requestDate, LocalTime.of(18, 0));
+                    endDateTime = LocalDateTime.of(requestDate, LocalTime.of(21, 0));
+                    workMinutes = 180; // 3시간
+                    overtimeCount++;
+
+                } else if (typeRand < 0.50) {
+                    // 야간근무: 평일 22:00~06:00 (8시간)
+                    while (isWeekendOrHoliday(requestDate)) {
+                        requestDate = requestDate.plusDays(1);
+                    }
+                    targetPolicy = nightWorkPolicy;
+                    policyType = PolicyTypeCode.NIGHT_WORK;
+                    requestReason = "야간 시스템 점검";
+                    startDateTime = LocalDateTime.of(requestDate, LocalTime.of(22, 0));
+                    endDateTime = LocalDateTime.of(requestDate.plusDays(1), LocalTime.of(6, 0));
+                    workMinutes = 480; // 8시간
+                    nightWorkCount++;
+
+                } else if (typeRand < 0.70) {
+                    // 휴일근무: 주말 09:00~18:00 (8시간)
+                    while (!isWeekendOrHoliday(requestDate)) {
+                        requestDate = requestDate.plusDays(1);
+                    }
+                    targetPolicy = holidayWorkPolicy;
+                    policyType = PolicyTypeCode.HOLIDAY_WORK;
+                    requestReason = "긴급 업무 처리";
+                    startDateTime = LocalDateTime.of(requestDate, LocalTime.of(9, 0));
+                    endDateTime = LocalDateTime.of(requestDate, LocalTime.of(18, 0));
+                    workMinutes = 480; // 8시간 (점심 1시간 포함 9시간 - 1시간)
+                    holidayWorkCount++;
+
+                } else {
+                    // 출장: 평일 1일
+                    while (isWeekendOrHoliday(requestDate)) {
+                        requestDate = requestDate.plusDays(1);
+                    }
+                    targetPolicy = businessTripPolicy;
+                    policyType = PolicyTypeCode.BUSINESS_TRIP;
+                    requestReason = "거래처 방문";
+                    startDateTime = LocalDateTime.of(requestDate, LocalTime.of(9, 0));
+                    endDateTime = LocalDateTime.of(requestDate, LocalTime.of(18, 0));
+                    workMinutes = 480; // 8시간
+                    tripCount++;
+                }
+
+                // 1. Request 생성
+                Request request = Request.builder()
+                        .memberId(member.getMemberId())
+                        .policy(targetPolicy)
+                        .requestUnit(RequestUnit.TIME_OFF)
+                        .status(RequestStatus.PENDING)
+                        .startDateTime(startDateTime)
+                        .endDateTime(endDateTime)
+                        .reason(requestReason)
+                        .deductionDays(0.0) // 추가근무는 차감 없음
+                        .workLocation(policyType == PolicyTypeCode.BUSINESS_TRIP ? mainOffice.getName() : null)
+                        .completedAt(null)
+                        .build();
+
+                requestRepository.save(request);
+
+                // 2. ApprovalDocument 생성
+                ApprovalDocument document = ApprovalDocument.builder()
+                        .documentName(targetPolicy.getName() + " 신청서")
+                        .metadata(Map.of("type", policyType.name()))
+                        .build();
+                approvalDocumentRepository.save(document);
+
+                // 3. Approval 생성
+                Approval approval = Approval.builder()
+                        .memberPositionId(companyId)
+                        .approvalDocument(document)
+                        .title(member.getName() + "님의 " + targetPolicy.getName() + " 신청")
+                        .contents(Map.of(
+                                "startDateTime", startDateTime.toString(),
+                                "endDateTime", endDateTime.toString(),
+                                "reason", requestReason,
+                                "type", targetPolicy.getName()
+                        ))
+                        .state(ApprovalState.PENDING)
+                        .build();
+
+                approvalRepository.save(approval);
+
+                // Request에 approvalId 연결
+                request.updateApprovalId(approval.getId());
+                requestRepository.save(request);
+
+                // 4. ApprovalLine 생성 (단일 결재자로 간소화)
+                ApprovalLine line = ApprovalLine.builder()
+                        .approval(approval)
+                        .memberPositionId(companyId)
+                        .lineIndex(1)
+                        .lineStatus(targetStatus == RequestStatus.APPROVED ? LineStatus.APPROVED :
+                                   (targetStatus == RequestStatus.REJECTED ? LineStatus.REJECTED : LineStatus.PENDING))
+                        .approvalDate(targetStatus != RequestStatus.PENDING ?
+                                     LocalDateTime.now().minusDays(Math.abs(daysOffset)) : null)
+                        .build();
+                approvalLineRepository.save(line);
+
+                // Approval 상태 업데이트
+                if (targetStatus == RequestStatus.APPROVED) {
+                    approval.updateState(ApprovalState.APPROVED);
+                } else if (targetStatus == RequestStatus.REJECTED) {
+                    approval.updateState(ApprovalState.REJECTED);
+                }
+                approvalRepository.save(approval);
+
+                // 5. Request 상태 업데이트 및 DailyAttendance 생성/업데이트
+                if (targetStatus == RequestStatus.APPROVED) {
+                    request.updateStatus(RequestStatus.APPROVED);
+                    requestRepository.save(request);
+
+                    // DailyAttendance 조회 또는 생성
+                    DailyAttendance dailyAttendance = dailyAttendanceRepository
+                            .findByMemberIdAndAttendanceDate(member.getMemberId(), requestDate)
+                            .orElse(null);
+
+                    if (dailyAttendance == null) {
+                        // 새로 생성
+                        dailyAttendance = DailyAttendance.builder()
+                                .memberId(member.getMemberId())
+                                .companyId(companyId)
+                                .attendanceDate(requestDate)
+                                .status(policyType == PolicyTypeCode.BUSINESS_TRIP ?
+                                       AttendanceStatus.BUSINESS_TRIP : AttendanceStatus.NORMAL_WORK)
+                                .firstClockIn(startDateTime)
+                                .lastClockOut(endDateTime)
+                                .workedMinutes(workMinutes)
+                                .totalBreakMinutes(policyType == PolicyTypeCode.NIGHT_WORK ? 0 : 60)
+                                .overtimeMinutes(policyType == PolicyTypeCode.OVERTIME ? workMinutes : 0)
+                                .daytimeOvertimeMinutes(policyType == PolicyTypeCode.OVERTIME ? workMinutes : 0)
+                                .nightWorkMinutes(policyType == PolicyTypeCode.NIGHT_WORK ? workMinutes : 0)
+                                .holidayWorkMinutes(policyType == PolicyTypeCode.HOLIDAY_WORK ? workMinutes : 0)
+                                .isLate(false)
+                                .lateMinutes(0)
+                                .isEarlyLeave(false)
+                                .earlyLeaveMinutes(0)
+                                .build();
+                    } else {
+                        // 기존 데이터 업데이트
+                        DailyAttendance.DailyAttendanceBuilder builder = DailyAttendance.builder()
+                                .id(dailyAttendance.getId())
+                                .memberId(dailyAttendance.getMemberId())
+                                .companyId(dailyAttendance.getCompanyId())
+                                .attendanceDate(dailyAttendance.getAttendanceDate())
+                                .status(policyType == PolicyTypeCode.BUSINESS_TRIP ?
+                                       AttendanceStatus.BUSINESS_TRIP : dailyAttendance.getStatus())
+                                .firstClockIn(dailyAttendance.getFirstClockIn())
+                                .lastClockOut(dailyAttendance.getLastClockOut())
+                                .workedMinutes(dailyAttendance.getWorkedMinutes() + workMinutes)
+                                .totalBreakMinutes(dailyAttendance.getTotalBreakMinutes())
+                                .isLate(dailyAttendance.getIsLate())
+                                .lateMinutes(dailyAttendance.getLateMinutes())
+                                .isEarlyLeave(dailyAttendance.getIsEarlyLeave())
+                                .earlyLeaveMinutes(dailyAttendance.getEarlyLeaveMinutes());
+
+                        // 각 유형별 시간 누적
+                        if (policyType == PolicyTypeCode.OVERTIME) {
+                            builder.overtimeMinutes((dailyAttendance.getOvertimeMinutes() != null ?
+                                                   dailyAttendance.getOvertimeMinutes() : 0) + workMinutes);
+                            builder.daytimeOvertimeMinutes((dailyAttendance.getDaytimeOvertimeMinutes() != null ?
+                                                          dailyAttendance.getDaytimeOvertimeMinutes() : 0) + workMinutes);
+                        } else {
+                            builder.overtimeMinutes(dailyAttendance.getOvertimeMinutes());
+                            builder.daytimeOvertimeMinutes(dailyAttendance.getDaytimeOvertimeMinutes());
+                        }
+
+                        if (policyType == PolicyTypeCode.NIGHT_WORK) {
+                            builder.nightWorkMinutes((dailyAttendance.getNightWorkMinutes() != null ?
+                                                    dailyAttendance.getNightWorkMinutes() : 0) + workMinutes);
+                        } else {
+                            builder.nightWorkMinutes(dailyAttendance.getNightWorkMinutes());
+                        }
+
+                        if (policyType == PolicyTypeCode.HOLIDAY_WORK) {
+                            builder.holidayWorkMinutes((dailyAttendance.getHolidayWorkMinutes() != null ?
+                                                      dailyAttendance.getHolidayWorkMinutes() : 0) + workMinutes);
+                        } else {
+                            builder.holidayWorkMinutes(dailyAttendance.getHolidayWorkMinutes());
+                        }
+
+                        dailyAttendance = builder.build();
+                    }
+
+                    dailyAttendanceRepository.save(dailyAttendance);
+
+                } else if (targetStatus == RequestStatus.REJECTED) {
+                    request.updateStatus(RequestStatus.REJECTED);
+                    requestRepository.save(request);
+                } else {
+                    // PENDING 상태 유지
+                }
+
+                totalRequests++;
+            }
+        }
+
+        log.info("   ✓ 추가근무 신청 생성 완료:");
+        log.info("      - 총 {}건 (연장: {}, 야간: {}, 휴일: {}, 출장: {})",
+                totalRequests, overtimeCount, nightWorkCount, holidayWorkCount, tripCount);
+        log.info("");
+    }
+
     private boolean isWeekendOrHoliday(LocalDate date) {
         return date.getDayOfWeek() == java.time.DayOfWeek.SATURDAY ||
                 date.getDayOfWeek() == java.time.DayOfWeek.SUNDAY;

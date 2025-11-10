@@ -49,6 +49,7 @@ public class RequestService {
     private final PolicyAssignmentService policyAssignmentService;
     private final com.crewvy.workforce_service.approval.repository.ApprovalDocumentRepository approvalDocumentRepository;
     private final CompanyHolidayRepository companyHolidayRepository;
+    private final com.crewvy.workforce_service.salary.repository.HolidayRepository holidayRepository;
 
     /**
      * 휴가 신청 생성
@@ -444,7 +445,39 @@ public class RequestService {
             requestedDays = (createDto.getRequestUnit() == RequestUnit.DAY) ? (ChronoUnit.DAYS.between(requestStartDate, requestEndDate) + 1) : 0.5;
         }
 
-        // 2. [신규] 허용된 신청 단위 검증 (allowedRequestUnits)
+        // 2. [신규] 공휴일 신청 제한 검증 (휴일근무 외 다른 신청은 공휴일에 불가)
+        PolicyTypeCode policyTypeCode = policy.getPolicyTypeCode();
+        boolean isWorkRelatedRequest = (policyTypeCode == PolicyTypeCode.HOLIDAY_WORK
+                                        || policyTypeCode == PolicyTypeCode.OVERTIME
+                                        || policyTypeCode == PolicyTypeCode.NIGHT_WORK);
+
+        if (!isWorkRelatedRequest) {
+            // 반차/시차는 해당 날짜가 비근무일이면 신청 불가
+            if (createDto.getRequestUnit() == RequestUnit.HALF_DAY_AM
+                || createDto.getRequestUnit() == RequestUnit.HALF_DAY_PM
+                || createDto.getRequestUnit() == RequestUnit.TIME_OFF) {
+
+                LocalDate targetDate = (createDto.getRequestUnit() == RequestUnit.TIME_OFF)
+                    ? createDto.getStartDateTime().toLocalDate()
+                    : createDto.getStartAt();
+
+                if (isNonWorkingDay(targetDate, companyId)) {
+                    String dayType = isWeekend(targetDate) ? "주말" : "공휴일";
+                    throw new BusinessException(String.format("%s(%s)에는 휴가를 신청할 수 없습니다.",
+                        dayType, targetDate.toString()));
+                }
+            }
+            // 종일 휴가는 기간 내 모든 날짜가 비근무일이면 신청 불가
+            else if (createDto.getRequestUnit() == RequestUnit.DAY) {
+                long workingDays = calculateWorkingDays(requestStartDate, requestEndDate, companyId);
+                if (workingDays == 0) {
+                    throw new BusinessException(String.format("선택한 기간(%s ~ %s)은 모두 비근무일(주말/공휴일)입니다. 휴가를 신청할 수 없습니다.",
+                        requestStartDate.toString(), requestEndDate.toString()));
+                }
+            }
+        }
+
+        // 3. [신규] 허용된 신청 단위 검증 (allowedRequestUnits)
         if (leaveRule.getAllowedRequestUnits() != null && !leaveRule.getAllowedRequestUnits().isEmpty()) {
             boolean isAllowed = leaveRule.getAllowedRequestUnits().stream()
                     .anyMatch(unit -> unit.equals(createDto.getRequestUnit().name()));
@@ -1160,7 +1193,16 @@ public class RequestService {
      */
     private void validateWeeklyOvertimeLimit(UUID memberId, LocalDateTime requestStartTime, LocalDateTime requestEndTime) {
         // 1. 신청하려는 연장근무 시간 계산 (분 단위)
-        long requestMinutes = java.time.Duration.between(requestStartTime, requestEndTime).toMinutes();
+        LocalDate startDate = requestStartTime.toLocalDate();
+        LocalDate endDate = requestEndTime.toLocalDate();
+        long daysBetween = ChronoUnit.DAYS.between(startDate, endDate) + 1; // 시작일 포함
+
+        long totalDurationMinutes = java.time.Duration.between(requestStartTime, requestEndTime).toMinutes();
+        // 여러 날에 걸친 경우: 날짜당 평균 연장시간 계산 후 주간에 해당하는 날짜만 합산
+        long dailyOvertimeMinutes = daysBetween > 1 ? totalDurationMinutes / daysBetween : totalDurationMinutes;
+
+        log.debug("연장근무 시간 계산: 기간={}~{}, 날짜수={}일, 총시간={}분, 1일평균={}분",
+                startDate, endDate, daysBetween, totalDurationMinutes, dailyOvertimeMinutes);
 
         // 2. 이번 주 범위 계산 (월요일 00:00 ~ 일요일 23:59:59)
         LocalDate requestDate = requestStartTime.toLocalDate();
@@ -1183,12 +1225,36 @@ public class RequestService {
                 overtimeTypes
         );
 
-        // 4. 기존 연장근무 총 시간 계산
+        // 4. 기존 연장근무 총 시간 계산 (날짜 수 고려)
         long totalExistingMinutes = existingRequests.stream()
-                .mapToLong(r -> java.time.Duration.between(r.getStartDateTime(), r.getEndDateTime()).toMinutes())
+                .mapToLong(r -> {
+                    LocalDate rStartDate = r.getStartDateTime().toLocalDate();
+                    LocalDate rEndDate = r.getEndDateTime().toLocalDate();
+                    long rDays = ChronoUnit.DAYS.between(rStartDate, rEndDate) + 1;
+                    long rTotalMinutes = java.time.Duration.between(r.getStartDateTime(), r.getEndDateTime()).toMinutes();
+                    // 여러 날에 걸친 경우 1일 평균 계산
+                    long rDailyMinutes = rDays > 1 ? rTotalMinutes / rDays : rTotalMinutes;
+
+                    // 주간 범위 내에 있는 날짜만 카운트
+                    long daysInWeek = 0;
+                    for (LocalDate d = rStartDate; !d.isAfter(rEndDate); d = d.plusDays(1)) {
+                        if (!d.isBefore(weekStart) && !d.isAfter(weekEnd)) {
+                            daysInWeek++;
+                        }
+                    }
+                    return rDailyMinutes * daysInWeek;
+                })
                 .sum();
 
-        // 5. 신청하려는 시간 + 기존 시간이 720분(12시간)을 초과하는지 확인
+        // 5. 신청하려는 시간 계산 (주간 범위 내 날짜만)
+        long requestMinutes = 0;
+        for (LocalDate d = startDate; !d.isAfter(endDate); d = d.plusDays(1)) {
+            if (!d.isBefore(weekStart) && !d.isAfter(weekEnd)) {
+                requestMinutes += dailyOvertimeMinutes;
+            }
+        }
+
+        // 6. 신청하려는 시간 + 기존 시간이 720분(12시간)을 초과하는지 확인
         long totalMinutes = totalExistingMinutes + requestMinutes;
         final int WEEKLY_OVERTIME_LIMIT_MINUTES = 720; // 근로기준법 제53조: 주 12시간
 
@@ -1206,8 +1272,8 @@ public class RequestService {
             );
         }
 
-        log.info("주간 연장근무 한도 검증 통과: memberId={}, 기존={}분, 신청={}분, 총={}분 (한도: 720분)",
-                memberId, totalExistingMinutes, requestMinutes, totalMinutes);
+        log.info("주간 연장근무 한도 검증 통과: memberId={}, 기간={}~{} ({}일), 1일평균={}분, 주간신청={}분, 기존={}분, 총={}분 (한도: 720분)",
+                memberId, startDate, endDate, daysBetween, dailyOvertimeMinutes, requestMinutes, totalExistingMinutes, totalMinutes);
     }
 
     /**
@@ -1425,12 +1491,17 @@ public class RequestService {
      * @return 비근무일이면 true
      */
     private boolean isNonWorkingDay(LocalDate date, UUID companyId) {
-        // 주말 체크
+        // 1. 주말 체크
         if (isWeekend(date)) {
             return true;
         }
-        // 공휴일 체크
-        return companyHolidayRepository.existsByCompanyIdAndHolidayDate(companyId, date);
+        // 2. 법정 공휴일 체크 (Holidays 테이블)
+        if (holidayRepository.existsBySolarDate(date)) {
+            return true;
+        }
+        // 3. 회사 지정 휴일 체크 (CompanyHoliday 테이블) - 추후 확장용
+        // return companyHolidayRepository.existsByCompanyIdAndHolidayDate(companyId, date);
+        return false;
     }
 
     /**

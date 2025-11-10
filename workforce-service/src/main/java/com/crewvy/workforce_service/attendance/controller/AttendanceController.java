@@ -3,11 +3,7 @@ package com.crewvy.workforce_service.attendance.controller;
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.attendance.dto.request.EventRequest;
 import com.crewvy.workforce_service.attendance.dto.request.UpdateMemberBalanceRequest;
-import com.crewvy.workforce_service.attendance.dto.response.AssignedPolicyRes;
-import com.crewvy.workforce_service.attendance.dto.response.MemberBalanceSummaryRes;
-import com.crewvy.workforce_service.attendance.dto.response.MyBalanceRes;
-import com.crewvy.workforce_service.attendance.dto.response.TeamMemberAttendanceRes;
-import com.crewvy.workforce_service.attendance.dto.response.TodayAttendanceStatusResponse;
+import com.crewvy.workforce_service.attendance.dto.response.*;
 import com.crewvy.workforce_service.attendance.entity.DailyAttendance;
 import com.crewvy.workforce_service.attendance.entity.MemberBalance;
 import com.crewvy.workforce_service.attendance.service.AttendanceService;
@@ -208,6 +204,21 @@ public class AttendanceController {
 
         attendanceService.updateDailyAttendance(dailyAttendanceId, memberPositionId, request);
         return new ResponseEntity<>(ApiResponse.success(null, "근태 기록이 수정되었습니다."), HttpStatus.OK);
+    }
+
+    /**
+     * 공휴일 조회 (프론트엔드 캘린더용)
+     */
+    @GetMapping("/holidays")
+    public ResponseEntity<ApiResponse<List<HolidayRes>>> getHolidays(
+            @RequestHeader("X-User-CompanyId") UUID companyId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+
+        List<HolidayRes> holidays =
+                attendanceService.getHolidays(startDate, endDate, companyId);
+
+        return new ResponseEntity<>(ApiResponse.success(holidays, "공휴일 조회 완료"), HttpStatus.OK);
     }
 
 }
