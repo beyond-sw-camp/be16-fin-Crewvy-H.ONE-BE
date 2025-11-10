@@ -6,6 +6,7 @@ import com.crewvy.workforce_service.approval.entity.ApprovalSearchOutboxEvent;
 import com.crewvy.workforce_service.approval.repository.ApprovalSearchOutboxEventRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Pageable;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -34,6 +35,11 @@ public class ApprovalSearchOutboxRelayScheduler {
 
     @Scheduled(fixedDelay = 5000)
     @Transactional
+    @SchedulerLock(
+            name = "relaySearchApprovalOutboxEvents", // ★ 중요: 작업별로 고유한 이름 지정
+            lockAtMostFor = "PT10M",  // 작업이 10분 이상 걸리면 강제 잠금 해제
+            lockAtLeastFor = "PT30S"  // 작업이 빨리 끝나도 최소 30초간 잠금 유지
+    )
     public void relaySearchOutboxEvents() {
         List<ApprovalSearchOutboxEvent> events = approvalSearchOutboxEventRepository.findAllByProcessed(Bool.FALSE, Pageable.ofSize(100));
 

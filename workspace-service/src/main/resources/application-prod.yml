@@ -55,7 +55,7 @@ feign:
       url: http://member-service
 
 livekit:
-  host: https://openvidu.crewvy.cloud:7880/
+  host: https://openvidu.crewvy.cloud/
   apiKey: ${APIKEY}
   apiSecret: ${LIVE_API_SECRET}
 

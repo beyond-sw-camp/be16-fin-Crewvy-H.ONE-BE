@@ -31,5 +31,7 @@ public interface CalendarRepository extends JpaRepository<Calendar, UUID> {
             @Param("periodEnd") LocalDateTime periodEnd
     );
 
-    Optional<Calendar> findByOriginId(UUID originId);
+    List<Calendar> findByOriginId(UUID originId);
+
+    Optional<Calendar> findByOriginIdAndMemberId(UUID originId, UUID memberId);
 }

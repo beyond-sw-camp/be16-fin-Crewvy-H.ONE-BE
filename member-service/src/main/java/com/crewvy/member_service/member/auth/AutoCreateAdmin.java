@@ -245,8 +245,23 @@ public class AutoCreateAdmin implements ApplicationRunner {
 
         Grade employeeGrade = gradeRepository.save(Grade.builder().name("사원").company(company).build());
 
-        // 일반 직원 10명 생성 및 배정
-        List<String> names = Arrays.asList("김민준", "이서준", "박도윤", "최시우", "정하준", "강지호", "윤은우", "임선우", "한유찬", "오이안");
+        // 일반 직원 10명 생성 및 배정 (연차 테스트용 다양한 입사일 설정)
+        List<String> names = Arrays.asList("김신규", "박월급", "이반월", "정삼년", "최오년", "황칠년", "문휴가", "서퇴근", "한유찬", "오이안");
+        // 입사일 시나리오: 2개월, 9개월, 9개월, 3년, 5년, 7년, 2년, 20개월, 8개월, 7개월
+        // 1년 미만 직원들은 전월(10월) 근태 기록을 갖도록 2025년 2~9월 입사로 설정
+        List<LocalDate> joinDates = Arrays.asList(
+                LocalDate.of(2025, 9, 15),         // 김신규: 9월 입사 (2개월 전) - 신규 입사자, 10월 근태 O
+                LocalDate.of(2025, 2, 7),          // 박월급: 2월 입사 (9개월 전) - 월별 발생 정상, 10월 근태 O
+                LocalDate.of(2025, 2, 7),          // 이반월: 2월 입사 (9개월 전) - 출근율 테스트용, 10월 근태 O
+                LocalDate.now().minusYears(3),     // 정삼년: 3년차 - 가산 1일
+                LocalDate.now().minusYears(5),     // 최오년: 5년차 - 가산 3일
+                LocalDate.now().minusYears(7),     // 황칠년: 7년차 - 가산 6일
+                LocalDate.now().minusYears(2),     // 문휴가: 2년차 - 분할연차 테스트
+                LocalDate.now().minusMonths(20),   // 서퇴근: 1년 10개월 - 반차/사후신청 테스트
+                LocalDate.of(2025, 3, 10),         // 한유찬: 3월 입사 (8개월 전) - 10월 근태 O
+                LocalDate.of(2025, 4, 20)          // 오이안: 4월 입사 (7개월 전) - 10월 근태 O
+        );
+
         for (int i = 0; i < names.size(); i++) {
             UUID teamId = (i < 5) ? hrTeamId : devTeamId;
             String sabun = String.format("2025%04d", i + 1);
@@ -263,7 +278,7 @@ public class AutoCreateAdmin implements ApplicationRunner {
                     .employmentType(EmploymentType.FULL.getCodeValue())
                     .sabun(sabun)
                     .phoneNumber(phoneNumber)
-                    .joinDate(LocalDate.now())
+                    .joinDate(joinDates.get(i))
                     .address("서울시 강남구 테헤란로 " + (100 + i) + "번길")
                     .bank("국민은행")
                     .bankAccount("123456-78-" + String.format("%05d", i + 1))

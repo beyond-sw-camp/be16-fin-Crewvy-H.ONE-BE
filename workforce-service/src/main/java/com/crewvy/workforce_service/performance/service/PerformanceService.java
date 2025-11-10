@@ -572,8 +572,7 @@ public class PerformanceService {
     public Page<TeamGoalResponseDto> findMyTeamGoalsToEvaluate(UUID memberPositionId, Pageable pageable) {
 
         // 1. (수정) Repository 메서드에 pageable 전달, Page<TeamGoal> 반환
-        //    (findAllByMemberPositionIdAndStatus2 -> findAllByMemberPositionIdAndStatus 로 변경 가정)
-        Page<TeamGoal> teamGoalPage = teamGoalRepository.findAllByMemberPositionIdAndStatus(
+        Page<TeamGoal> teamGoalPage = teamGoalRepository.findAllByMemberPositionIdAndStatus2(
                 memberPositionId, // 생성자(관리자) ID 기준
                 TeamGoalStatus.AWAITING_EVALUATION,
                 pageable // pageable 전달
@@ -649,7 +648,6 @@ public class PerformanceService {
     public Page<TeamGoalResponseDto> findMyTeamGoalsComplete(UUID memberPositionId, Pageable pageable) {
 
         // 1. (수정) Repository 메서드에 pageable 전달, Page<TeamGoal> 반환
-        //    (findAllByMemberPositionIdAndStatus2 -> findAllByMemberPositionIdAndStatus 로 변경 가정)
         Page<TeamGoal> teamGoalPage = teamGoalRepository.findAllByMemberPositionIdAndStatus2(
                 memberPositionId, // 생성자(관리자) ID 기준
                 TeamGoalStatus.EVALUATION_COMPLETED, // 평가 완료 상태
@@ -727,7 +725,7 @@ public class PerformanceService {
                         memberPositionId,
                         GoalStatus.AWAITING_EVALUATION
         );
-        int teamGoalCount = teamGoalRepository.countByMemberPositionIdAndStatus(
+        int teamGoalCount = teamGoalRepository.countByMemberPositionIdAndStatus2(
                         memberPositionId,
                         TeamGoalStatus.AWAITING_EVALUATION
         );

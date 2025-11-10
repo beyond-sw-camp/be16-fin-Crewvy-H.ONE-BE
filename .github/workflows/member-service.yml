@@ -43,7 +43,7 @@ jobs:
       # 5. Docker 이미지 빌드 및 ECR에 푸시
       - name: Build, tag, and push image to Amazon ECR
         env:
-          ECR_REGISTRY: 565393066924.dkr.ecr.ap-northeast-2.amazonaws.com
+          ECR_REGISTRY: 346903264902.dkr.ecr.ap-northeast-2.amazonaws.com
           ECR_REPOSITORY: hone-namespace/member-service # ECR 리포지토리 이름을 지정합니다.
           IMAGE_TAG_SHA: ${{ github.sha }}
         run: |

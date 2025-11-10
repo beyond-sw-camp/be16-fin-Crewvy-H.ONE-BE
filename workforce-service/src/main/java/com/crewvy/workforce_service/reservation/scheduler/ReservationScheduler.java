@@ -5,6 +5,7 @@ import com.crewvy.workforce_service.reservation.entity.Reservation;
 import com.crewvy.workforce_service.reservation.repository.ReservationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -24,6 +25,11 @@ public class ReservationScheduler {
 
     @Transactional
     @Scheduled(cron = "0 0 1 * * *")
+    @SchedulerLock(
+            name = "notificationForReservation", // ★ 중요: 작업별로 고유한 이름 지정
+            lockAtMostFor = "PT10M",  // 작업이 10분 이상 걸리면 강제 잠금 해제
+            lockAtLeastFor = "PT30S"  // 작업이 빨리 끝나도 최소 30초간 잠금 유지
+    )
     public void notificationForReservation() {
         // 예약 당일
         LocalDate today = LocalDate.now();
