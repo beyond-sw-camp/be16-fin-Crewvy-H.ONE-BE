@@ -171,6 +171,12 @@
   <blockquote>
     <div class="content">
       <details>
+        <summary>회원가입</summary>
+        <div>
+           <img src="https://github.com/user-attachments/assets/9884ade7-864e-4119-a3ac-1935d3c03d7c" alt="회원 가입">
+        </div>
+      </details>       
+      <details>
         <summary>직급 관리</summary>
         <div>
            <img src="https://github.com/user-attachments/assets/6bed0509-01da-40ac-b8d9-6e1c51761c08" alt="직급 관리">
@@ -207,9 +213,15 @@
         </div>
       </details>
       <details>
+        <summary>비밀번호 재발급</summary>
+        <div>
+           <img src="https://github.com/user-attachments/assets/87d9c63d-b953-4cad-90f6-b30d84b9b2bd" alt="비밀번호 재발급">
+        </div>
+      </details>       
+      <details>
         <summary>내정보</summary>
         <div>
-           <img src="https://github.com/user-attachme정">
+           <img src="https://github.com/user-attachments/assets/29320b7f-fac3-48ab-aefc-f15d63659c88" alt="내정보">
         </div>
       </details>
     </div>
@@ -481,6 +493,32 @@
       </div>
     </blockquote>
   </details>
+
+  <details>
+    <summary><strong>통합 검색</strong></summary>
+    <blockquote>
+      <div>
+        <details>
+          <summary>직원 찾기(조직도)</summary>
+          <div>
+             <img width="1919" height="909" alt="직원 찾기(조직도)" src="https://github.com/user-attachments/assets/d4ac9630-ef64-4125-9bf6-486851805373" />
+          </div>
+        </details>    
+        <details>
+          <summary>직원 찾기(직원 검색)</summary>
+          <div>
+             <img width="1919" height="908" alt="직원 찾기(직원 검색)" src="https://github.com/user-attachments/assets/034756e6-710c-41e8-83e5-13167c056454" />
+          </div>
+        </details>            
+        <details>
+          <summary>통합 검색</summary>
+          <div>
+             <img width="1919" height="908" alt="통합검색" src="https://github.com/user-attachments/assets/bd6b434c-838c-4312-93d4-3fb2f37e1137" />
+          </div>
+        </details>                 
+      </div>
+    </blockquote>
+  </details>   
 
 ---
 
