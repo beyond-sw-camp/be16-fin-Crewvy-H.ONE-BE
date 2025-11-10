@@ -55,7 +55,7 @@ jobs:
           version: 'v1.28.0'
 
       - name: Update kubeconfig
-        run: aws eks update-kubeconfig --name hone-eks --region ap-northeast-2
+        run: aws eks update-kubeconfig --name hone-cluster --region ap-northeast-2
 
       - name: Deploy to EKS
         env:

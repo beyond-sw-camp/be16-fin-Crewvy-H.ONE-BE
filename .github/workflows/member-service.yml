@@ -66,7 +66,7 @@ jobs:
 
       # 7. Update kubeconfig for EKS
       - name: Update kubeconfig
-        run: aws eks update-kubeconfig --name hone-eks --region ap-northeast-2
+        run: aws eks update-kubeconfig --name hone-cluster --region ap-northeast-2
 
       # 8. Deploy to Amazon EKS
       - name: Deploy to EKS

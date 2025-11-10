@@ -72,7 +72,7 @@ jobs:
       # AWS 자격 증명을 사용하여 EKS 클러스터용 kubeconfig를 동적으로 생성합니다.
       # YOUR_EKS_CLUSTER_NAME 부분은 실제 EKS 클러스터 이름으로 변경해야 합니다.
       - name: Update kubeconfig
-        run: aws eks update-kubeconfig --name hone-eks --region ap-northeast-2
+        run: aws eks update-kubeconfig --name hone-cluster --region ap-northeast-2
 
       # 8. Deploy to Amazon EKS
       - name: Deploy to EKS
