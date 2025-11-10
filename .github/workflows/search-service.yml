@@ -1,0 +1,68 @@
+# 워크플로우의 이름을 지정합니다.
+name: CI/CD for Search Service
+
+# 워크플로우가 트리거될 이벤트를 정의합니다.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'search-service/**' # search-service 디렉터리에 변경이 있을 때
+      - 'common/**'         # common 디렉터리에 변경이 있을 때
+
+jobs:
+  build-and-deploy:
+    name: Build, Push, and Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+        # - name: Set up JDK 17
+        #   uses: actions/setup-java@v3
+        #   with:
+        #     java-version: '17'
+        #     distribution: 'temurin'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, tag, and push image to Amazon ECR
+        env:
+          ECR_REGISTRY: 346903264902.dkr.ecr.ap-northeast-2.amazonaws.com
+          ECR_REPOSITORY: hone-namespace/search-service
+          IMAGE_TAG_SHA: ${{ github.sha }}
+        run: |
+          docker build \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_SHA \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            -f ./search-service/Dockerfile \
+            .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_SHA
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name hone-eks --region ap-northeast-2
+
+      - name: Deploy to EKS
+        env:
+          ECR_REGISTRY: 346903264902.dkr.ecr.ap-northeast-2.amazonaws.com
+          ECR_REPOSITORY: hone-namespace/search-service
+          IMAGE_TAG_SHA: ${{ github.sha }}
+        run: |
+          sed -i "s|IMAGE_PLACEHOLDER|$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG_SHA|g" k8s/search-service.yml
+          kubectl apply -f k8s/search-service.yml -n hone-namespace

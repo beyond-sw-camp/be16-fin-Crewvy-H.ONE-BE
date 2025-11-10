@@ -1,0 +1,8 @@
+rootProject.name = 'H.ONE'
+include("common")
+include("apigateway")
+include("eureka")
+include("member-service")
+include("workspace-service")
+include("workforce-service")
+include("search-service")

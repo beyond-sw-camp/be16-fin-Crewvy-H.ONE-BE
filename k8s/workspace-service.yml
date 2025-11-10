@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workspace-service-deployment
+  namespace: hone-namespace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: workspace-service
+  template:
+    metadata:
+      labels:
+        app: workspace-service
+    spec:
+      nodeSelector:
+        eks.amazonaws.com/nodegroup: hone-nodes
+      containers:
+      - name: workspace-service
+        image: IMAGE_PLACEHOLDER
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            cpu: "2"
+            memory: "2Gi"
+          requests:
+            cpu: "1"
+            memory: "1Gi"
+        env:
+        - name: TZ
+          value: "Asia/Seoul"
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: DB_HOST
+        - name: DB_ID
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: DB_ID
+        - name: DB_PW
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: DB_PW
+        - name: ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: ACCESS_KEY
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: SECRET_KEY
+        - name: S3_BUCKET
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: S3_BUCKET
+        - name: APIKEY
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: APIKEY
+        - name: LIVE_API_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: LIVE_API_SECRET
+        - name: AES_KEY
+          valueFrom:
+            secretKeyRef:
+              name: hone-secrets
+              key: AES_KEY
+
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 20
+          periodSeconds: 15
+
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 40
+          periodSeconds: 15
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: workspace-service
+  namespace: hone-namespace
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: workspace-service

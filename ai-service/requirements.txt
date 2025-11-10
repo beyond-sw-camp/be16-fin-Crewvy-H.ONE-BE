@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+pydantic
+py-eureka-client
+confluent_kafka
+python-dotenv
+transformers
+whisperx
+boto3
+accelerate
+torch
+torchaudio
+pyannote.audio

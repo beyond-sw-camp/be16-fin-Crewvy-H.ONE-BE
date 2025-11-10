@@ -1,0 +1,53 @@
+package com.crewvy.member_service.member.dto.request;
+
+import com.crewvy.member_service.member.constant.EmploymentType;
+import com.crewvy.member_service.member.entity.Company;
+import com.crewvy.member_service.member.entity.Member;
+import jakarta.validation.constraints.NotEmpty;
+import lombok.*;
+
+import java.time.LocalDate;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder // AutoCreate 에서 사용
+public class CreateAdminReq {
+    @NotEmpty(message = "이메일을 입력해 주세요.")
+    private String email;
+    @NotEmpty(message = "비밀번호를 입력해 주세요.")
+    private String password;
+    @NotEmpty(message = "비밀번호를 입력해 주세요.")
+    private String checkPw;
+    @NotEmpty(message = "성함을 입력해 주세요.")
+    private String name;
+    private String telNumber;
+    private String address;
+    private String bank;
+    private String bankAccount;
+    private String profileUrl;
+    @Builder.Default
+    private LocalDate joinDate = LocalDate.now();
+    private String employmentType;
+    @NotEmpty(message = "회사명을 입력해 주세요.")
+    private String companyName;
+    @NotEmpty(message = "사업자 등록번호를 입력해 주세요.")
+    private String businessNumber;
+
+    public Member toEntity(String encodePassword, Company company){
+        return Member.builder()
+                .email(this.email)
+                .password(encodePassword)
+                .name(this.name)
+                .telNumber(this.telNumber)
+                .address(this.address)
+                .bank(this.bank)
+                .bankAccount(this.bankAccount)
+                .profileUrl(this.profileUrl)
+                .joinDate(this.joinDate)
+                .employmentType(EmploymentType.FULL)
+                .company(company)
+                .build();
+    }
+}

@@ -1,0 +1,60 @@
+server:
+  port: 8080
+
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  application:
+    name: api-gateway
+
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - 'https://hone.crewvy.cloud'
+            allowedMethods: '*'
+            allowedHeaders: '*'
+            allowCredentials: true
+
+      routes:
+        - id: ai-service
+          predicates:
+            - Path=/ai-service/**
+          filters:
+            - StripPrefix=1
+          uri: http://ai-service
+        - id: member-service
+          predicates:
+            - Path=/member-service/**
+          filters:
+            - StripPrefix=1
+          uri: http://member-service
+        - id: search-service
+          predicates:
+            - Path=/search-service/**
+          filters:
+            - StripPrefix=1
+          uri: http://search-service
+        - id: workforce-service
+          predicates:
+            - Path=/workforce-service/**
+          filters:
+            - StripPrefix=1
+          uri: http://workforce-service
+        - id: workspace-service
+          predicates:
+            - Path=/workspace-service/**
+          filters:
+            - StripPrefix=1
+          uri: http://workspace-service
+
+jwt:
+  secretKeyAt: ${SECRET_KEY_AT}
+
+eureka:
+  client:
+    enabled: false
