@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import com.crewvy.common.aes.AESUtil;
 import com.crewvy.common.dto.NotificationMessage;
+import com.crewvy.common.dto.ScheduleDto;
 import com.crewvy.workspace_service.meeting.dto.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -312,6 +313,17 @@ public class VideoConferenceService {
                             .build();
 
                     eventPublisher.publishEvent(message);
+
+                    ScheduleDto schedule = ScheduleDto.builder()
+                            .memberId(inviteeId)
+                            .originId(videoConference.getId())
+                            .title(videoConference.getName())
+                            .contents(videoConference.getDescription())
+                            .startDate(videoConference.getScheduledStartTime())
+                            .type("CT001")
+                            .build();
+
+                    eventPublisher.publishEvent(schedule);
                 }
             });
         }
@@ -327,6 +339,17 @@ public class VideoConferenceService {
                         .build();
 
                 eventPublisher.publishEvent(message);
+
+                ScheduleDto schedule = ScheduleDto.builder()
+                        .memberId(inviteeId)
+                        .originId(videoConference.getId())
+                        .title(videoConference.getName())
+                        .contents(videoConference.getDescription())
+                        .startDate(videoConference.getScheduledStartTime())
+                        .type("CT001")
+                        .build();
+
+                eventPublisher.publishEvent(schedule);
             }
         });
 
