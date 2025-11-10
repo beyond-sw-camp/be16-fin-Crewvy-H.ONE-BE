@@ -1,4 +1,6 @@
-# [H.ONE]
+
+https://github.com/user-attachments/assets/f3a943f3-554c-498c-b32e-906242c3fa69
+![직급관리](https://github.com/user-attachments/assets/729d8b19-9f55-4992-94df-77809981e9d3)# [H.ONE]
 <img width="1077" height="367" alt="Image" src="https://github.com/user-attachments/assets/6912dad4-a773-4dfb-996a-917917e5c98f" />
 
 ## 팀원 소개
@@ -171,15 +173,45 @@
   <blockquote>
     <div class="content">
       <details>
-        <summary>직원 상세 토글</summary>
+        <summary>직급 관리</summary>
         <div>
-          <p>알아서</p>
+           <img src="https://github.com/user-attachments/assets/6bed0509-01da-40ac-b8d9-6e1c51761c08" alt="직급 관리">
         </div>
       </details>
       <details>
-        <summary>하위 토글 추가</summary>
+        <summary>직책 관리</summary>
         <div>
-          <p>알아서</p>
+           <img src="https://github.com/user-attachments/assets/293dbe22-cfe5-43f0-8131-f3de9eebb4b9" alt="직책 관리">
+        </div>
+      </details> 
+      <details>
+        <summary>조직 관리</summary>
+        <div>
+           <img src="https://github.com/user-attachments/assets/bb10ec76-105c-4544-ad7b-940e186ae23b" alt="조직 관리">
+        </div>
+      </details>
+      <details>
+        <summary>역할 관리</summary>
+        <div>
+           <img src="https://github.com/user-attachments/assets/fb2599d4-933a-4035-bdff-7deffe3e5391" alt="역할 관리">
+        </div>
+      </details>      
+      <details>
+        <summary>직원 목록</summary>
+        <div>
+           <img src="https://github.com/user-attachments/assets/36bfb8ca-ef86-44f7-b281-cef6fd4bbc59" alt="직원 목록">
+        </div>
+      </details>       
+      <details>
+        <summary>직원 정보 수정</summary>
+        <div>
+           <img src="https://github.com/user-attachments/assets/a1c923e6-3738-4abc-bee3-dd290e870370" alt="직원 정보 수정">
+        </div>
+      </details>
+      <details>
+        <summary>내정보</summary>
+        <div>
+           <img src="https://github.com/user-attachme정">
         </div>
       </details>
     </div>
