@@ -20,6 +20,9 @@ spec:
       containers:
       - name: ai-service
         image: IMAGE_PLACEHOLDER
+        resources:
+          limits:
+            nvidia.com/gpu: 1
         ports:
         - containerPort: 8080
         env:
