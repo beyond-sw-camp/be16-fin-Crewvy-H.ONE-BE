@@ -17,6 +17,7 @@ import com.crewvy.workforce_service.feignClient.dto.response.MemberDto;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberEmploymentInfoDto;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberPositionListRes;
 import com.crewvy.workforce_service.feignClient.dto.response.OrganizationNodeDto;
+import com.crewvy.workforce_service.salary.entity.Holidays;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -48,6 +49,7 @@ public class AttendanceService {
     private final MemberBalanceRepository memberBalanceRepository;
     private final WorkLocationRepository workLocationRepository;
     private final CompanyHolidayRepository companyHolidayRepository;
+    private final com.crewvy.workforce_service.salary.repository.HolidayRepository holidayRepository;
 
     // 분리된 서비스들
     private final AttendanceValidator attendanceValidator;
@@ -1745,9 +1747,14 @@ public class AttendanceService {
                         }
                     }
 
-                // status가 여전히 null이면 기본값 설정
+                // status가 여전히 null이면 날짜에 따라 기본값 설정
                 if (status == null) {
-                    status = "미출근";
+                    LocalDate today = LocalDate.now();
+                    if (currentDate.isBefore(today)) {
+                        status = "결근";  // 과거 날짜는 결근
+                    } else {
+                        status = "미출근";  // 오늘 및 미래 날짜는 미출근
+                    }
                 }
 
                 // 적용 정책 이름 가져오기
@@ -2054,5 +2061,45 @@ public class AttendanceService {
         log.info("💾 [연차 수정] balanceId={}, totalGranted={}, totalUsed={}, remaining={}, adminMemberId={}",
                 balanceId, request.getTotalGranted(), request.getTotalUsed(),
                 balance.getRemaining(), adminMemberId);
+    }
+
+    /**
+     * 특정 기간의 공휴일 조회 (프론트엔드 캘린더용)
+     * @param startDate 조회 시작일
+     * @param endDate 조회 종료일
+     * @param companyId 회사 ID (추후 확장용)
+     * @return 법정 공휴일 목록
+     */
+    @Transactional(readOnly = true)
+    public java.util.List<HolidayRes> getHolidays(
+            LocalDate startDate, LocalDate endDate, UUID companyId) {
+
+        log.info("공휴일 조회: startDate={}, endDate={}", startDate, endDate);
+
+        java.util.List<HolidayRes> holidays = new java.util.ArrayList<>();
+
+        // 1. 법정 공휴일 조회 (Holidays 테이블)
+        java.util.List<Holidays> nationalHolidays =
+                holidayRepository.findAll().stream()
+                        .filter(h -> !h.getSolarDate().isBefore(startDate) && !h.getSolarDate().isAfter(endDate))
+                        .toList();
+
+        nationalHolidays.forEach(holiday -> {
+            holidays.add(HolidayRes.from(holiday));
+        });
+
+        // 2. 회사 지정 휴일 조회 (CompanyHoliday 테이블) - 추후 확장용
+        // java.util.List<CompanyHoliday> companyHolidays =
+        //         companyHolidayRepository.findByCompanyIdAndHolidayDateBetween(companyId, startDate, endDate);
+        // companyHolidays.forEach(holiday -> {
+        //     holidays.add(HolidayRes.builder()
+        //             .date(holiday.getHolidayDate())
+        //             .name(holiday.getHolidayName())
+        //             .build());
+        // });
+
+        log.info("공휴일 조회 완료: 법정 공휴일={}개", nationalHolidays.size());
+
+        return holidays;
     }
 }
