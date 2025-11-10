@@ -629,13 +629,31 @@
     <blockquote>
       <div class="content">
         <details>
-          <summary>화상회의 상세 토글</summary>
+          <summary>화상회의 시작</summary>
           <div>
             <p>알아서</p>
           </div>
         </details>
         <details>
-          <summary>하위 토글 추가</summary>
+          <summary>화상회의 예약</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+        <details>
+          <summary>화상회의 수정</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+        <details>
+          <summary>화상회의 중</summary>
+          <div>
+            <p>알아서</p>
+          </div>
+        </details>
+        <details>
+          <summary>화상회의 전사문, 요약문 (AI)</summary>
           <div>
             <p>알아서</p>
           </div>
