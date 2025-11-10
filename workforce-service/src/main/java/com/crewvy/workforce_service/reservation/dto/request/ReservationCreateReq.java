@@ -18,8 +18,6 @@ import java.util.UUID;
 public class ReservationCreateReq {
 
     private UUID reservationTypeId;
-    private UUID memberId;
-    private UUID companyId;
     private LocalDateTime startDateTime;
     private LocalDateTime endDateTime;
     private String title;
@@ -29,11 +27,12 @@ public class ReservationCreateReq {
     private Bool isRepeated;
     private RepeatCreateReq repeatCreateReq;
 
-    public Reservation toEntity(ReservationType reservationType) {
-        return toEntity(reservationType, this.startDateTime, this.endDateTime);
+    public Reservation toEntity(UUID memberId, UUID companyId, ReservationType reservationType) {
+        return toEntity(memberId, companyId, reservationType, this.startDateTime, this.endDateTime);
     }
 
-    public Reservation toEntity(ReservationType reservationType, LocalDateTime startDateTime, LocalDateTime endDateTime) {
+    public Reservation toEntity(UUID memberId, UUID companyId, ReservationType reservationType,
+                                LocalDateTime startDateTime, LocalDateTime endDateTime) {
 
         return Reservation.builder()
                 .reservationType(reservationType)

@@ -23,29 +23,34 @@ public class ReservationCategoryController {
     private final ReservationCategoryService reservationCategoryService;
 
     @PostMapping("/register")
-    public ApiResponse<?> create(@RequestBody ReservationCategoryCreateReq reservationCategoryCreateReq) {
-        ReservationCategoryCreateRes res = reservationCategoryService.saveReservationCategory(reservationCategoryCreateReq);
+    public ApiResponse<?> create(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                 @RequestHeader("X-User-CompanyId") UUID companyId,
+                                 @RequestBody ReservationCategoryCreateReq reservationCategoryCreateReq) {
+        ReservationCategoryCreateRes res = reservationCategoryService.saveReservationCategory(memberPositionId,
+                companyId, reservationCategoryCreateReq);
         return new ApiResponse<>(true, res, "예약 카테고리 추가 성공");
     }
 
     // 카테고리 조회
     @GetMapping("/list")
-    public ApiResponse<?> list(@RequestParam UUID companyId) {
+    public ApiResponse<?> list(@RequestHeader("X-User-CompanyId") UUID companyId) {
         List<ReservationCategoryListRes> res = reservationCategoryService.listByCompany(companyId);
         return new ApiResponse<>(true, res, "예약 카테고리 조회 성공");
     }
 
     // 카테고리 수정
     @PutMapping("/update/{id}")
-    public ApiResponse<?> update(@PathVariable UUID id, @RequestBody ReservationCategoryUpdateReq req) {
-        ReservationCategoryUpdateRes res = reservationCategoryService.update(id, req);
+    public ApiResponse<?> update(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                 @PathVariable UUID id, @RequestBody ReservationCategoryUpdateReq req) {
+        ReservationCategoryUpdateRes res = reservationCategoryService.update(memberPositionId, id, req);
         return new ApiResponse<>(true, res, "예약 카테고리 수정 성공");
     }
 
     // 카테고리 삭제
     @DeleteMapping("/delete/{id}")
-    public ApiResponse<?> delete(@PathVariable UUID id) {
-        reservationCategoryService.delete(id);
+    public ApiResponse<?> delete(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
+                                 @PathVariable UUID id) {
+        reservationCategoryService.delete(memberPositionId, id);
         return new ApiResponse<>(true, null, "예약 카테고리 삭제 성공");
     }
 }

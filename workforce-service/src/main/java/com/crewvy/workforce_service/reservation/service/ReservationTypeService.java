@@ -1,6 +1,9 @@
 package com.crewvy.workforce_service.reservation.service;
 
 import com.crewvy.common.exception.ResourceNotFoundException;
+import com.crewvy.workforce_service.aop.AuthUser;
+import com.crewvy.workforce_service.aop.CheckPermission;
+import com.crewvy.workforce_service.attendance.entity.QCompanyHoliday;
 import com.crewvy.workforce_service.reservation.constant.ReservationTypeStatus;
 import com.crewvy.workforce_service.reservation.dto.request.ReservationTypeCreateReq;
 import com.crewvy.workforce_service.reservation.dto.request.ReservationTypeUpdateReq;
@@ -13,6 +16,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 
 import java.util.List;
 import java.util.UUID;
@@ -26,8 +31,11 @@ public class ReservationTypeService {
 
     private final ReservationTypeRepository reservationTypeRepository;
 
-    public ReservationTypeCreateRes saveReservationType(ReservationTypeCreateReq reservationTypeCreateReq) {
-        ReservationType reservationType = reservationTypeRepository.save(reservationTypeCreateReq.toEntity());
+    @Transactional
+    @CheckPermission(resource = "reservation", action = "CREATE", scope = "COMPANY")
+    public ReservationTypeCreateRes saveReservationType(@AuthUser UUID memberPositionId, UUID companyId,
+                                                        ReservationTypeCreateReq reservationTypeCreateReq) {
+        ReservationType reservationType = reservationTypeRepository.save(reservationTypeCreateReq.toEntity(companyId));
         return ReservationTypeCreateRes.fromEntity(reservationType);
     }
 
@@ -47,7 +55,9 @@ public class ReservationTypeService {
                 .collect(Collectors.toList());
     }
 
-    public ReservationTypeUpdateRes updateReservationType(UUID id, ReservationTypeUpdateReq updateReq) {
+    @CheckPermission(resource = "reservation", action = "CREATE", scope = "COMPANY")
+    public ReservationTypeUpdateRes updateReservationType(@AuthUser UUID memberPositionId, UUID id,
+                                                          ReservationTypeUpdateReq updateReq) {
 
         ReservationType reservationType = reservationTypeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("예약 자원을 찾을 수 없습니다."));
@@ -75,7 +85,8 @@ public class ReservationTypeService {
         return ReservationTypeUpdateRes.fromEntity(updatedReservationType);
     }
 
-    public void deleteReservationType(UUID id) {
+    @CheckPermission(resource = "reservation", action = "CREATE", scope = "COMPANY")
+    public void deleteReservationType(@AuthUser UUID memberPositionId, UUID id) {
         if (!reservationTypeRepository.existsById(id)) {
             throw new ResourceNotFoundException("예약 자원을 찾을 수 없습니다.");
         }
