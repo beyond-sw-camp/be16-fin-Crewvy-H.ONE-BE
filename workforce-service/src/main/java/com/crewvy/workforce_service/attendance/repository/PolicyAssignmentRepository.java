@@ -26,4 +26,7 @@ public interface PolicyAssignmentRepository extends JpaRepository<PolicyAssignme
     List<PolicyAssignment> findByTargetIdIn(List<UUID> targetIds);
 
     boolean existsByPolicy_IdAndIsActiveTrue(UUID policyId);
+
+    @Query("SELECT pa FROM PolicyAssignment pa WHERE pa.policy.id = :policyId AND pa.targetId IN :targetIds AND pa.scopeType = :scopeType")
+    List<PolicyAssignment> findByPolicyIdAndTargetIdInAndScopeType(@Param("policyId") UUID policyId, @Param("targetIds") List<UUID> targetIds, @Param("scopeType") PolicyScopeType scopeType);
 }

@@ -23,19 +23,14 @@ public class HolidayWorkValidator implements PolicyRuleValidator {
 
         OvertimeRuleDto overtimeRule = details.getOvertimeRule();
 
-        // 2. 휴일근무 허용 여부 검사
-        if (!overtimeRule.isAllowHolidayWork()) {
-            throw new InvalidPolicyRuleException("휴일근무 정책에서는 휴일근무 허용(allowHolidayWork)이 true여야 합니다.");
-        }
-
-        // 3. 근로기준법 제56조 - 휴일근무 가산임금률 1.5배 이상 검증
+        // 2. 근로기준법 제56조 - 휴일근무 가산임금률 1.5배 이상 검증
         if (overtimeRule.getHolidayWorkRate() != null && overtimeRule.getHolidayWorkRate().compareTo(new BigDecimal("1.5")) < 0) {
             throw new InvalidPolicyRuleException(
                 "법규 위반: 휴일근무 가산임금률은 최소 1.5배 이상이어야 합니다. (근로기준법 제56조)"
             );
         }
 
-        // 4. 근로기준법 제56조 - 8시간 초과 휴일근무 가산임금률 2.0배 이상 검증
+        // 3. 근로기준법 제56조 - 8시간 초과 휴일근무 가산임금률 2.0배 이상 검증
         if (overtimeRule.getHolidayOvertimeRate() != null && overtimeRule.getHolidayOvertimeRate().compareTo(new BigDecimal("2.0")) < 0) {
             throw new InvalidPolicyRuleException(
                 "법규 위반: 휴일 연장근무 가산임금률은 최소 2.0배 이상이어야 합니다. (근로기준법 제56조)"

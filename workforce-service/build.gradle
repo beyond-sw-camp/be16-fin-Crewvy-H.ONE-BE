@@ -69,6 +69,7 @@ dependencies {
 def querydslDir = layout.buildDirectory.dir("generated/querydsl").get().asFile
 
 tasks.withType(JavaCompile).configureEach {
+	options.encoding = 'UTF-8'
 	options.generatedSourceOutputDirectory.set(querydslDir)
 }
 
@@ -88,6 +89,11 @@ dependencyManagement {
 	imports {
 		mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
 	}
+}
+
+// 애플리케이션 실행 시 UTF-8 인코딩 강제
+bootRun {
+	systemProperty 'file.encoding', 'UTF-8'
 }
 
 tasks.named('test') {

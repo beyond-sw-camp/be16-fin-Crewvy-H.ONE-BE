@@ -18,20 +18,18 @@ public enum AttendanceStatus {
     NORMAL_WORK("AS001", "정상 출근", true),
     BUSINESS_TRIP("AS002", "출장", true),
 
-    // 휴가 관련 (유급)
+    // 휴가 관련 (유급) - PolicyTypeCode와 일치
     ANNUAL_LEAVE("AS101", "연차", true),
     HALF_DAY_AM("AS102", "오전 반차", true),
     HALF_DAY_PM("AS103", "오후 반차", true),
-    SICK_LEAVE("AS104", "병가", true),
-    MATERNITY_LEAVE("AS105", "출산전후휴가", true),
-    PATERNITY_LEAVE("AS106", "배우자 출산휴가", true),
-    CHILDCARE_LEAVE("AS107", "육아휴직", true),
-    FAMILY_CARE_LEAVE("AS108", "가족돌봄휴가", true),
-    MENSTRUAL_LEAVE("AS109", "생리휴가", true),
+    MATERNITY_LEAVE("AS104", "출산전후휴가", true),
+    PATERNITY_LEAVE("AS105", "배우자 출산휴가", true),
+    CHILDCARE_LEAVE("AS106", "육아휴직", true),
+    FAMILY_CARE_LEAVE("AS107", "가족돌봄휴가", true),
+    MENSTRUAL_LEAVE("AS108", "생리휴가", true),
 
     // 무급 또는 예외 상태
-    ABSENT("AS201", "결근", false),
-    UNPAID_LEAVE("AS202", "무급휴가", false);
+    ABSENT("AS201", "결근", false);
 
     private final String codeValue;
     private final String codeName;

@@ -18,10 +18,10 @@ import java.util.UUID;
 @AllArgsConstructor
 public class LeaveRequestCreateDto {
 
-    @NotNull(message = "정책 ID는 필수값입니다.")
+    // 추가근무 신청 시에는 policyId가 null이어도 됨 (자동 분류)
     private UUID policyId;           // 적용할 정책 ID
 
-    @NotNull(message = "신청 단위는 필수값입니다.")
+    // 추가근무 신청 시에는 requestUnit이 null이어도 됨 (자동으로 TIME_OFF 또는 DAY 설정)
     private RequestUnit requestUnit; // 신청 단위 (DAY, HALF_DAY_AM, HALF_DAY_PM, TIME_OFF)
 
     // 일차/반차 신청 시 사용
@@ -31,6 +31,9 @@ public class LeaveRequestCreateDto {
     // 시차 신청 시 사용
     private LocalDateTime startDateTime; // 시작 시각
     private LocalDateTime endDateTime;   // 종료 시각
+
+    // 추가근무 신청 시 사용 (방식 A: 기간 + 1일 연장시간)
+    private String dailyOvertimeHours;   // 1일 연장시간 (HH:mm 형식, 예: "02:00")
 
     @NotBlank(message = "사유는 필수값입니다.")
     private String reason;           // 사유

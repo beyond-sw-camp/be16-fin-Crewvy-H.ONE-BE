@@ -1,6 +1,5 @@
 package com.crewvy.workforce_service.attendance.batch;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.batch.core.Job;
@@ -16,28 +15,39 @@ import java.time.LocalDateTime;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class AttendanceBatchScheduler {
 
     private final JobLauncher jobLauncher;
-
-    @Qualifier("markAbsentJob")
     private final Job markAbsentJob;
-
-    @Qualifier("createApprovedLeaveDailyAttendanceJob")
     private final Job createApprovedLeaveDailyAttendanceJob;
-
-    @Qualifier("autoCompleteClockOutJob")
     private final Job autoCompleteClockOutJob;
-
-    @Qualifier("annualLeaveAccrualJob")
     private final Job annualLeaveAccrualJob;
+
+    public AttendanceBatchScheduler(
+            JobLauncher jobLauncher,
+            @Qualifier("markAbsentJob") Job markAbsentJob,
+            @Qualifier("createApprovedLeaveDailyAttendanceJob") Job createApprovedLeaveDailyAttendanceJob,
+            @Qualifier("autoCompleteClockOutJob") Job autoCompleteClockOutJob,
+            @Qualifier("annualLeaveAccrualJob") Job annualLeaveAccrualJob
+    ) {
+        this.jobLauncher = jobLauncher;
+        this.markAbsentJob = markAbsentJob;
+        this.createApprovedLeaveDailyAttendanceJob = createApprovedLeaveDailyAttendanceJob;
+        this.autoCompleteClockOutJob = autoCompleteClockOutJob;
+        this.annualLeaveAccrualJob = annualLeaveAccrualJob;
+    }
 
     /**
      * 매일 자정 5분에 실행 (결근 처리 + 휴가 DailyAttendance 생성)
      * - 00:05 실행 이유: 자정 직후 실행하면 데이터 정합성 문제 가능
+     * - ShedLock: MSA 환경에서 한 인스턴스만 실행 보장
      */
     @Scheduled(cron = "0 5 0 * * *")
+    @SchedulerLock(
+            name = "daily_attendance_batch_lock",
+            lockAtMostFor = "10m",  // 최대 10분 (비정상 종료 대비)
+            lockAtLeastFor = "2m"   // 최소 2분 (과도한 재실행 방지)
+    )
     @Async
     @SchedulerLock(
             name = "runDailyAttendanceBatch", // ★ 중요: 작업별로 고유한 이름 지정
@@ -125,8 +135,14 @@ public class AttendanceBatchScheduler {
     /**
      * 매일 새벽 2시에 실행 (미완료 퇴근 자동 처리)
      * - 02:00 실행 이유: 전날 퇴근하지 않은 직원을 자동 퇴근 처리 (결근 처리보다 먼저)
+     * - ShedLock: MSA 환경에서 한 인스턴스만 실행 보장
      */
     @Scheduled(cron = "0 0 2 * * *")
+    @SchedulerLock(
+            name = "auto_complete_clock_out_lock",
+            lockAtMostFor = "15m",  // 최대 15분
+            lockAtLeastFor = "3m"   // 최소 3분
+    )
     @Async
     @SchedulerLock(
             name = "runAutoCompleteClockOutBatch", // ★ 중요: 작업별로 고유한 이름 지정
@@ -183,8 +199,14 @@ public class AttendanceBatchScheduler {
      * 매월 1일 새벽 3시에 실행 (연차 자동 발생)
      * - 1년 미만 근로자: 매월 1일 추가 발생
      * - 1년 이상 근로자: 매년 1월 1일 연차 발생
+     * - ShedLock: MSA 환경에서 한 인스턴스만 실행 보장
      */
     @Scheduled(cron = "0 0 3 1 * *")
+    @SchedulerLock(
+            name = "annual_leave_accrual_lock",
+            lockAtMostFor = "30m",  // 최대 30분 (직원 수 많을 경우 대비)
+            lockAtLeastFor = "5m"   // 최소 5분
+    )
     @Async
     @SchedulerLock(
             name = "runAnnualLeaveAccrualBatch", // ★ 중요: 작업별로 고유한 이름 지정
