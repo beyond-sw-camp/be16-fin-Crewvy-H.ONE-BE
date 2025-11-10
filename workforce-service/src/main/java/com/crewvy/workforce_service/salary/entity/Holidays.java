@@ -20,7 +20,6 @@ public class Holidays {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
 
-    @Column(nullable = false)
     private LocalDate lunarDate;
 
     @Column(nullable = false)
