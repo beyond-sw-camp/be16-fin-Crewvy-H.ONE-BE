@@ -43,11 +43,6 @@ public class AttendanceBatchScheduler {
      * - ShedLock: MSA 환경에서 한 인스턴스만 실행 보장
      */
     @Scheduled(cron = "0 5 0 * * *")
-    @SchedulerLock(
-            name = "daily_attendance_batch_lock",
-            lockAtMostFor = "10m",  // 최대 10분 (비정상 종료 대비)
-            lockAtLeastFor = "2m"   // 최소 2분 (과도한 재실행 방지)
-    )
     @Async
     @SchedulerLock(
             name = "runDailyAttendanceBatch", // ★ 중요: 작업별로 고유한 이름 지정
@@ -138,11 +133,6 @@ public class AttendanceBatchScheduler {
      * - ShedLock: MSA 환경에서 한 인스턴스만 실행 보장
      */
     @Scheduled(cron = "0 0 2 * * *")
-    @SchedulerLock(
-            name = "auto_complete_clock_out_lock",
-            lockAtMostFor = "15m",  // 최대 15분
-            lockAtLeastFor = "3m"   // 최소 3분
-    )
     @Async
     @SchedulerLock(
             name = "runAutoCompleteClockOutBatch", // ★ 중요: 작업별로 고유한 이름 지정
@@ -202,11 +192,6 @@ public class AttendanceBatchScheduler {
      * - ShedLock: MSA 환경에서 한 인스턴스만 실행 보장
      */
     @Scheduled(cron = "0 0 3 1 * *")
-    @SchedulerLock(
-            name = "annual_leave_accrual_lock",
-            lockAtMostFor = "30m",  // 최대 30분 (직원 수 많을 경우 대비)
-            lockAtLeastFor = "5m"   // 최소 5분
-    )
     @Async
     @SchedulerLock(
             name = "runAnnualLeaveAccrualBatch", // ★ 중요: 작업별로 고유한 이름 지정
