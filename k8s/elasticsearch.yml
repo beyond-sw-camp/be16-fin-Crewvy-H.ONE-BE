@@ -63,8 +63,8 @@ spec:
               cpu: "2"
               memory: "2Gi"
             requests:
-              cpu: "1"
-              memory: "1Gi"
+              cpu: "0.5"
+              memory: "512Mi"
           volumeMounts:
             - name: es-data
               mountPath: /usr/share/elasticsearch/data
