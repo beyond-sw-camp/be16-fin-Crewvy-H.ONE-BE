@@ -505,15 +505,45 @@
     <blockquote>
       <div class="content">
         <details>
-          <summary>성과 상세 토글</summary>
+          <summary>팀 목표 생성</summary>
           <div>
-            <p>알아서</p>
+            <img src=https://github.com/user-attachments/assets/1c72b651-7fba-4836-8967-78b259966c4a>
           </div>
         </details>
         <details>
-          <summary>하위 토글 추가</summary>
+          <summary>내 목표 생성</summary>
           <div>
-            <p>알아서</p>
+            <img src=https://github.com/user-attachments/assets/562b4e88-e56c-4fcf-bf66-24b28a882640>
+          </div>
+        </details>
+        <details>
+          <summary>목표 승인</summary>
+          <div>
+            <img src=https://github.com/user-attachments/assets/62349b83-6283-4f83-b28d-1066d04c9f96>
+          </div>
+        </details>
+        <details>
+          <summary>목표 반려</summary>
+          <div>
+            <img src=https://github.com/user-attachments/assets/a6c7402f-be8d-416b-a12e-678f153afd8c>
+          </div>
+        </details>
+        <details>
+          <summary>증적 제출</summary>
+          <div>
+            <img src=https://github.com/user-attachments/assets/b917933e-6d2d-4e8d-8661-7004cfb3d61f>
+          </div>
+        </details>
+        <details>
+          <summary>본인 평가</summary>
+          <div>
+            <img src=https://github.com/user-attachments/assets/190379bf-3d64-44c4-acb6-e6605c16e618>
+          </div>
+        </details>
+        <details>
+          <summary>관리자 평가</summary>
+          <div>
+            <img src=https://github.com/user-attachments/assets/dbb76523-378c-4040-bfcf-29c983ec0010>
           </div>
         </details>
       </div>
@@ -525,15 +555,27 @@
     <blockquote>
       <div class="content">
         <details>
-          <summary>전자결재 상세 토글</summary>
+          <summary>전자결재 신청</summary>
           <div>
-            <p>알아서</p>
+            <img src=https://github.com/user-attachments/assets/6754a5f1-fee8-4f8e-b0ab-b136356809bb>
           </div>
         </details>
         <details>
-          <summary>하위 토글 추가</summary>
+          <summary>전자결재 승인</summary>
           <div>
-            <p>알아서</p>
+            <img src=https://github.com/user-attachments/assets/3dcfa06f-672f-4c4c-836b-84585fbd3768>
+          </div>
+        </details>
+        <details>
+          <summary>전자결재 반려</summary>
+          <div>
+            <img src=https://github.com/user-attachments/assets/66def534-03a0-4f7e-916a-3ec1ad63acd2>
+          </div>
+        </details>
+        <details>
+          <summary>전자결재 정책적용</summary>
+          <div>
+            <img src="https://github.com/user-attachments/assets/43e34232-c67a-43ad-ac22-650fb2043ff3">
           </div>
         </details>
       </div>
