@@ -673,19 +673,19 @@
         <details>
           <summary>화상회의 시작</summary>
           <div>
-             ![Uploading 화면 기록 2025-11-10 오후 3.25.29.gif…]()
+             <img alt="화상회의 시작 GIF" src="https://github.com/user-attachments/assets/dd0412fd-9615-45cc-b559-d2cdd876cf94" />
           </div>
         </details>
         <details>
           <summary>화상회의 예약</summary>
           <div>
-             ![123](https://github.com/user-attachments/assets/4207483d-2c9e-400a-a20a-2a97f794bd76)
+             <img alt="화상회의 예약 GIF" src="https://github.com/user-attachments/assets/4207483d-2c9e-400a-a20a-2a97f794bd76" />             
           </div>
         </details>
         <details>
           <summary>화상회의 수정</summary>
           <div>
-             ![회의 수정](https://github.com/user-attachments/assets/567f1cda-cf6b-4758-9aaa-e5306b11fb39)
+             <img alt="화상회의 수정 GIF" src="https://github.com/user-attachments/assets/567f1cda-cf6b-4758-9aaa-e5306b11fb39" />             
           </div>
         </details>
         <details>
