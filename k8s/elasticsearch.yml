@@ -86,7 +86,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: search-service
+  name: elasticsearch
   namespace: hone-namespace
 spec:
   type: ClusterIP

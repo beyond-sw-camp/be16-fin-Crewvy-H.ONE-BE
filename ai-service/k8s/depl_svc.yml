@@ -19,7 +19,7 @@ spec:
         eks.amazonaws.com/nodegroup: ai-node-group
       containers:
       - name: ai-service
-        image: 565393066924.dkr.ecr.ap-northeast-2.amazonaws.com/hone-namespace/ai-service:latest
+        image: IMAGE_PLACEHOLDER
         ports:
         - containerPort: 8080
         env:
