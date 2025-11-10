@@ -4,6 +4,7 @@ import com.crewvy.workforce_service.attendance.constant.AttendanceStatus;
 import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
 import com.crewvy.workforce_service.attendance.entity.DailyAttendance;
 import com.crewvy.workforce_service.attendance.entity.MemberBalance;
+import com.crewvy.workforce_service.attendance.entity.Policy;
 import com.crewvy.workforce_service.attendance.repository.DailyAttendanceRepository;
 import com.crewvy.workforce_service.attendance.repository.MemberBalanceRepository;
 import com.crewvy.workforce_service.attendance.repository.PolicyRepository;
@@ -52,7 +53,7 @@ public class AnnualLeaveAccrualService {
 
         try {
             // 1. 회사의 연차 정책 조회
-            Optional<com.crewvy.workforce_service.attendance.entity.Policy> annualLeavePolicyOpt =
+            Optional<Policy> annualLeavePolicyOpt =
                     policyRepository.findActiveAnnualLeavePolicy(companyId);
 
             if (annualLeavePolicyOpt.isEmpty()) {
@@ -60,7 +61,7 @@ public class AnnualLeaveAccrualService {
                 return;
             }
 
-            com.crewvy.workforce_service.attendance.entity.Policy annualLeavePolicy = annualLeavePolicyOpt.get();
+            Policy annualLeavePolicy = annualLeavePolicyOpt.get();
             log.info("연차 정책 확인: policyName={}", annualLeavePolicy.getName());
 
             // standardType 확인
@@ -145,7 +146,7 @@ public class AnnualLeaveAccrualService {
      * @return [성공 수, 스킵 수]
      */
     private int[] processChunkForRegularMembers(List<MemberEmploymentInfoDto> chunk, LocalDate referenceDate, int currentYear,
-                                               com.crewvy.workforce_service.attendance.entity.Policy policy) {
+                                               Policy policy) {
         // 청크 내 회원 ID 추출
         List<UUID> chunkMemberIds = chunk.stream()
                 .map(MemberEmploymentInfoDto::getMemberId)
@@ -189,8 +190,8 @@ public class AnnualLeaveAccrualService {
      * 청크 실패 시 한 명씩 재시도하여 피해 최소화
      * @return [성공 수, 스킵 수, 실패 수]
      */
-    private int[] retryIndividuallyForRegularMembers(List<MemberEmploymentInfoDto> chunk, LocalDate referenceDate, int currentYear,
-                                                     com.crewvy.workforce_service.attendance.entity.Policy policy) {
+    private int[] retryIndividuallyForRegularMembers(List<MemberEmploymentInfoDto> chunk, LocalDate referenceDate,
+                                                     int currentYear, Policy policy) {
         int successCount = 0;
         int skipCount = 0;
         int failCount = 0;
@@ -228,8 +229,7 @@ public class AnnualLeaveAccrualService {
      * JOIN_DATE 기준 연차 발생
      * 매일 배치에서 오늘이 입사일 기준 N년이 되는 직원에게만 연차 부여
      */
-    private void accrueByJoinDateStandard(UUID companyId, LocalDate referenceDate,
-                                         com.crewvy.workforce_service.attendance.entity.Policy policy) {
+    private void accrueByJoinDateStandard(UUID companyId, LocalDate referenceDate, Policy policy) {
         log.info("연차 기준 유형: JOIN_DATE (입사일 기준)");
 
         try {
@@ -297,8 +297,7 @@ public class AnnualLeaveAccrualService {
     /**
      * JOIN_DATE 기준 청크 처리
      */
-    private int[] processChunkForJoinDateStandard(List<MemberEmploymentInfoDto> chunk, LocalDate referenceDate,
-                                                  com.crewvy.workforce_service.attendance.entity.Policy policy) {
+    private int[] processChunkForJoinDateStandard(List<MemberEmploymentInfoDto> chunk, LocalDate referenceDate, Policy policy) {
         List<UUID> memberIds = chunk.stream().map(MemberEmploymentInfoDto::getMemberId).toList();
 
         // 올해 이미 부여받은 직원 조회
@@ -336,8 +335,7 @@ public class AnnualLeaveAccrualService {
     /**
      * JOIN_DATE 기준 개별 재시도
      */
-    private int[] retryIndividuallyForJoinDateStandard(List<MemberEmploymentInfoDto> chunk, LocalDate referenceDate,
-                                                       com.crewvy.workforce_service.attendance.entity.Policy policy) {
+    private int[] retryIndividuallyForJoinDateStandard(List<MemberEmploymentInfoDto> chunk, LocalDate referenceDate, Policy policy) {
         int successCount = 0;
         int skipCount = 0;
         int failCount = 0;
@@ -372,8 +370,7 @@ public class AnnualLeaveAccrualService {
      * JOIN_DATE 기준 단일 직원 연차 부여
      */
     private void accrueAnnualLeaveForJoinDateMember(MemberEmploymentInfoDto member, LocalDate referenceDate,
-                                                    List<MemberBalance> balancesToSave,
-                                                    com.crewvy.workforce_service.attendance.entity.Policy policy) {
+                                                    List<MemberBalance> balancesToSave, Policy policy) {
         int yearsOfService = Period.between(member.getJoinDate(), referenceDate).getYears();
         double annualLeaveToGrant = calculateRegularAnnualLeave(yearsOfService, policy);
 
@@ -397,8 +394,8 @@ public class AnnualLeaveAccrualService {
                 member.getMemberId(), member.getJoinDate(), yearsOfService, annualLeaveToGrant);
     }
 
-    private void accrueAnnualLeaveForRegularMember(MemberEmploymentInfoDto member, LocalDate referenceDate, List<MemberBalance> balancesToSave,
-                                                   com.crewvy.workforce_service.attendance.entity.Policy policy) {
+    private void accrueAnnualLeaveForRegularMember(MemberEmploymentInfoDto member, LocalDate referenceDate,
+                                                   List<MemberBalance> balancesToSave, Policy policy) {
         int yearsOfService = Period.between(member.getJoinDate(), referenceDate).getYears();
         double annualLeaveToGrant = calculateRegularAnnualLeave(yearsOfService, policy);
         int currentYear = referenceDate.getYear();
@@ -465,7 +462,7 @@ public class AnnualLeaveAccrualService {
 
             // 4. 회사 연차 정책 조회 (성능 최적화: 우선순위 조회 불필요)
             // 연차 정책은 회사 레벨에만 할당되므로 직접 조회 가능
-            Optional<com.crewvy.workforce_service.attendance.entity.Policy> annualLeavePolicyOpt =
+            Optional<Policy> annualLeavePolicyOpt =
                     policyRepository.findByCompanyIdAndPolicyTypeCode(
                             memberInfo.getCompanyId(),
                             PolicyTypeCode.ANNUAL_LEAVE
@@ -537,8 +534,7 @@ public class AnnualLeaveAccrualService {
      * @param policy 회사 연차 정책
      * @return 부여할 연차 일수
      */
-    private double calculateFirstYearAccrual(LocalDate joinDate, LocalDate referenceDate,
-                                              com.crewvy.workforce_service.attendance.entity.Policy policy) {
+    private double calculateFirstYearAccrual(LocalDate joinDate, LocalDate referenceDate, Policy policy) {
         var leaveRule = policy.getRuleDetails().getLeaveRule();
 
         // 신규 구조 우선 사용
@@ -606,8 +602,7 @@ public class AnnualLeaveAccrualService {
      * @deprecated calculateFirstYearAccrual 사용 권장
      */
     @Deprecated
-    private double calculateInitialAnnualLeave(LocalDate joinDate, LocalDate referenceDate,
-                                              com.crewvy.workforce_service.attendance.entity.Policy policy) {
+    private double calculateInitialAnnualLeave(LocalDate joinDate, LocalDate referenceDate, Policy policy) {
         var leaveRule = policy.getRuleDetails().getLeaveRule();
 
         // 신규 구조 우선 사용
@@ -653,8 +648,7 @@ public class AnnualLeaveAccrualService {
      * @param policy 회사 연차 정책
      * @return 부여할 연차 일수
      */
-    private double calculateRegularAnnualLeave(int yearsOfService,
-                                              com.crewvy.workforce_service.attendance.entity.Policy policy) {
+    private double calculateRegularAnnualLeave(int yearsOfService, Policy policy) {
         var leaveRule = policy.getRuleDetails().getLeaveRule();
 
         // 신규 구조 우선 사용
@@ -755,7 +749,7 @@ public class AnnualLeaveAccrualService {
 
         try {
             // 1. 연차 정책 조회
-            Optional<com.crewvy.workforce_service.attendance.entity.Policy> annualLeavePolicyOpt =
+            Optional<Policy> annualLeavePolicyOpt =
                     policyRepository.findActiveAnnualLeavePolicy(companyId);
 
             if (annualLeavePolicyOpt.isEmpty()) {
@@ -763,7 +757,7 @@ public class AnnualLeaveAccrualService {
                 return;
             }
 
-            com.crewvy.workforce_service.attendance.entity.Policy policy = annualLeavePolicyOpt.get();
+            Policy policy = annualLeavePolicyOpt.get();
             var leaveRule = policy.getRuleDetails().getLeaveRule();
             log.info("연차 정책 확인: policyName={}", policy.getName());
 

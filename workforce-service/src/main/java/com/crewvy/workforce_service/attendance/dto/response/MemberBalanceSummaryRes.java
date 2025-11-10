@@ -12,6 +12,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MemberBalanceSummaryRes {
+    private UUID balanceId;             // MemberBalance ID (수정 시 필요)
     private UUID memberId;
     private String memberName;          // 직원명
     private String organizationName;    // 조직명

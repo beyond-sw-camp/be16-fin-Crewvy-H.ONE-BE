@@ -78,4 +78,15 @@ public class MemberBalance extends BaseEntity {
         this.totalGranted += days;
         this.remaining += days;
     }
+
+    /**
+     * 관리자가 연차 잔액을 직접 수정
+     * @param totalGranted 총 부여일수
+     * @param totalUsed 총 사용일수
+     */
+    public void updateBalance(Double totalGranted, Double totalUsed) {
+        this.totalGranted = totalGranted;
+        this.totalUsed = totalUsed;
+        this.remaining = totalGranted - totalUsed;
+    }
 }

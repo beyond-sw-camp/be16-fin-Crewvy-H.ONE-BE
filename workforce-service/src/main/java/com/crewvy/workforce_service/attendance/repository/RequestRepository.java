@@ -1,6 +1,7 @@
 package com.crewvy.workforce_service.attendance.repository;
 
 import com.crewvy.workforce_service.attendance.constant.DeviceType;
+import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
 import com.crewvy.workforce_service.attendance.constant.RequestStatus;
 import com.crewvy.workforce_service.attendance.dto.query.PolicyUsageStats;
 import com.crewvy.workforce_service.attendance.entity.Request;
@@ -101,7 +102,7 @@ public interface RequestRepository extends JpaRepository<Request, UUID> {
             @Param("memberId") UUID memberId,
             @Param("weekStart") LocalDateTime weekStart,
             @Param("weekEnd") LocalDateTime weekEnd,
-            @Param("overtimeTypes") List<com.crewvy.workforce_service.attendance.constant.PolicyTypeCode> overtimeTypes
+            @Param("overtimeTypes") List<PolicyTypeCode> overtimeTypes
     );
 
     /**
@@ -166,7 +167,7 @@ public interface RequestRepository extends JpaRepository<Request, UUID> {
             @Param("targetDate") LocalDateTime targetDate,
             @Param("targetDateEnd") LocalDateTime targetDateEnd,
             @Param("status") RequestStatus status,
-            @Param("leaveTypes") List<com.crewvy.workforce_service.attendance.constant.PolicyTypeCode> leaveTypes
+            @Param("leaveTypes") List<PolicyTypeCode> leaveTypes
     );
 
     @Query("SELECT r.policy.id as policyId, count(r) as count FROM Request r " +
@@ -212,7 +213,7 @@ public interface RequestRepository extends JpaRepository<Request, UUID> {
     Page<Request> findApprovedLeaveRequestsBetween(@Param("status") RequestStatus status,
                                                    @Param("start") LocalDateTime start,
                                                    @Param("end") LocalDateTime end,
-                                                   @Param("balanceDeductibleTypes") List<com.crewvy.workforce_service.attendance.constant.PolicyTypeCode> balanceDeductibleTypes,
+                                                   @Param("balanceDeductibleTypes") List<PolicyTypeCode> balanceDeductibleTypes,
                                                    Pageable pageable);
 
     /**
@@ -232,4 +233,26 @@ public interface RequestRepository extends JpaRepository<Request, UUID> {
             @Param("endDateTime") LocalDateTime endDateTime);
 
     Optional<Request> findByApprovalId(UUID id);
+
+    /**
+     * 특정 날짜에 승인된 출장 Request 조회 (GPS 검증용)
+     *
+     * @param memberId 사용자 ID
+     * @param targetDate 확인할 날짜 (시작)
+     * @param targetDateEnd 확인할 날짜 (종료)
+     * @param policyTypeCode 출장 정책 타입 코드
+     * @return 승인된 출장 Request
+     */
+    @Query("SELECT r FROM Request r " +
+           "WHERE r.memberId = :memberId " +
+           "AND r.status = 'APPROVED' " +
+           "AND r.policy.policyTypeCode = :policyTypeCode " +
+           "AND r.startDateTime <= :targetDateEnd " +
+           "AND r.endDateTime >= :targetDate")
+    Optional<Request> findApprovedTripForMemberAndDate(
+            @Param("memberId") UUID memberId,
+            @Param("targetDate") LocalDateTime targetDate,
+            @Param("targetDateEnd") LocalDateTime targetDateEnd,
+            @Param("policyTypeCode") PolicyTypeCode policyTypeCode
+    );
 }

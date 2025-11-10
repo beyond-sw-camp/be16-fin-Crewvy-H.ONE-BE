@@ -434,14 +434,19 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
      * 기본근무 정책 생성
      * - 근무시간: 9:00 ~ 18:00 (8시간, 점심 1시간 제외)
      * - 지각 허용: 10분
-     * - 연장근무: 주 12시간 한도, 1.5배 수당
+     * - GPS 인증: 본사 근무지 (100m 반경)
      */
     private Policy createBasicWorkPolicy() {
         WorkTimeRuleDto workTimeRule = new WorkTimeRuleDto();
         workTimeRule.setType("FIXED");
-        workTimeRule.setFixedWorkMinutes(480);  // 8시간
         workTimeRule.setWorkStartTime("09:00");
         workTimeRule.setWorkEndTime("18:00");
+        // 총 근무시간 (휴게 제외): 9:00~18:00 = 9시간, 휴게 1시간 제외 = 8시간(480분)
+        workTimeRule.setFixedWorkMinutes(480);
+
+        AuthRuleDto authRule = new AuthRuleDto();
+        authRule.setAllowedWorkLocationIds(List.of(mainOffice.getId()));
+        authRule.setRequiredAuthTypes(List.of("GPS"));
 
         BreakRuleDto breakRule = new BreakRuleDto();
         breakRule.setType("FIXED");
@@ -452,19 +457,11 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         latenessRule.setLatenessGraceMinutes(10);
         latenessRule.setEarlyLeaveGraceMinutes(10);
 
-        // 연장근무 규칙 추가
-        OvertimeRuleDto overtimeRule = new OvertimeRuleDto();
-        overtimeRule.setOvertimeRate(java.math.BigDecimal.valueOf(1.5));
-        overtimeRule.setNightWorkRate(java.math.BigDecimal.valueOf(1.5));
-        overtimeRule.setHolidayWorkRate(java.math.BigDecimal.valueOf(1.5));
-        overtimeRule.setHolidayOvertimeRate(java.math.BigDecimal.valueOf(2.0));
-        overtimeRule.setMaxWeeklyOvertimeMinutes(720);  // 근로기준법: 주 12시간
-
         PolicyRuleDetails ruleDetails = new PolicyRuleDetails();
         ruleDetails.setWorkTimeRule(workTimeRule);
+        ruleDetails.setAuthRule(authRule);
         ruleDetails.setBreakRule(breakRule);
         ruleDetails.setLatenessRule(latenessRule);
-        ruleDetails.setOvertimeRule(overtimeRule);
 
         Policy policy = Policy.builder()
                 .companyId(companyId)
@@ -521,7 +518,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         tripRule.setPerDiemAmount(java.math.BigDecimal.valueOf(50000));
         tripRule.setAccommodationLimit(java.math.BigDecimal.valueOf(100000));
         tripRule.setTransportationLimit(java.math.BigDecimal.valueOf(200000));
-        tripRule.setAllowedWorkLocations(List.of(mainOffice.getId().toString()));
+        tripRule.setAllowedWorkLocations(List.of(mainOffice.getName()));
 
         PolicyRuleDetails ruleDetails = new PolicyRuleDetails();
         ruleDetails.setTripRule(tripRule);

@@ -2,6 +2,7 @@ package com.crewvy.workforce_service.attendance.controller;
 
 import com.crewvy.common.dto.ApiResponse;
 import com.crewvy.workforce_service.attendance.dto.request.EventRequest;
+import com.crewvy.workforce_service.attendance.dto.request.UpdateMemberBalanceRequest;
 import com.crewvy.workforce_service.attendance.dto.response.AssignedPolicyRes;
 import com.crewvy.workforce_service.attendance.dto.response.MemberBalanceSummaryRes;
 import com.crewvy.workforce_service.attendance.dto.response.MyBalanceRes;
@@ -157,6 +158,22 @@ public class AttendanceController {
         Page<MemberBalanceSummaryRes> response = attendanceService.getLeaveBalanceStatus(
                 memberId, memberPositionId, companyId, targetYear, searchQuery, policyTypeCode, yearsOfService, pageable);
         return new ResponseEntity<>(ApiResponse.success(response, "연차 현황 조회 완료"), HttpStatus.OK);
+    }
+
+    /**
+     * 관리자가 회원의 연차 잔액을 직접 수정하는 API
+     * @param balanceId 수정할 MemberBalance ID
+     * @param request 수정 요청 데이터 (totalGranted, totalUsed)
+     */
+    @PutMapping("/leave-balance/{balanceId}")
+    public ResponseEntity<ApiResponse<Void>> updateMemberBalance(
+            @RequestHeader("X-User-UUID") UUID adminMemberId,
+            @RequestHeader("X-User-CompanyId") UUID companyId,
+            @PathVariable UUID balanceId,
+            @Valid @RequestBody UpdateMemberBalanceRequest request) {
+
+        attendanceService.updateMemberBalance(balanceId, request, adminMemberId, companyId);
+        return new ResponseEntity<>(ApiResponse.success(null, "연차 정보가 성공적으로 수정되었습니다."), HttpStatus.OK);
     }
 
     private String getClientIp(HttpServletRequest request) {

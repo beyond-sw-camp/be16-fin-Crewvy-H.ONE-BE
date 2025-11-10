@@ -188,6 +188,7 @@ public class AttendanceValidator {
     /**
      * 출근 시각 범위 검증
      * - 야간 근무 시간대(22:00 ~ 06:00) 차단 (일반 근무와 야간 근무 혼동 방지)
+     * - 정책상 퇴근 시간 이후 출근 차단
      * - 그 외 시간대는 출근 허용 (조기 출근 가능)
      */
     public void validateClockInTimeRange(LocalDateTime clockInTime, Policy policy) {
@@ -204,7 +205,23 @@ public class AttendanceValidator {
             );
         }
 
-        // 그 외 시간대는 모두 출근 허용 (06:00 ~ 22:00)
+        // 정책상 퇴근 시간 이후 출근 차단
+        if (policy != null && policy.getRuleDetails() != null) {
+            WorkTimeRuleDto workTimeRule = policy.getRuleDetails().getWorkTimeRule();
+            if (workTimeRule != null && workTimeRule.getWorkEndTime() != null) {
+                LocalTime workEndTime = safeParseTime(workTimeRule.getWorkEndTime());
+
+                // 퇴근 시간 이후에는 출근 불가
+                if (time.isAfter(workEndTime)) {
+                    throw new BusinessException(
+                            String.format("정책상 퇴근 시간(%s) 이후에는 출근할 수 없습니다. (현재: %s)",
+                                    workEndTime, time)
+                    );
+                }
+            }
+        }
+
+        // 그 외 시간대는 모두 출근 허용 (06:00 ~ 정책상 퇴근시간)
     }
 
     /**
