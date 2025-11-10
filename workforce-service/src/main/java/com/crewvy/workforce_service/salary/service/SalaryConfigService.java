@@ -44,7 +44,15 @@ public class SalaryConfigService {
 
         Map<UUID, SalaryHistory> salaryHistoryMap = salaryHistoryList.stream()
                 .collect(Collectors.toMap(SalaryHistory::getMemberId
-                        , salaryHistory -> salaryHistory));
+                        , salaryHistory -> salaryHistory,
+                        (existingHistory, newHistory) -> {
+
+                            if (newHistory.getUpdatedAt().isAfter(existingHistory.getUpdatedAt())) {
+                                return newHistory;
+                            } else {
+                                return existingHistory;
+                            }
+                        }));
 
 
         // 고정 수당 항목 조회

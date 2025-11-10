@@ -23,9 +23,10 @@ public class FixedAllowanceController {
 
     @PostMapping("/create")
     public ResponseEntity<?> createFixedAllowance(@RequestHeader("X-User-MemberPositionId") UUID memberPositionId,
-                                                  @RequestBody FixedAllowanceCreateReq fixedAllowanceCreateReq) {
-        Long id = fixedAllowanceService.saveFixedAllowance(memberPositionId, fixedAllowanceCreateReq);
-        return new ResponseEntity<>(new ApiResponse<>(true, id, "고정 수당 저장 성공")
+                                                  @RequestHeader("X-User-CompanyId") UUID companyId,
+                                                  @RequestBody List<FixedAllowanceCreateReq> fixedAllowanceCreateList) {
+        fixedAllowanceService.saveFixedAllowance(memberPositionId, companyId, fixedAllowanceCreateList);
+        return new ResponseEntity<>(new ApiResponse<>(true, null, "고정 수당 저장 성공")
                 , HttpStatus.CREATED);
     }
 

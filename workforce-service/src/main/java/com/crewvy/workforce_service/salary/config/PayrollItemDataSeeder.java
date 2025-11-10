@@ -38,6 +38,7 @@ public class PayrollItemDataSeeder implements ApplicationRunner {
                 .name("기본급")
                 .calculationCode("BASE_SALARY")
                 .isActive(Bool.TRUE)
+                .isTaxable(Bool.TRUE)
                 .description("정규 직원 기본 급여")
                 .build();
 
@@ -48,6 +49,7 @@ public class PayrollItemDataSeeder implements ApplicationRunner {
                 .name("연장근로수당")
                 .calculationCode("OVERTIME_ALLOWANCE")
                 .isActive(Bool.TRUE)
+                .isTaxable(Bool.TRUE)
                 .description("정규 근무 시간 초과시 발생하는 수당")
                 .build();
 
@@ -59,6 +61,7 @@ public class PayrollItemDataSeeder implements ApplicationRunner {
                 .name("야간근로수당")
                 .calculationCode("NIGHT_WORK_ALLOWANCE")
                 .isActive(Bool.TRUE)
+                .isTaxable(Bool.TRUE)
                 .description("야간 근로(22시~06시) 시 발생하는 수당")
                 .build();
 
@@ -70,27 +73,8 @@ public class PayrollItemDataSeeder implements ApplicationRunner {
                 .name("휴일근로수당")
                 .calculationCode("HOLIDAY_WORK_ALLOWANCE")
                 .isActive(Bool.TRUE)
+                .isTaxable(Bool.TRUE)
                 .description("유급 휴일 근로 시 발생하는 수당")
-                .build();
-
-        // 지급 - 식대
-        PayrollItem meal = PayrollItem.builder()
-                .companyId(null)
-                .salaryType(SalaryType.ALLOWANCE)
-                .name("식대")
-                .calculationCode("MEAL_ALLOWANCE")
-                .isActive(Bool.TRUE)
-                .description("직원 식비 지원금")
-                .build();
-
-        // 지급 - 차량 유지비
-        PayrollItem car = PayrollItem.builder()
-                .companyId(null)
-                .salaryType(SalaryType.ALLOWANCE)
-                .name("차량유지비")
-                .calculationCode("CAR_ALLOWANCE")
-                .isActive(Bool.TRUE)
-                .description("차량 유지비")
                 .build();
 
         // 공제 - 국민 연금
@@ -153,7 +137,7 @@ public class PayrollItemDataSeeder implements ApplicationRunner {
                 .description("지방소득세 공제")
                 .build();
 
-        payrollItemRepository.saveAll(List.of(baseSalary, overtime, nightWork, holidayWork, meal, car
+        payrollItemRepository.saveAll(List.of(baseSalary, overtime, nightWork, holidayWork
                                             , nationalPension, healthInsurance, employmentInsurance
                                             , longTermCareInsurance, incomeTax, localIncomeTax));
 

@@ -30,10 +30,13 @@ public class FixedAllowanceService {
     private final MemberClient memberClient;
 
     @CheckPermission(resource = "salary", action = "CREATE", scope = "COMPANY")
-    public Long saveFixedAllowance(@AuthUser UUID memberPositionId,
-                                   FixedAllowanceCreateReq fixedAllowanceCreateReq) {
+    public void saveFixedAllowance(@AuthUser UUID memberPositionId,
+                                   UUID companyId,
+                                   List<FixedAllowanceCreateReq> fixedAllowanceCreateList) {
 
-        return fixedAllowanceRepository.save(fixedAllowanceCreateReq.toEntity()).getId();
+        for (FixedAllowanceCreateReq fixedAllowanceCreateReq : fixedAllowanceCreateList) {
+            fixedAllowanceRepository.save(fixedAllowanceCreateReq.toEntity(companyId));
+        }
     }
 
     @Transactional(readOnly = true)

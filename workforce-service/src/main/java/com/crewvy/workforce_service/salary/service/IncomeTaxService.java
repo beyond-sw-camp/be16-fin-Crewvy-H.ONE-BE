@@ -6,6 +6,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
+
 @Slf4j
 @Service
 @Transactional
@@ -20,10 +22,14 @@ public class IncomeTaxService {
         long tableMaxIncome = 10_000_000L;
 
         if (taxableIncome <= tableMaxIncome) {
-            return incomeTaxRepository.findTaxAmount(taxableIncome, dependentCount);
+            return Optional.ofNullable(
+                    incomeTaxRepository.findTaxAmount(taxableIncome, dependentCount)
+            ).orElse(0L);
 
         } else {
-            long baseTaxAt10M = incomeTaxRepository.findTaxAmount(tableMaxIncome, dependentCount);
+            long baseTaxAt10M = Optional.ofNullable(
+                    incomeTaxRepository.findTaxAmount(tableMaxIncome, dependentCount)
+            ).orElse(0L);
 
             if (taxableIncome <= 14_000_000L) {
                 long excessIncome = taxableIncome - tableMaxIncome;
