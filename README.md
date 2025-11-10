@@ -225,55 +225,55 @@ https://github.com/user-attachments/assets/f3a943f3-554c-498c-b32e-906242c3fa69
         <details>
           <summary>근무지 관리</summary>
           <div>
-            <img src="images/attendance/근무지관리.gif" width="600" />
+            <img src="images/attendance/근무지관리.gif" width="1200" />
           </div>
         </details>
         <details>
           <summary>정책 관리</summary>
           <div>
-            <img src="images/attendance/정책관리.gif" width="600" />
+            <img src="images/attendance/정책관리.gif" width="1200" />
           </div>
         </details>
         <details>
           <summary>정책 할당</summary>
           <div>
-            <img src="images/attendance/정책할당.gif" width="600" />
+            <img src="images/attendance/정책할당.gif" width="1200" />
           </div>
         </details>
         <details>
           <summary>출퇴근 기록</summary>
           <div>
-            <img src="images/attendance/출퇴근등록.gif" width="600" />
+            <img src="images/attendance/출퇴근등록.gif" width="1200" />
           </div>
         </details>
         <details>
           <summary>휴가 신청</summary>
           <div>
-            <img src="images/attendance/휴가신청.gif" width="600" />
+            <img src="images/attendance/휴가신청.gif" width="1200" />
           </div>
         </details>
         <details>
           <summary>결재 승인</summary>
           <div>
-            <img src="images/attendance/휴가결재승인.gif" width="600" />
+            <img src="images/attendance/휴가결재승인.gif" width="1200" />
           </div>
         </details>
         <details>
           <summary>승인 내역 확인</summary>
           <div>
-            <img src="images/attendance/승인내역확인.gif" width="600" />
+            <img src="images/attendance/승인내역확인.gif" width="1200" />
           </div>
         </details>
         <details>
           <summary>근태 현황</summary>
           <div>
-            <img src="images/attendance/근태현황.gif" width="600" />
+            <img src="images/attendance/근태현황.gif" width="1200" />
           </div>
         </details>
         <details>
           <summary>휴가 현황</summary>
           <div>
-            <img src="images/attendance/휴가현황.gif" width="600" />
+            <img src="images/attendance/휴가현황.gif" width="1200" />
           </div>
         </details>
       </div>
@@ -287,43 +287,43 @@ https://github.com/user-attachments/assets/f3a943f3-554c-498c-b32e-906242c3fa69
         <details>
           <summary>팀 목표 생성</summary>
           <div>
-            <img src=https://github.com/user-attachments/assets/1c72b651-7fba-4836-8967-78b259966c4a>
+            <img src=https://github.com/user-attachments/assets/1c72b651-7fba-4836-8967-78b259966c4a width="600" />
           </div>
         </details>
         <details>
           <summary>내 목표 생성</summary>
           <div>
-            <img src=https://github.com/user-attachments/assets/562b4e88-e56c-4fcf-bf66-24b28a882640>
+            <img src=https://github.com/user-attachments/assets/562b4e88-e56c-4fcf-bf66-24b28a882640 width="600" />
           </div>
         </details>
         <details>
           <summary>목표 승인</summary>
           <div>
-            <img src=https://github.com/user-attachments/assets/62349b83-6283-4f83-b28d-1066d04c9f96>
+            <img src=https://github.com/user-attachments/assets/62349b83-6283-4f83-b28d-1066d04c9f96 width="600" />
           </div>
         </details>
         <details>
           <summary>목표 반려</summary>
           <div>
-            <img src=https://github.com/user-attachments/assets/a6c7402f-be8d-416b-a12e-678f153afd8c>
+            <img src=https://github.com/user-attachments/assets/a6c7402f-be8d-416b-a12e-678f153afd8c width="600" />
           </div>
         </details>
         <details>
           <summary>증적 제출</summary>
           <div>
-            <img src=https://github.com/user-attachments/assets/b917933e-6d2d-4e8d-8661-7004cfb3d61f>
+            <img src=https://github.com/user-attachments/assets/b917933e-6d2d-4e8d-8661-7004cfb3d61f width="600" />
           </div>
         </details>
         <details>
           <summary>본인 평가</summary>
           <div>
-            <img src=https://github.com/user-attachments/assets/190379bf-3d64-44c4-acb6-e6605c16e618>
+            <img src=https://github.com/user-attachments/assets/190379bf-3d64-44c4-acb6-e6605c16e618 width="600" />
           </div>
         </details>
         <details>
           <summary>관리자 평가</summary>
           <div>
-            <img src=https://github.com/user-attachments/assets/dbb76523-378c-4040-bfcf-29c983ec0010>
+            <img src=https://github.com/user-attachments/assets/dbb76523-378c-4040-bfcf-29c983ec0010 width="600" />
           </div>
         </details>
       </div>
@@ -337,25 +337,25 @@ https://github.com/user-attachments/assets/f3a943f3-554c-498c-b32e-906242c3fa69
         <details>
           <summary>전자결재 신청</summary>
           <div>
-            <img src=https://github.com/user-attachments/assets/6754a5f1-fee8-4f8e-b0ab-b136356809bb>
+            <img src=https://github.com/user-attachments/assets/6754a5f1-fee8-4f8e-b0ab-b136356809bb width="600" />
           </div>
         </details>
         <details>
           <summary>전자결재 승인</summary>
           <div>
-            <img src=https://github.com/user-attachments/assets/3dcfa06f-672f-4c4c-836b-84585fbd3768>
+            <img src=https://github.com/user-attachments/assets/3dcfa06f-672f-4c4c-836b-84585fbd3768 width="600" />
           </div>
         </details>
         <details>
           <summary>전자결재 반려</summary>
           <div>
-            <img src=https://github.com/user-attachments/assets/66def534-03a0-4f7e-916a-3ec1ad63acd2>
+            <img src=https://github.com/user-attachments/assets/66def534-03a0-4f7e-916a-3ec1ad63acd2 width="600" />
           </div>
         </details>
         <details>
           <summary>전자결재 정책적용</summary>
           <div>
-            <img src="https://github.com/user-attachments/assets/43e34232-c67a-43ad-ac22-650fb2043ff3">
+            <img src="https://github.com/user-attachments/assets/43e34232-c67a-43ad-ac22-650fb2043ff3" width="600" />
           </div>
         </details>
       </div>
