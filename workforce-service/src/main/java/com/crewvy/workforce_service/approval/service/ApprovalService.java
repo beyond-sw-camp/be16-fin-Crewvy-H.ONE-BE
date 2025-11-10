@@ -8,6 +8,8 @@ import com.crewvy.common.entity.Bool;
 import com.crewvy.common.event.ApprovalCompletedEvent;
 import com.crewvy.common.exception.BusinessException;
 import com.crewvy.common.exception.SerializationException;
+import com.crewvy.workforce_service.aop.AuthUser;
+import com.crewvy.workforce_service.aop.CheckPermission;
 import com.crewvy.workforce_service.approval.constant.ApprovalState;
 import com.crewvy.workforce_service.approval.constant.LineStatus;
 import com.crewvy.workforce_service.approval.constant.RequirementType;
@@ -75,7 +77,7 @@ public class ApprovalService {
 
 //    문서 양식 조회
     @Transactional(readOnly = true)
-    public DocumentResponseDto getDocument(UUID id, UUID requestId, UUID memberPositionId, UUID memberId) {
+    public DocumentResponseDto getDocument(UUID id, UUID requestId, UUID memberPositionId, UUID memberId, UUID companyId) {
         // 1. 문서와 정책 목록을 한 번에 조회합니다 (N+1 방지).
         ApprovalDocument document = approvalDocumentRepository.findByIdWithPolicies(id)
                 .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 문서입니다."));
@@ -91,7 +93,8 @@ public class ApprovalService {
 
         // 3. 각 정책을 해석하여 '순서(lineIndex)'와 '찾아야 할 결재자 ID'를 Pair로 묶어 저장합니다.
         List<Pair<Integer, UUID>> resolvedPolicies = new ArrayList<>();
-        for (ApprovalPolicy policy : document.getPolicyList()) {
+        List<ApprovalPolicy> policyList = approvalPolicyRepository.findByApprovalDocument_IdAndCompanyId(document.getId(), companyId);
+        for (ApprovalPolicy policy : policyList) {
             // 1. null로 즉시 초기화 (컴파일 에러 해결)
             UUID approverId;
 
@@ -1152,29 +1155,32 @@ public class ApprovalService {
     }
 
 //    문서 결재정책 생성 및 수정
-    public void setPolicies(UUID documentID, List<DocumentPolicyDto> dtoList) {
-        ApprovalDocument document = approvalDocumentRepository.findById(documentID)
-                .orElseThrow(() -> new EntityNotFoundException("존재하지 않는 문서입니다."));
-        document.getPolicyList().clear();
+    @CheckPermission(resource = "approval", action = "CREATE", scope = "COMPANY")
+    public void setPolicies(UUID documentID, List<DocumentPolicyDto> dtoList, UUID companyId, @AuthUser UUID memberPositionId) {
+        List<ApprovalPolicy> policyList = approvalPolicyRepository.findByApprovalDocument_IdAndCompanyId(documentID, companyId);
+        policyList.clear();
+        ApprovalDocument document = approvalDocumentRepository.findById(documentID).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 문서입니다."));
 
         if (dtoList != null && !dtoList.isEmpty()) {
             List<ApprovalPolicy> newPolicies = dtoList.stream()
                     .map(dto -> ApprovalPolicy.builder()
                             .approvalDocument(document) // 부모-자식 관계 설정
-//                            .companyId(dto.getCompanyId())
+                            .companyId(companyId)
                             .requirementType(dto.getRequirementType())
                             .requirementId(dto.getRequirementId())
                             .lineIndex(dto.getLineIndex())
                             .build())
                     .toList();
 
-            document.getPolicyList().addAll(newPolicies);
+            policyList.addAll(newPolicies);
         }
+        approvalPolicyRepository.saveAll(policyList);
     }
 
 //    문서 정책 조회
-    public List<PolicyResDto> getPolicies(UUID documentId, UUID memberId, UUID memberPositionId) {
-        List<ApprovalPolicy> policies = approvalPolicyRepository.findByApprovalDocument_Id(documentId);
+    @CheckPermission(resource = "approval", action = "READ", scope = "COMPANY")
+    public List<PolicyResDto> getPolicies(UUID documentId, UUID memberId, @AuthUser UUID memberPositionId, UUID companyId) {
+        List<ApprovalPolicy> policies = approvalPolicyRepository.findByApprovalDocument_IdAndCompanyId(documentId, companyId);
 
         IdListReq idListReq = new IdListReq(policies.stream().filter(a->a.getRequirementType()
                 .equals(RequirementType.MEMBER_POSITION)).map(ApprovalPolicy::getRequirementId).toList());
