@@ -59,7 +59,7 @@ jobs:
 
       - name: Deploy to EKS
         env:
-          ECR_REGISTRY: 565393066924.dkr.ecr.ap-northeast-2.amazonaws.com
+          ECR_REGISTRY: 346903264902.dkr.ecr.ap-northeast-2.amazonaws.com
           ECR_REPOSITORY: hone-namespace/apigateway
           IMAGE_TAG_SHA: ${{ github.sha }}
         run: |
