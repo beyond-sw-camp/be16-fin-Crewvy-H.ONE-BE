@@ -1,6 +1,4 @@
-
-https://github.com/user-attachments/assets/f3a943f3-554c-498c-b32e-906242c3fa69
-![직급관리](https://github.com/user-attachments/assets/729d8b19-9f55-4992-94df-77809981e9d3)# [H.ONE]
+# [H.ONE]
 <img width="1077" height="367" alt="Image" src="https://github.com/user-attachments/assets/6912dad4-a773-4dfb-996a-917917e5c98f" />
 
 ## 팀원 소개

@@ -4,10 +4,14 @@ import io.livekit.server.EgressServiceClient;
 import io.livekit.server.RoomServiceClient;
 import io.livekit.server.WebhookReceiver;
 import livekit.LivekitEgress;
+import okhttp3.OkHttp;
+import okhttp3.OkHttpClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.concurrent.TimeUnit;
 
 @Configuration
 public class LiveKitConfig {
@@ -39,13 +43,23 @@ public class LiveKitConfig {
     }
 
     @Bean
+    public OkHttpClient okHttpClient() {
+        return new OkHttpClient.Builder()
+                .connectTimeout(60, TimeUnit.SECONDS)
+                .callTimeout(60, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
+                .writeTimeout(60, TimeUnit.SECONDS)
+                .build();
+    }
+
+    @Bean
     public RoomServiceClient roomServiceClient() {
-        return RoomServiceClient.createClient(LIVEKIT_HOST, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
+        return RoomServiceClient.createClient(LIVEKIT_HOST, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, this::okHttpClient);
     }
 
     @Bean
     public EgressServiceClient egressServiceClient() {
-        return EgressServiceClient.createClient(LIVEKIT_HOST, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
+        return EgressServiceClient.createClient(LIVEKIT_HOST, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, this::okHttpClient);
     }
 
     @Bean
