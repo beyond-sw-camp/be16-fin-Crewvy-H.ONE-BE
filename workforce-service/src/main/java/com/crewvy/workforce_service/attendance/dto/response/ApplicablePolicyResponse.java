@@ -24,8 +24,8 @@ public class ApplicablePolicyResponse {
         return ApplicablePolicyResponse.builder()
                 .policyId(policy.getId())
                 .policyName(policy.getName())
-                .policyTypeCode(policy.getPolicyType().getTypeCode())
-                .policyTypeName(policy.getPolicyType().getTypeName())
+                .policyTypeCode(policy.getPolicyTypeCode())
+                .policyTypeName(policy.getPolicyTypeCode().getCodeName())
                 .build();
     }
 }

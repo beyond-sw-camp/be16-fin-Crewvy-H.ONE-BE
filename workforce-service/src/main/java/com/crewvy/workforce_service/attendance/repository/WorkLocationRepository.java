@@ -40,4 +40,9 @@ public interface WorkLocationRepository extends JpaRepository<WorkLocation, UUID
      * 특정 근무지 조회 (회사 ID로 검증)
      */
     Optional<WorkLocation> findByIdAndCompanyId(UUID id, UUID companyId);
+
+    /**
+     * 이름 목록으로 근무지 조회 (출장 정책의 allowedWorkLocations 검증용)
+     */
+    List<WorkLocation> findByNameIn(List<String> names);
 }

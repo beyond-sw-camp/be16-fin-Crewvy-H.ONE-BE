@@ -56,4 +56,13 @@ public interface MemberBalanceRepository extends JpaRepository<MemberBalance, UU
     List<MemberBalance> findAllByMemberIdInAndYear(List<UUID> memberIds, int year);
 
     List<MemberBalance> findByMemberIdInAndBalanceTypeCodeAndYear(List<UUID> memberIds, PolicyTypeCode balanceTypeCode, int year);
+
+    /**
+     * 회사 + 잔액 타입 + 연도로 조회 (정책 할당 삭제/비활성화 시 사용)
+     */
+    List<MemberBalance> findByCompanyIdAndBalanceTypeCodeAndYear(
+            UUID companyId,
+            PolicyTypeCode balanceTypeCode,
+            Integer year
+    );
 }

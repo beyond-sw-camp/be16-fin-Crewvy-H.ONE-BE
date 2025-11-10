@@ -19,6 +19,7 @@ public class MyBalanceRes {
     private Double remaining;
     private LocalDate expirationDate;
     private Boolean isPaid;
+    private Boolean isUsable;           // 사용 가능 여부
 
     // 분할 사용 관련 정보
     private Integer maxSplitCount;      // 최대 분할 사용 횟수 (정책에서)

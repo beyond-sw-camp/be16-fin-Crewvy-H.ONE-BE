@@ -1,7 +1,9 @@
 package com.crewvy.workforce_service.attendance.entity;
 
 import com.crewvy.common.entity.BaseEntity;
+import com.crewvy.workforce_service.attendance.constant.PolicyTypeCode;
 import com.crewvy.workforce_service.attendance.converter.JsonToPolicyRuleDetailsConverter;
+import com.crewvy.workforce_service.attendance.converter.PolicyTypeCodeConverter;
 import com.crewvy.workforce_service.attendance.dto.rule.PolicyRuleDetails;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -25,9 +27,9 @@ public class Policy extends BaseEntity {
     @Column(name = "policy_id", nullable = false)
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "policy_type_id")
-    private PolicyType policyType;
+    @Column(name = "policy_type_code", nullable = false)
+    @Convert(converter = PolicyTypeCodeConverter.class)
+    private PolicyTypeCode policyTypeCode;
 
     @JoinColumn(name = "company_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT), nullable = false)
     private UUID companyId;
@@ -68,8 +70,8 @@ public class Policy extends BaseEntity {
         this.isActive = false;
     }
 
-    public void update(PolicyType policyType, String name, Boolean isPaid, LocalDate effectiveFrom, LocalDate effectiveTo, PolicyRuleDetails ruleDetails, Boolean autoApprove) {
-        this.policyType = policyType;
+    public void update(PolicyTypeCode policyTypeCode, String name, Boolean isPaid, LocalDate effectiveFrom, LocalDate effectiveTo, PolicyRuleDetails ruleDetails, Boolean autoApprove) {
+        this.policyTypeCode = policyTypeCode;
         this.name = name;
         this.isPaid = isPaid;
         this.effectiveFrom = effectiveFrom;

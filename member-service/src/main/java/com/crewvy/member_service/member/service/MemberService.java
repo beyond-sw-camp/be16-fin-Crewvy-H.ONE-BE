@@ -1375,4 +1375,89 @@ public class MemberService {
             throw new SerializationException("데이터 직렬화 실패");
         }
     }
+
+    /**
+     * 연차 발생 계산용 회원 고용 정보 조회
+     * @param memberPositionId 요청자의 직책 ID
+     * @param companyId 조회할 회사 ID
+     * @return 회사 소속 전체 직원의 고용 정보 리스트
+     */
+    public List<MemberEmploymentInfoDto> getEmploymentInfo(UUID memberPositionId, UUID companyId) {
+        // 권한 확인: COMPANY 레벨 READ 권한 필요
+        if (!checkPermission(memberPositionId, "attendance", Action.READ, PermissionRange.COMPANY)) {
+            throw new PermissionDeniedException("회사 전체 직원 정보 조회 권한이 없습니다.");
+        }
+
+        // companyId로 모든 멤버 조회
+        List<Member> members = memberRepository.findByCompanyId(companyId);
+
+        // DTO로 변환
+        return members.stream()
+                .map(member -> MemberEmploymentInfoDto.builder()
+                        .memberId(member.getId())
+                        .companyId(member.getCompany().getId())
+                        .name(member.getName())
+                        .joinDate(member.getJoinDate())
+                        .memberStatus(member.getMemberStatus().getCodeValue())
+                        .build())
+                .toList();
+    }
+
+    /**
+     * 내부 전용: 회원 고용 정보 조회 (시스템 배치/내부 작업용)
+     * 권한 체크 없이 직접 조회 - 시스템 내부 작업에서만 사용
+     * @param companyId 조회할 회사 ID
+     * @return 회사 소속 전체 직원의 고용 정보 리스트
+     */
+    @Transactional(readOnly = true)
+    public List<MemberEmploymentInfoDto> getEmploymentInfoInternal(UUID companyId) {
+        // 권한 체크 없음 - 시스템 내부 작업용
+        List<Member> members = memberRepository.findByCompanyId(companyId);
+
+        return members.stream()
+                .map(member -> MemberEmploymentInfoDto.builder()
+                        .memberId(member.getId())
+                        .companyId(member.getCompany().getId())
+                        .name(member.getName())
+                        .joinDate(member.getJoinDate())
+                        .memberStatus(member.getMemberStatus().getCodeValue())
+                        .build())
+                .toList();
+    }
+
+    /**
+     * 내부 전용: 단일 회원 고용 정보 조회 (Kafka 이벤트/내부 작업용)
+     * 권한 체크 없이 직접 조회 - 시스템 내부 작업에서만 사용
+     * @param memberId 조회할 회원 ID
+     * @return 회원 고용 정보
+     */
+    @Transactional(readOnly = true)
+    public MemberEmploymentInfoDto getMemberEmploymentInfoInternal(UUID memberId) {
+        // 권한 체크 없음 - 시스템 내부 작업용
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new EntityNotFoundException("회원을 찾을 수 없습니다: memberId=" + memberId));
+
+        return MemberEmploymentInfoDto.builder()
+                .memberId(member.getId())
+                .companyId(member.getCompany().getId())
+                .name(member.getName())
+                .joinDate(member.getJoinDate())
+                .memberStatus(member.getMemberStatus().getCodeValue())
+                .build();
+    }
+
+    /**
+     * 내부 전용: 첫 번째 회사 ID 조회 (테스트 데이터 초기화용)
+     * 권한 체크 없이 직접 조회 - 시스템 내부 작업에서만 사용
+     * @return 첫 번째 회사 ID
+     */
+    @Transactional(readOnly = true)
+    public UUID getFirstCompanyId() {
+        // 권한 체크 없음 - 시스템 내부 작업용
+        Member firstMember = memberRepository.findAll().stream()
+                .findFirst()
+                .orElseThrow(() -> new EntityNotFoundException("회사가 존재하지 않습니다. 먼저 회사를 생성해주세요."));
+
+        return firstMember.getCompany().getId();
+    }
 }

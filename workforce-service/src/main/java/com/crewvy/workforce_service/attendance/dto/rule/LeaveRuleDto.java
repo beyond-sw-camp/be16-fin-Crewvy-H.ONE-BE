@@ -71,11 +71,142 @@ public class LeaveRuleDto {
     private String accrualType;
 
     /**
+     * 연차 발생 방식
+     * - LEGAL_STANDARD: 근로기준법 기준 (15일 + 2년마다 1일, 최대 25일)
+     * - FIXED: 고정 일수 (근속과 무관하게 동일)
+     * - CUSTOM_SENIORITY: 회사 자체 근속 기준
+     * @deprecated annualLeaveRule 사용 권장
+     */
+    @Deprecated
+    private String accrualMethod;
+
+    // ========== 연차 규칙 (신규 구조) ==========
+
+    /**
+     * 연차 기준 유형
+     * - FISCAL_YEAR: 회계연도 기준 (예: 1월 1일 ~ 12월 31일)
+     * - JOIN_DATE: 입사일 기준
+     */
+    private String standardType;
+
+    /**
+     * 1년 이상 근로자 기본 연차 일수
+     * 근로기준법: 15일
+     */
+    private Integer baseAnnualLeaveForOverOneYear;
+
+    /**
+     * 연차 가산 규칙 목록
+     * 예: [{ afterYears: 3, additionalDays: 1 }, { afterYears: 5, additionalDays: 1 }]
+     */
+    private List<AdditionalAnnualLeaveRule> additionalAnnualLeaveRules;
+
+    /**
+     * 최대 연차 일수
+     * 근로기준법: 최대 25일
+     */
+    private Integer maximumAnnualLeaveLimit;
+
+    /**
+     * 1년 미만 근로자 규칙
+     */
+    private FirstYearRule firstYearRule;
+
+    /**
+     * 1년 이상 근로자 규칙
+     */
+    private OverOneYearRule overOneYearRule;
+
+    // ========== 1년 미만 근로자 설정 (Deprecated) ==========
+
+    /**
+     * 월별 연차 발생 여부 (1년 미만 근로자)
+     * true: 매월 개근 시 연차 발생
+     * false: 1년 미만 근로자 연차 미발생
+     * @deprecated firstYearRule 사용 권장
+     */
+    @Deprecated
+    private Boolean enableMonthlyAccrual;
+
+    /**
+     * 월별 발생 일수
+     * 근로기준법: 1일 (기본값)
+     * @deprecated firstYearRule 사용 권장
+     */
+    @Deprecated
+    private Double monthlyAccrualDays;
+
+    /**
      * 1년 미만 근로자의 최대 발생 가능 연차 일수.
      * 근로기준법 제60조 제2항: 1개월 개근 시 1일 (최대 11일)
      * 연차유급휴가에만 사용됩니다.
+     * @deprecated firstYearRule 사용 권장
      */
+    @Deprecated
     private Integer firstYearMaxAccrual;
+
+    // ========== 출근율 기반 연차 부여 조건 ==========
+
+    /**
+     * 출근율 체크 여부 (1년 이상 근로자용)
+     * 근로기준법 제60조 제2항: 1년간 80% 이상 출근 시 15일 부여
+     */
+    private Boolean enableAttendanceRateCheck;
+
+    /**
+     * 최소 요구 출근율 (예: 80.0 → 80%)
+     * 기본값: 80.0
+     */
+    private Double minimumAttendanceRate;
+
+    /**
+     * 출근으로 인정되는 항목들
+     * 예: ["WORKING", "BUSINESS_TRIP", "REMOTE_WORK", "EDUCATION"]
+     * 고용노동부 해석: 출장, 교육, 재택근무는 출근 인정
+     */
+    private List<String> countAsAttendance;
+
+    // ========== 연차 가산 설정 (Deprecated) ==========
+
+    /**
+     * 연차 가산 여부
+     * true: 근속연수에 따라 연차 가산
+     * false: 가산 없음
+     * @deprecated additionalAnnualLeaveRules 사용 권장
+     */
+    @Deprecated
+    private Boolean enableAdditionalLeave;
+
+    /**
+     * 가산 시작 근속 연차 (예: 3 → 3년차부터)
+     * 근로기준법: 3년차부터 가산
+     * @deprecated additionalAnnualLeaveRules 사용 권장
+     */
+    @Deprecated
+    private Integer additionalLeaveStartYear;
+
+    /**
+     * 가산 주기 (예: 2 → 2년마다)
+     * 근로기준법: 2년마다 1일 가산
+     * @deprecated additionalAnnualLeaveRules 사용 권장
+     */
+    @Deprecated
+    private Integer additionalLeaveInterval;
+
+    /**
+     * 가산 일수 (예: 1.0 → 주기마다 1일씩)
+     * @deprecated additionalAnnualLeaveRules 사용 권장
+     */
+    @Deprecated
+    private Double additionalLeaveDaysPerInterval;
+
+    /**
+     * 최대 연차 일수 (예: 25)
+     * 근로기준법: 최대 25일
+     * @deprecated maximumAnnualLeaveLimit 사용 권장
+     */
+    @Deprecated
+    private Integer maxAnnualLeaveDays;
 
     // ========== 주기별 제한 필드 (nullable) ==========
 
