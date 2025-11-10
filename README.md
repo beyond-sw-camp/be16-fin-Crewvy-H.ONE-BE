@@ -673,19 +673,19 @@
         <details>
           <summary>화상회의 시작</summary>
           <div>
-            <p>알아서</p>
+             ![Uploading 화면 기록 2025-11-10 오후 3.25.29.gif…]()
           </div>
         </details>
         <details>
           <summary>화상회의 예약</summary>
           <div>
-            <p>알아서</p>
+             ![123](https://github.com/user-attachments/assets/4207483d-2c9e-400a-a20a-2a97f794bd76)
           </div>
         </details>
         <details>
           <summary>화상회의 수정</summary>
           <div>
-            <p>알아서</p>
+             ![회의 수정](https://github.com/user-attachments/assets/567f1cda-cf6b-4758-9aaa-e5306b11fb39)
           </div>
         </details>
         <details>
@@ -697,7 +697,7 @@
         <details>
           <summary>화상회의 전사문, 요약문 (AI)</summary>
           <div>
-            <p>알아서</p>
+             <img width="1660" height="1195" alt="스크린샷 2025-11-10 오전 9 19 02" src="https://github.com/user-attachments/assets/315398cb-d0be-43a3-aa1a-7166083d71ba" />
           </div>
         </details>
       </div>
