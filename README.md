@@ -286,9 +286,7 @@
         <details>
           <summary>급여 항목별 조회</summary>
           <div>
-            <img alt="급여 항목별 조회" src="https://github.com/user-attachments/assets/c98fd32d-f64c-4115-aa36-02ff5b2e20c3" />
-            <img alt="급여 항목별 조회 모달" src="https://github.com/user-attachments/assets/075fcd0a-bf72-4b02-9ab7-60ebc3117652" />
-            <img alt="급여 항목별 조회 모달" src="https://github.com/user-attachments/assets/9cd7b467-0d4f-4f75-8824-b475b32f4635" />
+            <img alt="급여 항목별 조회" src="https://github.com/user-attachments/assets/46b10951-f67b-4e58-8d65-ef0ee01f8422" />
           </div>
         </details>
         <details>
@@ -320,9 +318,7 @@
         <details>
           <summary>예약 하기</summary>
           <div>
-            <img alt="예약 목록" src="https://github.com/user-attachments/assets/a4e24e84-dfa2-49a3-b574-4c6ddf3035b7" />
-            <img alt="예약하기" src="https://github.com/user-attachments/assets/a7f7e768-ff76-47b3-a148-4476f9adfc42" />
-            <img alt="내 예약" src="https://github.com/user-attachments/assets/082c58fe-fbf5-4ad8-99e5-75da41980306" />
+            <img alt="예약하기" src="https://github.com/user-attachments/assets/e3f06b5c-8408-457e-8441-6a12abf71e42" />
           </div>
         </details>
         <details>
