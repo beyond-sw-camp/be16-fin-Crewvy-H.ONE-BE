@@ -162,7 +162,7 @@
 
 ##  6. 시스템 아키텍처 및 CI/CD 계획서
   ### 시스템 아키텍처
-  <img alt="시스템 아키텍처 이미지" src=""/>
+  <img alt="시스템 아키텍처" src="https://github.com/user-attachments/assets/e00a815f-2d61-4ebf-9e53-fd4c9d090b3f" />
 
   ### CI/CD 계획서
   
