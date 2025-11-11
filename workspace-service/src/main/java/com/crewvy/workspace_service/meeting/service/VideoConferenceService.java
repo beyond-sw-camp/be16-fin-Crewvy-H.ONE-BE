@@ -310,6 +310,13 @@ public class VideoConferenceService {
 
     public VideoConferenceUpdateRes updateVideoConference(UUID memberId, UUID videoConferenceId, VideoConferenceUpdateReq videoConferenceUpdateReq) {
         VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 화상회의 입니다."));
+        videoConferenceUpdateReq.getInviteeIdList().add(memberId);
+
+        ScheduleDeleteDto scheduleDelete = ScheduleDeleteDto.builder()
+                .originId(videoConference.getId())
+                .build();
+
+        eventPublisher.publishEvent(scheduleDelete);
 
         if (!videoConference.getHostId().equals(memberId))
             throw new UserNotHostException("화상회의의 호스트가 아닙니다.");
@@ -326,19 +333,8 @@ public class VideoConferenceService {
         if (videoConferenceUpdateReq.getScheduledStartTime() != null && !videoConferenceUpdateReq.getScheduledStartTime().isEqual(videoConference.getScheduledStartTime())) {
             videoConference.updateScheduledStartTime(videoConferenceUpdateReq.getScheduledStartTime());
 
-            videoConferenceUpdateReq.getInviteeIdList().add(memberId);
             // 여전히 초대자 목록에 포함되어 있는 유저들에게 회의 예정 시간 변경 알림
             videoConferenceUpdateReq.getInviteeIdList().forEach(inviteeId -> {
-                ScheduleDto schedule = ScheduleDto.builder()
-                        .memberId(inviteeId)
-                        .originId(videoConference.getId())
-                        .title(videoConference.getName())
-                        .contents(videoConference.getDescription())
-                        .startDate(videoConference.getScheduledStartTime())
-                        .type("CT001")
-                        .build();
-
-                eventPublisher.publishEvent(schedule);
 
                 if (inviteeId.equals(memberId)) return;
 
@@ -355,8 +351,19 @@ public class VideoConferenceService {
             });
         }
 
-        // 새로 추가된 유저들에게 초대 알림
         videoConferenceUpdateReq.getInviteeIdList().stream().distinct().forEach(inviteeId -> {
+            ScheduleDto schedule = ScheduleDto.builder()
+                    .memberId(inviteeId)
+                    .originId(videoConference.getId())
+                    .title(videoConference.getName())
+                    .contents(videoConference.getDescription())
+                    .startDate(videoConference.getScheduledStartTime())
+                    .type("CT001")
+                    .build();
+
+            eventPublisher.publishEvent(schedule);
+
+            // 새로 추가된 유저들에게 초대 알림
             if (videoConference.getVideoConferenceInviteeSet().stream().noneMatch(invitee -> inviteeId.equals(invitee.getMemberId()))) {
                 NotificationMessage message = NotificationMessage.builder()
                         .memberId(inviteeId)
@@ -366,17 +373,6 @@ public class VideoConferenceService {
                         .build();
 
                 eventPublisher.publishEvent(message);
-
-                ScheduleDto schedule = ScheduleDto.builder()
-                        .memberId(inviteeId)
-                        .originId(videoConference.getId())
-                        .title(videoConference.getName())
-                        .contents(videoConference.getDescription())
-                        .startDate(videoConference.getScheduledStartTime())
-                        .type("CT001")
-                        .build();
-
-                eventPublisher.publishEvent(schedule);
             }
         });
 
