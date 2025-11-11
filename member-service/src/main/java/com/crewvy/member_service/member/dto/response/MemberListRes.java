@@ -20,6 +20,7 @@ public class MemberListRes {
     private String sabun;
     private LocalDate joinDate;
     private String titleName;
+    private UUID organizationId;
     private String organizationName;
     private String memberStatusName;
     private String email;
@@ -33,6 +34,7 @@ public class MemberListRes {
                 .sabun(memberPosition.getMember().getSabun())
                 .joinDate(memberPosition.getMember().getJoinDate())
                 .titleName(memberPosition.getTitle().getName())
+                .organizationId(memberPosition.getOrganization().getId())
                 .organizationName(memberPosition.getOrganization().getName())
                 .memberStatusName(memberPosition.getMember().getMemberStatus().getCodeName())
                 .email(memberPosition.getMember().getEmail())
