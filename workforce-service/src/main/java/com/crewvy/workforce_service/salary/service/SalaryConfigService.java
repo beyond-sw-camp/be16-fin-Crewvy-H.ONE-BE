@@ -54,10 +54,11 @@ public class SalaryConfigService {
                             }
                         }));
 
+        LocalDate endDate = yearMonth.atEndOfMonth();
 
         // 고정 수당 항목 조회
         List<FixedAllowanceRes> fixedAllowanceResList =  fixedAllowanceService.getFixedAllowanceList(memberPositionId,
-                companyId);
+                companyId, endDate);
 
         Map<UUID, List<FixedAllowanceRes>> fixedAllowanceResMap = fixedAllowanceResList.stream()
                 .collect(Collectors.groupingBy(FixedAllowanceRes::getMemberId));

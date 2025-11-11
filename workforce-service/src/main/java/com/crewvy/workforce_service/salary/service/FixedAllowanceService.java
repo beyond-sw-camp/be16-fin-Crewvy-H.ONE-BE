@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -40,11 +41,11 @@ public class FixedAllowanceService {
     }
 
     @Transactional(readOnly = true)
-    @CheckPermission(resource = "salary", action = "CREATE", scope = "COMPANY")
-    public List<FixedAllowanceRes> getFixedAllowanceList(UUID memberPositionId,
-                                                         UUID companyId) {
+    @CheckPermission(resource = "salary", action = "READ", scope = "COMPANY")
+    public List<FixedAllowanceRes> getFixedAllowanceList(@AuthUser UUID memberPositionId,
+                                                         UUID companyId, LocalDate endDate) {
 
-        List<FixedAllowance> fixedAllowanceList = fixedAllowanceRepository.findAllByCompanyId(companyId);
+        List<FixedAllowance> fixedAllowanceList = fixedAllowanceRepository.findActiveAllowances(companyId, endDate);
         return fixedAllowanceList.stream().map(FixedAllowanceRes::fromEntity).toList();
     }
 

@@ -94,7 +94,7 @@ public class SalaryCalculatorService {
         Map<UUID, List<SalaryDetailRes>> allowanceMap = calculateAllowances(companyId, yearMonth, startDate, endDate);
 
         List<FixedAllowanceRes> fixedAllowanceList =  fixedAllowanceService.getFixedAllowanceList(memberPositionId,
-                companyId);
+                companyId, endDate);
 
         Map<UUID, List<FixedAllowanceRes>> fixedAllowanceMap = fixedAllowanceList.stream()
                 .collect(Collectors.groupingBy(FixedAllowanceRes::getMemberId));
