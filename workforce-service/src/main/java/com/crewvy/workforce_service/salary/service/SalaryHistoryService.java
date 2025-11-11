@@ -68,9 +68,20 @@ public class SalaryHistoryService {
 
     // 산정 종료일 기반 급여 이력 조회 후 기본급 반환
     public List<SalaryHistory> getSalaryHistories(SalaryHistoryListReq salaryHistoryListReq) {
-        SalaryPolicy salaryPolicy = salaryPolicyService.getLatestSalaryHistoryForCalculation(salaryHistoryListReq.getCompanyId());
-        LocalDate endDate = salaryPolicyService.calculatePeriodEndDate(salaryPolicy, salaryHistoryListReq.getYearMonth()).getEndDate();
-        return salaryHistoryRepository.findLatestSalaryHistoriesByCompany(salaryHistoryListReq.getCompanyId(), endDate);
+        SalaryPolicy salaryPolicy
+                = salaryPolicyService.getLatestSalaryHistoryForCalculation(salaryHistoryListReq.getCompanyId());
+        int payday = salaryPolicy.getPaymentDay();
+
+        LocalDate baseSalaryAsOfDate = (payday == 0) ? salaryHistoryListReq.getYearMonth().atEndOfMonth()
+                : salaryHistoryListReq.getYearMonth().atDay(payday);
+
+
+        log.error("기본급 조회 기준일 (baseSalaryAsOfDate) : {}", baseSalaryAsOfDate);
+
+        return salaryHistoryRepository.findLatestSalaryHistoriesByCompany(
+                salaryHistoryListReq.getCompanyId(),
+                baseSalaryAsOfDate
+        );
     }
 
 }

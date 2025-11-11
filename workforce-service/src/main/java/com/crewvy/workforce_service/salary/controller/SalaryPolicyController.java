@@ -35,7 +35,6 @@ public class SalaryPolicyController {
     // 급여 정책 업데이트
     @PutMapping("/update")
     public ResponseEntity<?> updateSalaryPolicy(@RequestBody SalaryPolicyUpdateReq salaryPolicyUpdateReq) {
-        log.error("급여 지급일 확인 : {}", salaryPolicyUpdateReq.getPaymentDay());
         SalaryPolicyRes salaryPolicyRes = salaryPolicyService.updateSalaryPolicy(salaryPolicyUpdateReq);
         return new ResponseEntity<>(
                 new ApiResponse<>(true, salaryPolicyRes, "급여 정책 업데이트 성공")

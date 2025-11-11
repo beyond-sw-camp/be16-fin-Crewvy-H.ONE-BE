@@ -31,7 +31,7 @@ public class SalaryPolicyService {
     @Transactional(readOnly = true)
     public SalaryPolicyRes getSalaryPolicy(UUID companyId) {
         SalaryPolicy salaryPolicy = salaryPolicyRepository.findByCompanyId(companyId)
-                .orElseThrow(() -> new ResourceNotFoundException("해당 회사의 급여 정책을 찾을 수 없습니다."));
+                .orElseThrow(() -> new ResourceNotFoundException("설정된 급여 정보가 없습니다."));
 
         return SalaryPolicyRes.fromEntity(salaryPolicy);
     }
@@ -57,7 +57,7 @@ public class SalaryPolicyService {
     public SalaryPolicy getLatestSalaryHistoryForCalculation(UUID companyId) {
 
         return salaryPolicyRepository.findByCompanyId(companyId)
-                .orElseThrow(() -> new ResourceNotFoundException("해당 회사의 급여 정책을 찾을 수 없습니다."));
+                .orElseThrow(() -> new ResourceNotFoundException("설정된 급여 정보가 없습니다."));
     }
 
     // 산정 종료일 계산 (산정 종료일 계산)
@@ -95,7 +95,7 @@ public class SalaryPolicyService {
 
     public LocalDate getPaymentDate(UUID companyId, YearMonth yearMonth) {
         SalaryPolicy salaryPolicy = salaryPolicyRepository.findByCompanyId(companyId)
-                .orElseThrow(() -> new ResourceNotFoundException("해당 회사의 급여 정책을 찾을 수 없습니다."));
+                .orElseThrow(() -> new ResourceNotFoundException("설정된 급여 정보가 없습니다."));
 
         LocalDate paymentDate = switch (salaryPolicy.getPayDayType()) {
             case END_OF_MONTH -> // 말일 지급

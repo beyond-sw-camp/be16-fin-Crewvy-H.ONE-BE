@@ -1,0 +1,21 @@
+{
+  "properties": {
+    "minuteId": {
+      "type": "keyword"
+    },
+    "title": {
+      "type": "text",
+      "analyzer": "title_analyzer"
+    },
+    "summary": {
+      "type": "text",
+      "analyzer": "summary_analyzer"
+    },
+    "memberId": {
+      "type": "keyword"
+    },
+    "createDateTime": {
+      "type": "date"
+    }
+  }
+}

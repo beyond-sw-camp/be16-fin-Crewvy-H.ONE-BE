@@ -1,0 +1,36 @@
+{
+  "properties": {
+    "id": {
+      "type": "keyword"
+    },
+    "companyId": {
+      "type": "keyword"
+    },
+    "label": {
+      "type": "keyword"
+    },
+    "type": {
+      "type": "keyword"
+    },
+    "members": {
+      "type": "nested",
+      "properties": {
+        "id": {
+          "type": "keyword"
+        },
+        "name": {
+          "type": "text"
+        },
+        "position": {
+          "type": "keyword"
+        },
+        "email": {
+          "type": "keyword"
+        }
+      }
+    },
+    "parentId": {
+      "type": "keyword"
+    }
+  }
+}
