@@ -310,16 +310,17 @@ public class VideoConferenceService {
 
     public VideoConferenceUpdateRes updateVideoConference(UUID memberId, UUID videoConferenceId, VideoConferenceUpdateReq videoConferenceUpdateReq) {
         VideoConference videoConference = videoConferenceRepository.findById(videoConferenceId).orElseThrow(() -> new EntityNotFoundException("존재하지 않는 화상회의 입니다."));
-        videoConferenceUpdateReq.getInviteeIdList().add(memberId);
-
-        ScheduleDeleteDto scheduleDelete = ScheduleDeleteDto.builder()
-                .originId(videoConference.getId())
-                .build();
-
-        eventPublisher.publishEvent(scheduleDelete);
 
         if (!videoConference.getHostId().equals(memberId))
             throw new UserNotHostException("화상회의의 호스트가 아닙니다.");
+
+        videoConferenceUpdateReq.getInviteeIdList().add(memberId);
+
+//        ScheduleDeleteDto scheduleDelete = ScheduleDeleteDto.builder()
+//                .originId(videoConference.getId())
+//                .build();
+//
+//        eventPublisher.publishEvent(scheduleDelete);
 
         if (videoConferenceUpdateReq.getName() != null)
             videoConference.updateName(videoConferenceUpdateReq.getName());
