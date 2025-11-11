@@ -151,50 +151,56 @@ public class RequestService {
             throw new BusinessException("동일한 기간에 이미 신청한 내역이 있습니다. 중복 신청은 불가능합니다.");
         }
 
-        // 5. 정책 타입에 따라 ApprovalDocument 자동 매핑
-        ApprovalDocument approvalDocument = getApprovalDocumentByPolicyType(policy.getPolicyTypeCode());
+        // 5. 자동 승인 여부에 따라 ApprovalDocument 연결 결정
+        boolean isAutoApprove = Boolean.TRUE.equals(policy.getAutoApprove());
+        ApprovalDocument approvalDocument = null;
+        RequestStatus initialStatus = RequestStatus.PENDING;
+
+        if (isAutoApprove) {
+            // 자동 승인: 결재 문서 없이 바로 APPROVED 상태로 생성
+            initialStatus = RequestStatus.APPROVED;
+            log.info("자동 승인 정책 적용: memberId={}, policyId={}", memberId, policy.getId());
+        } else {
+            // 수동 승인: ApprovalDocument 연결 (결재 플로우 진행)
+            approvalDocument = getApprovalDocumentByPolicyType(policy.getPolicyTypeCode());
+        }
 
         // 6. Request 엔티티 생성
         Request request = Request.builder()
                 .policy(policy)
                 .memberId(memberId)
-                .approvalDocument(approvalDocument)
+                .approvalDocument(approvalDocument)  // autoApprove=true면 null
                 .requestUnit(createDto.getRequestUnit())
                 .startDateTime(startDateTime)
                 .endDateTime(endDateTime)
                 .deductionDays(deductionDays)
                 .reason(createDto.getReason())
-                .status(RequestStatus.PENDING)
+                .status(initialStatus)  // autoApprove=true면 APPROVED, false면 PENDING
                 .requesterComment(createDto.getRequesterComment())
                 .workLocation(createDto.getWorkLocation()) // 출장지 (출장 신청 시 사용)
                 .build();
 
         Request savedRequest = requestRepository.save(request);
 
-        // TODO: Phase 2 - Approval 생성 및 연동
-        // UUID approvalId = approvalService.createApproval(...);
-        // savedRequest.updateDocumentId(approvalId);
-
         // 잔액 차감이 필요한 정책인 경우 즉시 차감 처리 (휴가)
         if (policy.getPolicyTypeCode().isBalanceDeductible()) {
             applyLeaveRequestBalance(savedRequest);
         }
 
-        // 자동 승인 처리
-        if (Boolean.TRUE.equals(policy.getAutoApprove())) {
+        // 자동 승인된 경우: DailyAttendance 즉시 반영
+        if (isAutoApprove) {
             // 연장/야간/휴일근무인 경우 근무시간 처리
             if (policy.getPolicyTypeCode() == PolicyTypeCode.OVERTIME
                     || policy.getPolicyTypeCode() == PolicyTypeCode.NIGHT_WORK
                     || policy.getPolicyTypeCode() == PolicyTypeCode.HOLIDAY_WORK) {
                 applyWorkRequestToDailyAttendance(savedRequest);
             }
-            savedRequest.updateStatus(RequestStatus.APPROVED);
             log.info("자동 승인 처리 완료: memberId={}, policyId={}, requestId={}",
                     memberId, policy.getId(), savedRequest.getId());
         }
 
         log.info("휴가 신청 완료: memberId={}, policyId={}, deductionDays={}, autoApproved={}",
-                memberId, policy.getId(), deductionDays, Boolean.TRUE.equals(policy.getAutoApprove()));
+                memberId, policy.getId(), deductionDays, isAutoApprove);
 
         return LeaveRequestResponse.from(savedRequest);
     }
@@ -250,33 +256,39 @@ public class RequestService {
             }
         }
 
-        // 5. 정책 타입에 따라 ApprovalDocument 자동 매핑
-        ApprovalDocument approvalDocument = getApprovalDocumentByPolicyType(policy.getPolicyTypeCode());
+        // 5. 자동 승인 여부에 따라 ApprovalDocument 연결 결정
+        boolean isAutoApprove = Boolean.TRUE.equals(policy.getAutoApprove());
+        ApprovalDocument approvalDocument = null;
+        RequestStatus initialStatus = RequestStatus.PENDING;
+
+        if (isAutoApprove) {
+            // 자동 승인: 결재 문서 없이 바로 APPROVED 상태로 생성
+            initialStatus = RequestStatus.APPROVED;
+            log.info("자동 승인 정책 적용: memberId={}, policyId={}", memberId, policy.getId());
+        } else {
+            // 수동 승인: ApprovalDocument 연결 (결재 플로우 진행)
+            approvalDocument = getApprovalDocumentByPolicyType(policy.getPolicyTypeCode());
+        }
 
         // 6. Request 엔티티 생성
         Request request = Request.builder()
                 .policy(policy)
                 .memberId(memberId)
-                .approvalDocument(approvalDocument)
+                .approvalDocument(approvalDocument)  // autoApprove=true면 null
                 .requestUnit(RequestUnit.DAY) // 출장은 일자 단위
                 .startDateTime(startDateTime)
                 .endDateTime(endDateTime)
                 .deductionDays(0.0) // 출장은 잔액 차감 없음
                 .reason(createDto.getReason())
-                .status(RequestStatus.PENDING)
+                .status(initialStatus)  // autoApprove=true면 APPROVED, false면 PENDING
                 .requesterComment(createDto.getRequesterComment())
                 .workLocation(createDto.getWorkLocation()) // 출장지
                 .build();
 
         Request savedRequest = requestRepository.save(request);
 
-        // TODO: Phase 2 - Approval 생성 및 연동
-        // UUID approvalId = approvalService.createApproval(...);
-        // savedRequest.updateDocumentId(approvalId);
-
-        // 자동 승인 처리
-        if (Boolean.TRUE.equals(policy.getAutoApprove())) {
-            savedRequest.updateStatus(RequestStatus.APPROVED);
+        // 자동 승인된 경우 로그
+        if (isAutoApprove) {
             log.info("출장 자동 승인 처리 완료: memberId={}, policyId={}, requestId={}",
                     memberId, policy.getId(), savedRequest.getId());
         }
@@ -844,24 +856,18 @@ public class RequestService {
         LocalDate today = LocalDate.now();
         LocalDate startDate = request.getStartDateTime().toLocalDate();
         LocalDate endDate = request.getEndDateTime().toLocalDate();
-        
+
         // 사후 신청이 아니면 스킵
         if (startDate.isAfter(today)) {
             return;
         }
-        
+
         LocalDate effectiveEndDate = endDate.isAfter(today) ? today : endDate;
         PolicyTypeCode typeCode = request.getPolicy().getPolicyTypeCode();
-        
-        // 근무 시간 계산 (분 단위)
-        long workMinutes = java.time.Duration.between(
-                request.getStartDateTime(),
-                request.getEndDateTime()
-        ).toMinutes();
 
         List<DailyAttendance> attendances = dailyAttendanceRepository.findAllByMemberIdInAndAttendanceDateBetween(
                 List.of(request.getMemberId()), startDate, effectiveEndDate);
-        
+
         Map<LocalDate, DailyAttendance> attendanceMap = attendances.stream()
                 .collect(Collectors.toMap(DailyAttendance::getAttendanceDate, java.util.function.Function.identity()));
 
@@ -869,10 +875,9 @@ public class RequestService {
         LocalDate currentDate = startDate;
         while (!currentDate.isAfter(effectiveEndDate)) {
             final LocalDate dateToProcess = currentDate;
-            final int dailyMinutes = (int) workMinutes;
-            
+
             DailyAttendance dailyAttendance = attendanceMap.get(dateToProcess);
-            
+
             if (dailyAttendance == null) {
                 dailyAttendance = DailyAttendance.builder()
                         .memberId(request.getMemberId())
@@ -882,31 +887,109 @@ public class RequestService {
                         .build();
                 attendancesToSave.add(dailyAttendance);
             }
-            
+
             // 정책 타입에 따라 근무 시간 추가
             if (typeCode == PolicyTypeCode.OVERTIME) {
-                dailyAttendance.addOvertimeMinutes(dailyMinutes);
-                log.info("사후 연장근무 반영: memberId={}, date={}, minutes={}",
-                        request.getMemberId(), dateToProcess, dailyMinutes);
+                // 연장근무 신청: 시간대별 자동 분리 (22:00 기준)
+                OvertimeSplit split = splitOvertimeByTimeRange(request.getStartDateTime(), request.getEndDateTime());
+
+                if (split.overtimeMinutes > 0) {
+                    dailyAttendance.addOvertimeMinutes(split.overtimeMinutes);
+                    dailyAttendance.addDaytimeOvertimeMinutes(split.overtimeMinutes);
+                    log.info("사후 연장근무 반영: memberId={}, date={}, 연장={}분",
+                            request.getMemberId(), dateToProcess, split.overtimeMinutes);
+                }
+
+                if (split.nightWorkMinutes > 0) {
+                    dailyAttendance.addNightWorkMinutes(split.nightWorkMinutes);
+                    log.info("사후 야간근무 반영 (연장근무 신청에서 분리): memberId={}, date={}, 야간={}분",
+                            request.getMemberId(), dateToProcess, split.nightWorkMinutes);
+                }
+
             } else if (typeCode == PolicyTypeCode.NIGHT_WORK) {
-                dailyAttendance.addNightWorkMinutes(dailyMinutes);
+                long workMinutes = java.time.Duration.between(
+                        request.getStartDateTime(),
+                        request.getEndDateTime()
+                ).toMinutes();
+                dailyAttendance.addNightWorkMinutes((int) workMinutes);
                 log.info("사후 야간근무 반영: memberId={}, date={}, minutes={}",
-                        request.getMemberId(), dateToProcess, dailyMinutes);
+                        request.getMemberId(), dateToProcess, (int) workMinutes);
+
             } else if (typeCode == PolicyTypeCode.HOLIDAY_WORK) {
-                dailyAttendance.addHolidayWorkMinutes(dailyMinutes);
+                long workMinutes = java.time.Duration.between(
+                        request.getStartDateTime(),
+                        request.getEndDateTime()
+                ).toMinutes();
+                dailyAttendance.addHolidayWorkMinutes((int) workMinutes);
                 log.info("사후 휴일근무 반영: memberId={}, date={}, minutes={}",
-                        request.getMemberId(), dateToProcess, dailyMinutes);
+                        request.getMemberId(), dateToProcess, (int) workMinutes);
             }
-            
+
             if (!attendancesToSave.contains(dailyAttendance)) {
                 attendancesToSave.add(dailyAttendance);
             }
-            
+
             currentDate = currentDate.plusDays(1);
         }
-        
+
         if (!attendancesToSave.isEmpty()) {
             dailyAttendanceRepository.saveAll(attendancesToSave);
+        }
+    }
+
+    /**
+     * 연장근무 시간대 자동 분리
+     * - 22:00 이전: 연장근무 (overtimeMinutes)
+     * - 22:00~06:00: 야간근무 (nightWorkMinutes)
+     *
+     * @param startDateTime 근무 시작 시간
+     * @param endDateTime 근무 종료 시간
+     * @return 분리된 연장/야간 근무 시간 (분 단위)
+     */
+    private OvertimeSplit splitOvertimeByTimeRange(LocalDateTime startDateTime, LocalDateTime endDateTime) {
+        final LocalTime NIGHT_START = LocalTime.of(22, 0); // 야간근무 시작 22:00
+        final LocalTime NIGHT_END = LocalTime.of(6, 0);    // 야간근무 종료 06:00
+
+        int overtimeMinutes = 0;
+        int nightWorkMinutes = 0;
+
+        LocalDate startDate = startDateTime.toLocalDate();
+        LocalDate endDate = endDateTime.toLocalDate();
+
+        // 당일 22:00 시점
+        LocalDateTime nightStartToday = LocalDateTime.of(startDate, NIGHT_START);
+        // 다음날 06:00 시점
+        LocalDateTime nightEndNextDay = LocalDateTime.of(startDate.plusDays(1), NIGHT_END);
+
+        // 케이스 1: 종료 시간이 22:00 이전 → 모두 연장근무
+        if (endDateTime.isBefore(nightStartToday) || endDateTime.equals(nightStartToday)) {
+            overtimeMinutes = (int) java.time.Duration.between(startDateTime, endDateTime).toMinutes();
+        }
+        // 케이스 2: 시작 시간이 22:00 이후 또는 같음 → 모두 야간근무
+        else if (!startDateTime.isBefore(nightStartToday)) {
+            nightWorkMinutes = (int) java.time.Duration.between(startDateTime, endDateTime).toMinutes();
+        }
+        // 케이스 3: 시작은 22:00 이전, 종료는 22:00 이후 → 분리 필요
+        else {
+            // 22:00 이전 부분 → 연장근무
+            overtimeMinutes = (int) java.time.Duration.between(startDateTime, nightStartToday).toMinutes();
+            // 22:00 이후 부분 → 야간근무
+            nightWorkMinutes = (int) java.time.Duration.between(nightStartToday, endDateTime).toMinutes();
+        }
+
+        return new OvertimeSplit(overtimeMinutes, nightWorkMinutes);
+    }
+
+    /**
+     * 연장/야간 근무 시간 분리 결과
+     */
+    private static class OvertimeSplit {
+        final int overtimeMinutes;
+        final int nightWorkMinutes;
+
+        OvertimeSplit(int overtimeMinutes, int nightWorkMinutes) {
+            this.overtimeMinutes = overtimeMinutes;
+            this.nightWorkMinutes = nightWorkMinutes;
         }
     }
 
