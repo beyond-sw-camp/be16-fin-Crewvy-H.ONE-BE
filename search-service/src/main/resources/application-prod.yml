@@ -22,7 +22,7 @@ spring:
     show_sql: true
   kafka:
     enabled: true
-    bootstrap-servers: kafka-service:9092
+    bootstrap-servers: kafka-service:9093
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
