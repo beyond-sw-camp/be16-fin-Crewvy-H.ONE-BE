@@ -59,6 +59,6 @@ public class EmailForm {
                 
                 </body>
                 </html>
-                """, newPassword, "http://localhost:3000");
+                """, newPassword, "https://hone.crewvy.cloud");
     }
 }
