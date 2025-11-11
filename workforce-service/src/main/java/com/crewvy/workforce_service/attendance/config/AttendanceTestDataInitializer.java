@@ -176,11 +176,15 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         createAttendanceRecords(employees);
 
         // 6단계: 휴가 신청 및 결재 연동 데이터 생성
-        log.info("📋 [6/7] 휴가 신청 데이터 생성 중 (Request-Approval 완전 연동)...");
+        log.info("📋 [6/8] 휴가 신청 데이터 생성 중 (Request-Approval 완전 연동)...");
         createLeaveRequests(employees);
 
+        // 6-2단계: 출장 신청 데이터 생성
+        log.info("📋 [6-2/8] 출장 신청 데이터 생성 중...");
+        createTripRequests(employees);
+
         // 7단계: 추가근무 신청 및 DailyAttendance 연동 데이터 생성
-        log.info("📋 [7/7] 추가근무 신청 데이터 생성 중 (연장/야간/휴일근무, 출장)...");
+        log.info("📋 [7/8] 추가근무 신청 데이터 생성 중 (연장/야간/휴일근무)...");
         createExtraWorkRequests(employees);
 
         log.info("");
@@ -992,10 +996,11 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
             }
 
             // 결정적 패턴: 각 직원별로 3개 (승인 2 + 대기 1)
+            // 최근 날짜로 변경: -3일, -5일 (근태 현황에서 쉽게 확인 가능)
             int[][] requestPatterns = {
-                {-15 - memberIndex * 2, 1, RequestStatus.APPROVED.ordinal()},    // 과거 (승인)
-                {-30 - memberIndex * 3, 1, RequestStatus.APPROVED.ordinal()},    // 과거 (승인)
-                {7 + memberIndex, 1, RequestStatus.PENDING.ordinal()}             // 미래 (대기)
+                {-3 - memberIndex, 1, RequestStatus.APPROVED.ordinal()},    // 최근 과거 (승인) - 11/9, 11/8, 11/7...
+                {-5 - memberIndex * 2, 1, RequestStatus.APPROVED.ordinal()}, // 과거 (승인) - 11/7, 11/5, 11/3...
+                {7 + memberIndex, 1, RequestStatus.PENDING.ordinal()}        // 미래 (대기) - 11/19, 11/20...
             };
 
             for (int i = 0; i < requestPatterns.length; i++) {
@@ -1137,6 +1142,90 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         log.info("   ✓ 총 {}개의 휴가 신청 생성 (승인: {}, 반려: {}, 대기: {})",
                  totalRequests, approvedCount, rejectedCount, pendingCount);
         log.info("   ✓ 승인된 휴가에 대한 DailyAttendance {} 건 생성", approvedCount);
+        log.info("");
+    }
+
+    /**
+     * 6-2단계: 출장 신청 생성 (결정적 패턴, Idempotent)
+     * - 특정 직원들에게 출장 신청 데이터 생성
+     * - 급여 계산 테스트용
+     */
+    private void createTripRequests(TestEmployees employees) {
+        log.info("");
+        log.info("6-2. 출장 신청 데이터 생성 시작...");
+
+        int totalRequests = 0;
+        int approvedCount = 0;
+
+        // 출장 신청 패턴: 인덱스 1, 3, 5 직원만 (3명)
+        for (int i = 0; i < employees.all.size(); i++) {
+            if (i % 2 == 0) continue; // 짝수 인덱스 건너뛰기
+
+            MemberEmploymentInfoDto member = employees.all.get(i);
+
+            // 출장 신청: 10월 15~17일 (3일간)
+            LocalDate tripStartDate = LocalDate.of(2025, 10, 15);
+            LocalDate tripEndDate = LocalDate.of(2025, 10, 17);
+
+            // 주말 건너뛰기
+            while (isWeekendOrHoliday(tripStartDate)) {
+                tripStartDate = tripStartDate.plusDays(1);
+                tripEndDate = tripEndDate.plusDays(1);
+            }
+
+            LocalDateTime startDateTime = tripStartDate.atTime(9, 0);
+            LocalDateTime endDateTime = tripEndDate.atTime(18, 0);
+
+            // 중복 생성 방지
+            boolean alreadyExists = requestRepository
+                    .findAll()
+                    .stream()
+                    .anyMatch(r ->
+                            r.getMemberId().equals(member.getMemberId()) &&
+                            r.getPolicy().getId().equals(businessTripPolicy.getId()) &&
+                            r.getStartDateTime().equals(startDateTime));
+
+            if (alreadyExists) {
+                log.debug("출장 신청 이미 존재 - memberId: {}", member.getMemberId());
+                continue;
+            }
+
+            // Request 생성
+            Request request = Request.builder()
+                    .memberId(member.getMemberId())
+                    .policy(businessTripPolicy)
+                    .requestUnit(RequestUnit.DAY)
+                    .status(RequestStatus.APPROVED) // 자동 승인
+                    .startDateTime(startDateTime)
+                    .endDateTime(endDateTime)
+                    .reason("현장 업무 미팅")
+                    .deductionDays(0.0) // 출장은 잔액 차감 없음
+                    .workLocation("서울 본사")
+                    .completedAt(LocalDateTime.now())
+                    .build();
+
+            requestRepository.save(request);
+
+            // DailyAttendance 생성 (출장 기간 동안)
+            LocalDate currentDate = tripStartDate;
+            while (!currentDate.isAfter(tripEndDate)) {
+                final LocalDate dateToProcess = currentDate;
+                upsertDailyAttendance(member.getMemberId(), companyId, dateToProcess, da -> {
+                    da.updateStatus(AttendanceStatus.BUSINESS_TRIP);
+                    da.setFirstClockIn(dateToProcess.atTime(9, 0));
+                    da.setLastClockOut(dateToProcess.atTime(18, 0));
+                    da.setWorkedMinutes(480); // 8시간
+                    da.setTotalBreakMinutes(60);
+                });
+                currentDate = currentDate.plusDays(1);
+            }
+
+            approvedCount++;
+            totalRequests++;
+        }
+
+        log.info("   ✓ 총 {}개의 출장 신청 생성 (승인: {})", totalRequests, approvedCount);
+        log.info("   ✓ 출장 기간 DailyAttendance {} 건 생성", approvedCount * 3);
         log.info("");
     }
 
