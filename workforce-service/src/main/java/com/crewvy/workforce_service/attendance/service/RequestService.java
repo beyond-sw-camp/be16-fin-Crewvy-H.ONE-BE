@@ -134,14 +134,25 @@ public class RequestService {
             validateMemberBalance(memberId, companyId, policy.getPolicyTypeCode(), deductionDays);
         }
 
-        // 4-1. 연장/야간/휴일근무 정책 할당 여부 및 주간 한도 검증
+        // 4-1. 연장/야간/휴일근무 정책 할당 여부 및 유형별 검증
         PolicyTypeCode typeCode = policy.getPolicyTypeCode();
         if (typeCode == PolicyTypeCode.OVERTIME
                 || typeCode == PolicyTypeCode.NIGHT_WORK
                 || typeCode == PolicyTypeCode.HOLIDAY_WORK) {
             // 해당 타입의 전용 정책이 할당되어 있는지 확인 (정책 할당 = 허용)
             validateOvertimePolicyAssigned(memberId, memberPositionId, companyId, typeCode);
-            validateWeeklyOvertimeLimit(memberId, startDateTime, endDateTime); // 주간 한도 검증
+
+            // 유형별 검증
+            if (typeCode == PolicyTypeCode.OVERTIME) {
+                // 연장근무: 주간 720분 한도 검증
+                validateWeeklyOvertimeLimit(memberId, startDateTime, endDateTime);
+            } else if (typeCode == PolicyTypeCode.NIGHT_WORK) {
+                // 야간근무: 22:00~06:00 시간대 검증
+                validateNightWorkTimeRange(startDateTime, endDateTime);
+            } else if (typeCode == PolicyTypeCode.HOLIDAY_WORK) {
+                // 휴일근무: 휴일(주말/공휴일) 여부 검증
+                validateHolidayWork(companyId, startDateTime.toLocalDate(), endDateTime.toLocalDate());
+            }
         }
 
         // 4-2. 중복 신청 확인 (동시성 제어)
@@ -1295,11 +1306,9 @@ public class RequestService {
         LocalDateTime weekStartDateTime = weekStart.atStartOfDay();
         LocalDateTime weekEndDateTime = weekEnd.atTime(23, 59, 59);
 
-        // 3. 이번 주에 이미 승인된/대기 중인 연장근무 신청 조회
+        // 3. 이번 주에 이미 승인된/대기 중인 연장근무 신청 조회 (연장근무만 - 야간/휴일 제외)
         java.util.List<PolicyTypeCode> overtimeTypes = java.util.List.of(
-                PolicyTypeCode.OVERTIME,
-                PolicyTypeCode.NIGHT_WORK,
-                PolicyTypeCode.HOLIDAY_WORK
+                PolicyTypeCode.OVERTIME
         );
         java.util.List<Request> existingRequests = requestRepository.findApprovedOvertimeRequestsInWeek(
                 memberId,
@@ -1384,6 +1393,61 @@ public class RequestService {
         }
 
         log.info("{} 정책 할당 확인 완료: policyId={}", typeCode, assignedPolicy.getId());
+    }
+
+    /**
+     * 야간근무 시간대 검증
+     * - 야간근무는 22:00~06:00 시간대에만 가능
+     */
+    private void validateNightWorkTimeRange(LocalDateTime startDateTime, LocalDateTime endDateTime) {
+        LocalTime startTime = startDateTime.toLocalTime();
+        LocalTime endTime = endDateTime.toLocalTime();
+
+        // 22:00~06:00 범위 검증
+        boolean isValidStart = startTime.isAfter(LocalTime.of(21, 59)) || startTime.isBefore(LocalTime.of(6, 0));
+        boolean isValidEnd = endTime.isAfter(LocalTime.of(22, 0)) || endTime.isBefore(LocalTime.of(6, 1));
+
+        if (!isValidStart || !isValidEnd) {
+            throw new BusinessException("야간근무는 22:00~06:00 시간대에만 신청 가능합니다. (신청 시간: "
+                + startTime + "~" + endTime + ")");
+        }
+
+        log.info("야간근무 시간대 검증 완료: {}~{}", startTime, endTime);
+    }
+
+    /**
+     * 휴일근무 검증
+     * - 휴일근무는 주말 또는 공휴일에만 가능
+     */
+    private void validateHolidayWork(UUID companyId, LocalDate startDate, LocalDate endDate) {
+        LocalDate currentDate = startDate;
+        while (!currentDate.isAfter(endDate)) {
+            if (!isHoliday(companyId, currentDate)) {
+                throw new BusinessException("휴일근무는 주말 또는 공휴일에만 신청 가능합니다. (" + currentDate + "는 평일입니다)");
+            }
+            currentDate = currentDate.plusDays(1);
+        }
+
+        log.info("휴일근무 검증 완료: {}~{}", startDate, endDate);
+    }
+
+    /**
+     * 휴일 여부 확인 (주말 또는 CompanyHoliday)
+     */
+    private boolean isHoliday(UUID companyId, LocalDate date) {
+        // 1. 주말(토요일, 일요일) 확인
+        java.time.DayOfWeek dayOfWeek = date.getDayOfWeek();
+        if (dayOfWeek == java.time.DayOfWeek.SATURDAY || dayOfWeek == java.time.DayOfWeek.SUNDAY) {
+            return true;
+        }
+
+        // 2. 국가 공휴일 확인 (Holidays 테이블)
+        if (holidayRepository.existsBySolarDate(date)) {
+            return true;
+        }
+
+        // 3. CompanyHoliday 확인
+        return companyHolidayRepository.existsByCompanyIdAndHolidayDate(companyId, date);
     }
 
     /**
