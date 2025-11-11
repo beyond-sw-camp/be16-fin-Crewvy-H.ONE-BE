@@ -1739,13 +1739,43 @@ public class AttendanceService {
                                     attendance.getLastClockOut().getMinute());
                         }
 
-                        // 근무 시간 포맷팅
+                        // 기본 근무 시간 포맷팅
                         if (attendance.getWorkedMinutes() != null && attendance.getWorkedMinutes() > 0) {
                             int hours = attendance.getWorkedMinutes() / 60;
                             int minutes = attendance.getWorkedMinutes() % 60;
                             workHours = String.format("%d시간 %d분", hours, minutes);
                         }
                     }
+
+                // 추가 근무 시간 계산 (연장 + 야간 + 휴일)
+                String extraWorkHours = "-";
+                String totalWorkHours = "-";
+                if (attendance != null) {
+                    int extraMinutes = 0;
+                    if (attendance.getOvertimeMinutes() != null) {
+                        extraMinutes += attendance.getOvertimeMinutes();
+                    }
+                    if (attendance.getNightWorkMinutes() != null) {
+                        extraMinutes += attendance.getNightWorkMinutes();
+                    }
+                    if (attendance.getHolidayWorkMinutes() != null) {
+                        extraMinutes += attendance.getHolidayWorkMinutes();
+                    }
+
+                    if (extraMinutes > 0) {
+                        int hours = extraMinutes / 60;
+                        int minutes = extraMinutes % 60;
+                        extraWorkHours = String.format("%d시간 %d분", hours, minutes);
+                    }
+
+                    // 총 근무 시간 = 기본 근무 + 추가 근무
+                    int totalMinutes = (attendance.getWorkedMinutes() != null ? attendance.getWorkedMinutes() : 0) + extraMinutes;
+                    if (totalMinutes > 0) {
+                        int hours = totalMinutes / 60;
+                        int minutes = totalMinutes % 60;
+                        totalWorkHours = String.format("%d시간 %d분", hours, minutes);
+                    }
+                }
 
                 // status가 여전히 null이면 날짜에 따라 기본값 설정
                 if (status == null) {
@@ -1776,6 +1806,8 @@ public class AttendanceService {
                         .clockInTime(clockInTime)
                         .clockOutTime(clockOutTime)
                         .workHours(workHours)
+                        .extraWorkHours(extraWorkHours)
+                        .totalWorkHours(totalWorkHours)
                         .effectivePolicy(effectivePolicy)
                         .requestType(requestType)
                         .requestReason(requestReason)

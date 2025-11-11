@@ -29,7 +29,9 @@ public class TeamMemberAttendanceRes {
     private Boolean isEarlyLeave;     // 조퇴 여부
     private String clockInTime;       // 출근 시간 (HH:mm 형식)
     private String clockOutTime;      // 퇴근 시간 (HH:mm 형식)
-    private String workHours;         // 근무 시간 (예: "8시간 30분")
+    private String workHours;         // 기본 근무 시간 (예: "8시간 30분")
+    private String extraWorkHours;    // 추가 근무 시간 (연장+야간+휴일, 예: "3시간 0분")
+    private String totalWorkHours;    // 총 근무 시간 (기본+추가, 예: "11시간 30분")
     private String effectivePolicy;   // 적용 정책명
 
     // 승인된 Request 정보 (휴가, 출장 등)
