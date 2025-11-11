@@ -274,15 +274,13 @@ public class MemberService {
         }
 
         PermissionRange permissionRange = getHighestPermissionRangeForRead(memberPositionId);
-
         Member member = memberRepository.findById(memberId).orElseThrow(() -> new IllegalArgumentException("존재하지 않는 계정입니다."));
 
         if (permissionRange == PermissionRange.COMPANY) {
             Company company = member.getCompany();
-            List<Member> memberList = memberRepository.findByCompanyWithDetail(company);
-            return memberList.stream()
-                    .map(Member::getDefaultMemberPosition)
-                    .filter(java.util.Objects::nonNull)
+            List<MemberPosition> allMemberPositions = memberPositionRepository.findByCompany(company);
+            return allMemberPositions.stream()
+                    .filter(mp -> mp.getYnDel() == Bool.FALSE)
                     .map(MemberListRes::fromEntity)
                     .collect(Collectors.toList());
         } else if (permissionRange == PermissionRange.DEPARTMENT) {
@@ -291,10 +289,7 @@ public class MemberService {
             Organization organization = memberPosition.getOrganization();
             List<MemberPosition> memberPositionList = memberPositionRepository.findAllByOrganization(organization);
             return memberPositionList.stream()
-                    .map(MemberPosition::getMember)
-                    .distinct()
-                    .map(Member::getDefaultMemberPosition)
-                    .filter(java.util.Objects::nonNull)
+                    .filter(mp -> mp.getYnDel() == Bool.FALSE)
                     .map(MemberListRes::fromEntity)
                     .collect(Collectors.toList());
         } else {
