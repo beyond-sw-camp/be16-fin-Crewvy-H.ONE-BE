@@ -60,13 +60,13 @@ public class AttendanceController {
      * 월별 내 출퇴근 현황 조회
      */
     @GetMapping("/my/monthly")
-    public ResponseEntity<ApiResponse<List<DailyAttendance>>> getMyMonthlyAttendance(
+    public ResponseEntity<ApiResponse<List<MonthlyAttendanceDto>>> getMyMonthlyAttendance(
             @RequestHeader("X-User-UUID") UUID memberId,
             @RequestHeader("X-User-CompanyId") UUID companyId,
             @RequestParam int year,
             @RequestParam int month) {
 
-        List<DailyAttendance> response = attendanceService.getMyMonthlyAttendance(memberId, companyId, year, month);
+        List<MonthlyAttendanceDto> response = attendanceService.getMyMonthlyAttendance(memberId, companyId, year, month);
         return new ResponseEntity<>(ApiResponse.success(response), HttpStatus.OK);
     }
 

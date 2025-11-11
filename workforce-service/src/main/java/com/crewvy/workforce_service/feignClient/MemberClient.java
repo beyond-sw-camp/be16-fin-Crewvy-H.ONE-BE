@@ -67,7 +67,7 @@ public interface MemberClient {
     @GetMapping("/member/internal/member/{memberId}/employment-info")
     ApiResponse<MemberEmploymentInfoDto> getMemberEmploymentInfoInternal(@PathVariable("memberId") UUID memberId);
 
-    // 내부 전용: 첫 번째 회사 ID 조회 (테스트 데이터 초기화용 - 권한 체크 없음)
-    @GetMapping("/member/internal/first-company-id")
-    ApiResponse<UUID> getFirstCompanyId();
+    // 내부 전용: 모든 회사 ID 조회 (테스트 데이터 초기화용 - 권한 체크 없음)
+    @GetMapping("/member/internal/all-company-ids")
+    ApiResponse<List<UUID>> getAllCompanyIds();
 }

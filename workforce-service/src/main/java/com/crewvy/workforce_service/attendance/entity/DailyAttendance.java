@@ -4,10 +4,7 @@ import com.crewvy.common.entity.BaseEntity;
 import com.crewvy.workforce_service.attendance.constant.AttendanceStatus;
 import com.crewvy.workforce_service.attendance.converter.AttendanceStatusConverter;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -19,6 +16,7 @@ import java.util.UUID;
         @UniqueConstraint(name = "uk_member_attendance_date", columnNames = {"member_id", "attendance_date"})
 })
 @Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
@@ -340,6 +338,16 @@ public class DailyAttendance extends BaseEntity {
             this.workedMinutes = 0;
         }
         this.workedMinutes = Math.max(0, this.workedMinutes - minutes);
+    }
+
+    /**
+     * 주간 연장 근무 시간 추가
+     */
+    public void addDaytimeOvertimeMinutes(int minutes) {
+        if (this.daytimeOvertimeMinutes == null) {
+            this.daytimeOvertimeMinutes = 0;
+        }
+        this.daytimeOvertimeMinutes += minutes;
     }
 
     /**

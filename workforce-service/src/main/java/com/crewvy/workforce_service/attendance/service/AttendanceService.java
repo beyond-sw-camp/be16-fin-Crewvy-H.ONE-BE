@@ -1338,15 +1338,17 @@ public class AttendanceService {
 
     /**
      * 월별 내 출퇴근 현황 조회
+     * workedMinutes를 항상 재계산하여 DTO로 반환
      */
     @Transactional(readOnly = true)
-    public List<DailyAttendance> getMyMonthlyAttendance(UUID memberId, UUID companyId, int year, int month) {
+    public List<MonthlyAttendanceDto> getMyMonthlyAttendance(UUID memberId, UUID companyId, int year, int month) {
         LocalDate startDate = LocalDate.of(year, month, 1);
         LocalDate endDate = startDate.plusMonths(1).minusDays(1);
 
         return dailyAttendanceRepository.findAllByDateRangeAndCompany(companyId, startDate, endDate)
                 .stream()
                 .filter(da -> da.getMemberId().equals(memberId))
+                .map(MonthlyAttendanceDto::from)  // DTO로 변환하면서 workedMinutes 재계산
                 .collect(Collectors.toList());
     }
 
@@ -1738,14 +1740,44 @@ public class AttendanceService {
                                     attendance.getLastClockOut().getHour(),
                                     attendance.getLastClockOut().getMinute());
                         }
-
-                        // 근무 시간 포맷팅
-                        if (attendance.getWorkedMinutes() != null && attendance.getWorkedMinutes() > 0) {
-                            int hours = attendance.getWorkedMinutes() / 60;
-                            int minutes = attendance.getWorkedMinutes() % 60;
-                            workHours = String.format("%d시간 %d분", hours, minutes);
-                        }
                     }
+
+                // 추가 근무 시간 먼저 계산 (연장 + 야간 + 휴일)
+                String extraWorkHours = "-";
+                String totalWorkHours = "-";
+                int extraMinutes = 0;
+                if (attendance != null) {
+                    if (attendance.getOvertimeMinutes() != null) {
+                        extraMinutes += attendance.getOvertimeMinutes();
+                    }
+                    if (attendance.getNightWorkMinutes() != null) {
+                        extraMinutes += attendance.getNightWorkMinutes();
+                    }
+                    if (attendance.getHolidayWorkMinutes() != null) {
+                        extraMinutes += attendance.getHolidayWorkMinutes();
+                    }
+
+                    if (extraMinutes > 0) {
+                        int hours = extraMinutes / 60;
+                        int minutes = extraMinutes % 60;
+                        extraWorkHours = String.format("%d시간 %d분", hours, minutes);
+                    }
+                }
+
+                // 기본 근무 시간 = workedMinutes - 추가 근무 (workedMinutes에 추가 근무가 포함되어 있음)
+                if (attendance != null && attendance.getWorkedMinutes() != null && attendance.getWorkedMinutes() > 0) {
+                    int baseMinutes = attendance.getWorkedMinutes() - extraMinutes;
+                    if (baseMinutes > 0) {
+                        int hours = baseMinutes / 60;
+                        int minutes = baseMinutes % 60;
+                        workHours = String.format("%d시간 %d분", hours, minutes);
+                    }
+
+                    // 총 근무 시간 = workedMinutes (이미 기본 + 추가 포함)
+                    int hours = attendance.getWorkedMinutes() / 60;
+                    int minutes = attendance.getWorkedMinutes() % 60;
+                    totalWorkHours = String.format("%d시간 %d분", hours, minutes);
+                }
 
                 // status가 여전히 null이면 날짜에 따라 기본값 설정
                 if (status == null) {
@@ -1776,6 +1808,8 @@ public class AttendanceService {
                         .clockInTime(clockInTime)
                         .clockOutTime(clockOutTime)
                         .workHours(workHours)
+                        .extraWorkHours(extraWorkHours)
+                        .totalWorkHours(totalWorkHours)
                         .effectivePolicy(effectivePolicy)
                         .requestType(requestType)
                         .requestReason(requestReason)

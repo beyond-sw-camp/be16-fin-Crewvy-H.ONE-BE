@@ -31,7 +31,7 @@ public class ApprovalDocument extends BaseEntity {
     private Map<String, Object> metadata;
 
     @Builder.Default
-    @OneToMany(mappedBy = "approvalDocument", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "approvalDocument", fetch = FetchType.LAZY)
     private List<ApprovalPolicy> policyList = new ArrayList<>();
 
     @Builder.Default

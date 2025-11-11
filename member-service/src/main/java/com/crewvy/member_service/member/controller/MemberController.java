@@ -426,11 +426,11 @@ public class MemberController {
                 memberService.getMemberEmploymentInfoInternal(memberId), "회원 고용 정보 조회 성공"), HttpStatus.OK);
     }
 
-    // 내부 전용: 첫 번째 회사 ID 조회 (테스트 데이터 초기화용 - 권한 체크 없음)
-    @GetMapping("/internal/first-company-id")
-    public ResponseEntity<?> getFirstCompanyId() {
+    // 내부 전용: 모든 회사 ID 조회 (테스트 데이터 초기화용 - 권한 체크 없음)
+    @GetMapping("/internal/all-company-ids")
+    public ResponseEntity<?> getAllCompanyIds() {
         return new ResponseEntity<>(ApiResponse.success(
-                memberService.getFirstCompanyId(), "첫 번째 회사 ID 조회 성공"), HttpStatus.OK);
+                memberService.getAllCompanyIds(), "모든 회사 ID 조회 성공"), HttpStatus.OK);
     }
 
 }
