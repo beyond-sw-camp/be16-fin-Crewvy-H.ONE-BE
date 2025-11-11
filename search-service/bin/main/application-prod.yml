@@ -3,10 +3,11 @@ spring:
     activate:
       on-profile: prod
   application:
-    name: member-service
-  redis:
-    host: redis-service
-    port: 6379
+    name: search-service
+  data:
+    redis:
+      host: redis-service
+      port: 6379
   datasource:
     driver-class-name: org.mariadb.jdbc.Driver
     url: jdbc:mariadb://${DB_HOST}:3306/h_one?serverTimezone=Asia/Seoul
@@ -21,30 +22,14 @@ spring:
     show_sql: true
   kafka:
     enabled: true
-    bootstrap-servers: kafka-service:9093
+    bootstrap-servers: kafka-service:9092
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-  mail:
-    host: smtp.gmail.com
-    port: ${MAIL_PORT}
-    username: ${MAIL_ID}
-    password: ${MAIL_PASSWORD}
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-  business:
-    registration:
-      number: ${BUSINESS_NUMBER}
-
-jwt:
-  expirationAt: 30
-  secretKeyAt: ${SECRET_KEY_AT}
-  expirationRt: 1440
-  secretKeyRt: ${SECRET_KEY_RT}
+    consumer:
+      group-id: search-service-group
+  elasticsearch:
+    uris: elasticsearch:9200
 
 management:
   endpoints:

@@ -1911,7 +1911,7 @@ public class AttendanceService {
                     int sumWorkingDays = memberAttendances.size();
 
                     int sumOvertime = memberAttendances.stream()
-                            .mapToInt(da -> da.getDaytimeOvertimeMinutes() != null ? da.getDaytimeOvertimeMinutes() : 0)
+                            .mapToInt(da -> da.getOvertimeMinutes() != null ? da.getOvertimeMinutes() : 0)
                             .sum();
 
                     int sumNight = memberAttendances.stream()

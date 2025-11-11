@@ -11,13 +11,13 @@ import java.util.UUID;
 @Getter
 public class FixedAllowanceCreateReq {
 
-    private UUID companyId;
+//    private UUID companyId;
     private UUID memberId;
     private String allowanceName;
     private int amount;
     private LocalDate effectiveDate;
 
-    public FixedAllowance toEntity() {
+    public FixedAllowance toEntity(UUID companyId) {
         return FixedAllowance.builder()
                 .companyId(companyId)
                 .memberId(memberId)
