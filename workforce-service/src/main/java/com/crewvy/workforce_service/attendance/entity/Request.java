@@ -83,6 +83,13 @@ public class Request extends BaseEntity {
     private DeviceType deviceType;
 
     /**
+     * 추가근무 신청 시 사용: 1일 연장시간 (분 단위)
+     * 여러 날짜에 걸친 추가근무 신청 시 각 날짜마다 적용할 시간
+     */
+    @Column(name = "daily_overtime_minutes")
+    private Integer dailyOvertimeMinutes;
+
+    /**
      * 결재 문서 연결
      * Approval 양식과 연결하기 위해 사용
      */

@@ -1338,15 +1338,17 @@ public class AttendanceService {
 
     /**
      * 월별 내 출퇴근 현황 조회
+     * workedMinutes를 항상 재계산하여 DTO로 반환
      */
     @Transactional(readOnly = true)
-    public List<DailyAttendance> getMyMonthlyAttendance(UUID memberId, UUID companyId, int year, int month) {
+    public List<MonthlyAttendanceDto> getMyMonthlyAttendance(UUID memberId, UUID companyId, int year, int month) {
         LocalDate startDate = LocalDate.of(year, month, 1);
         LocalDate endDate = startDate.plusMonths(1).minusDays(1);
 
         return dailyAttendanceRepository.findAllByDateRangeAndCompany(companyId, startDate, endDate)
                 .stream()
                 .filter(da -> da.getMemberId().equals(memberId))
+                .map(MonthlyAttendanceDto::from)  // DTO로 변환하면서 workedMinutes 재계산
                 .collect(Collectors.toList());
     }
 

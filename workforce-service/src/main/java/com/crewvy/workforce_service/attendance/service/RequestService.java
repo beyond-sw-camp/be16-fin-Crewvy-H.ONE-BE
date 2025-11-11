@@ -64,8 +64,13 @@ public class RequestService {
             LeaveRequestCreateDto createDto) {
 
         // 0. 추가근무 신청 자동 분류 (방식 A: 기간 + 1일 연장시간)
-        if (createDto.getDailyOvertimeHours() != null) {
+        // policyId가 없고 dailyOvertimeHours가 있으면 자동 분류 수행
+        if (createDto.getPolicyId() == null && createDto.getDailyOvertimeHours() != null) {
             createDto = classifyAndPrepareExtraWorkRequest(memberId, memberPositionId, companyId, createDto);
+        }
+        // policyId가 있고 dailyOvertimeHours가 있으면 (연장/휴일근무) startDateTime, endDateTime 계산
+        else if (createDto.getPolicyId() != null && createDto.getDailyOvertimeHours() != null) {
+            createDto = prepareDateTimeForExtraWork(memberId, memberPositionId, companyId, createDto);
         }
 
         // 1. 정책 조회 및 검증
@@ -139,6 +144,10 @@ public class RequestService {
         if (typeCode == PolicyTypeCode.OVERTIME
                 || typeCode == PolicyTypeCode.NIGHT_WORK
                 || typeCode == PolicyTypeCode.HOLIDAY_WORK) {
+            // 추가근무는 잔액 차감 대상이 아니므로 deductionDays를 0으로 설정
+            deductionDays = 0.0;
+            log.info("추가근무 신청: 차감일수 없음 (policyType={})", typeCode);
+
             // 해당 타입의 전용 정책이 할당되어 있는지 확인 (정책 할당 = 허용)
             validateOvertimePolicyAssigned(memberId, memberPositionId, companyId, typeCode);
 
@@ -176,7 +185,18 @@ public class RequestService {
             approvalDocument = getApprovalDocumentByPolicyType(policy.getPolicyTypeCode());
         }
 
-        // 6. Request 엔티티 생성
+        // 6. dailyOvertimeMinutes 계산 (추가근무 신청 시 사용)
+        Integer dailyOvertimeMinutes = null;
+        if (createDto.getDailyOvertimeHours() != null && !createDto.getDailyOvertimeHours().isBlank()) {
+            String[] parts = createDto.getDailyOvertimeHours().split(":");
+            if (parts.length == 2) {
+                int hours = Integer.parseInt(parts[0]);
+                int minutes = Integer.parseInt(parts[1]);
+                dailyOvertimeMinutes = hours * 60 + minutes;
+            }
+        }
+
+        // 7. Request 엔티티 생성
         Request request = Request.builder()
                 .policy(policy)
                 .memberId(memberId)
@@ -189,6 +209,7 @@ public class RequestService {
                 .status(initialStatus)  // autoApprove=true면 APPROVED, false면 PENDING
                 .requesterComment(createDto.getRequesterComment())
                 .workLocation(createDto.getWorkLocation()) // 출장지 (출장 신청 시 사용)
+                .dailyOvertimeMinutes(dailyOvertimeMinutes) // 추가근무 신청 시 1일 연장시간 (분 단위)
                 .build();
 
         Request savedRequest = requestRepository.save(request);
@@ -901,39 +922,65 @@ public class RequestService {
 
             // 정책 타입에 따라 근무 시간 추가
             if (typeCode == PolicyTypeCode.OVERTIME) {
-                // 연장근무 신청: 시간대별 자동 분리 (22:00 기준)
-                OvertimeSplit split = splitOvertimeByTimeRange(request.getStartDateTime(), request.getEndDateTime());
+                // 연장근무 신청: dailyOvertimeMinutes가 있으면 사용, 없으면 기존 방식
+                if (request.getDailyOvertimeMinutes() != null && request.getDailyOvertimeMinutes() > 0) {
+                    // 여러 날짜에 걸친 추가근무: 각 날짜마다 dailyOvertimeMinutes 적용
+                    int minutes = request.getDailyOvertimeMinutes();
+                    dailyAttendance.addOvertimeMinutes(minutes);
+                    dailyAttendance.addDaytimeOvertimeMinutes(minutes);
+                    log.info("사후 연장근무 반영 (일별): memberId={}, date={}, 연장={}분",
+                            request.getMemberId(), dateToProcess, minutes);
+                } else {
+                    // 단일 시간대 연장근무: 시간대별 자동 분리 (22:00 기준)
+                    OvertimeSplit split = splitOvertimeByTimeRange(request.getStartDateTime(), request.getEndDateTime());
 
-                if (split.overtimeMinutes > 0) {
-                    dailyAttendance.addOvertimeMinutes(split.overtimeMinutes);
-                    dailyAttendance.addDaytimeOvertimeMinutes(split.overtimeMinutes);
-                    log.info("사후 연장근무 반영: memberId={}, date={}, 연장={}분",
-                            request.getMemberId(), dateToProcess, split.overtimeMinutes);
-                }
+                    if (split.overtimeMinutes > 0) {
+                        dailyAttendance.addOvertimeMinutes(split.overtimeMinutes);
+                        dailyAttendance.addDaytimeOvertimeMinutes(split.overtimeMinutes);
+                        log.info("사후 연장근무 반영: memberId={}, date={}, 연장={}분",
+                                request.getMemberId(), dateToProcess, split.overtimeMinutes);
+                    }
 
-                if (split.nightWorkMinutes > 0) {
-                    dailyAttendance.addNightWorkMinutes(split.nightWorkMinutes);
-                    log.info("사후 야간근무 반영 (연장근무 신청에서 분리): memberId={}, date={}, 야간={}분",
-                            request.getMemberId(), dateToProcess, split.nightWorkMinutes);
+                    if (split.nightWorkMinutes > 0) {
+                        dailyAttendance.addNightWorkMinutes(split.nightWorkMinutes);
+                        log.info("사후 야간근무 반영 (연장근무 신청에서 분리): memberId={}, date={}, 야간={}분",
+                                request.getMemberId(), dateToProcess, split.nightWorkMinutes);
+                    }
                 }
 
             } else if (typeCode == PolicyTypeCode.NIGHT_WORK) {
-                long workMinutes = java.time.Duration.between(
-                        request.getStartDateTime(),
-                        request.getEndDateTime()
-                ).toMinutes();
-                dailyAttendance.addNightWorkMinutes((int) workMinutes);
-                log.info("사후 야간근무 반영: memberId={}, date={}, minutes={}",
-                        request.getMemberId(), dateToProcess, (int) workMinutes);
+                // 야간근무: dailyOvertimeMinutes가 있으면 사용, 없으면 전체 시간 계산
+                if (request.getDailyOvertimeMinutes() != null && request.getDailyOvertimeMinutes() > 0) {
+                    int minutes = request.getDailyOvertimeMinutes();
+                    dailyAttendance.addNightWorkMinutes(minutes);
+                    log.info("사후 야간근무 반영 (일별): memberId={}, date={}, minutes={}",
+                            request.getMemberId(), dateToProcess, minutes);
+                } else {
+                    long workMinutes = java.time.Duration.between(
+                            request.getStartDateTime(),
+                            request.getEndDateTime()
+                    ).toMinutes();
+                    dailyAttendance.addNightWorkMinutes((int) workMinutes);
+                    log.info("사후 야간근무 반영: memberId={}, date={}, minutes={}",
+                            request.getMemberId(), dateToProcess, (int) workMinutes);
+                }
 
             } else if (typeCode == PolicyTypeCode.HOLIDAY_WORK) {
-                long workMinutes = java.time.Duration.between(
-                        request.getStartDateTime(),
-                        request.getEndDateTime()
-                ).toMinutes();
-                dailyAttendance.addHolidayWorkMinutes((int) workMinutes);
-                log.info("사후 휴일근무 반영: memberId={}, date={}, minutes={}",
-                        request.getMemberId(), dateToProcess, (int) workMinutes);
+                // 휴일근무: dailyOvertimeMinutes가 있으면 사용, 없으면 전체 시간 계산
+                if (request.getDailyOvertimeMinutes() != null && request.getDailyOvertimeMinutes() > 0) {
+                    int minutes = request.getDailyOvertimeMinutes();
+                    dailyAttendance.addHolidayWorkMinutes(minutes);
+                    log.info("사후 휴일근무 반영 (일별): memberId={}, date={}, minutes={}",
+                            request.getMemberId(), dateToProcess, minutes);
+                } else {
+                    long workMinutes = java.time.Duration.between(
+                            request.getStartDateTime(),
+                            request.getEndDateTime()
+                    ).toMinutes();
+                    dailyAttendance.addHolidayWorkMinutes((int) workMinutes);
+                    log.info("사후 휴일근무 반영: memberId={}, date={}, minutes={}",
+                            request.getMemberId(), dateToProcess, (int) workMinutes);
+                }
             }
 
             if (!attendancesToSave.contains(dailyAttendance)) {
@@ -1526,6 +1573,69 @@ public class RequestService {
 
         return approvalDocumentRepository.findByDocumentName(documentName)
                 .orElseThrow(() -> new ResourceNotFoundException("결재 문서를 찾을 수 없습니다: " + documentName));
+    }
+
+    /**
+     * 추가근무 신청 startDateTime, endDateTime 계산 (policyId 이미 있음)
+     * - 기간과 1일 시간을 받아서 startDateTime, endDateTime 계산
+     * - policyId는 유지
+     */
+    private LeaveRequestCreateDto prepareDateTimeForExtraWork(
+            UUID memberId,
+            UUID memberPositionId,
+            UUID companyId,
+            LeaveRequestCreateDto createDto) {
+
+        // 1. 표준 근무 정책에서 퇴근 시간 조회
+        Policy standardWorkPolicy = policyAssignmentService.findEffectivePolicyForMemberByType(
+                memberId, memberPositionId, companyId, PolicyTypeCode.STANDARD_WORK);
+
+        if (standardWorkPolicy == null || standardWorkPolicy.getRuleDetails() == null
+                || standardWorkPolicy.getRuleDetails().getWorkTimeRule() == null) {
+            throw new BusinessException("기본 근무 정책을 찾을 수 없습니다.");
+        }
+
+        String workEndTimeStr = standardWorkPolicy.getRuleDetails().getWorkTimeRule().getWorkEndTime();
+        if (workEndTimeStr == null || workEndTimeStr.isBlank()) {
+            throw new BusinessException("기본 근무 정책에 퇴근 시간이 설정되어 있지 않습니다.");
+        }
+
+        LocalTime workEndTime = LocalTime.parse(workEndTimeStr);
+
+        // 2. dailyOvertimeHours 파싱
+        String[] parts = createDto.getDailyOvertimeHours().split(":");
+        if (parts.length != 2) {
+            throw new BusinessException("1일 시간 형식이 올바르지 않습니다. (예: 02:00)");
+        }
+        int hours = Integer.parseInt(parts[0]);
+        int minutes = Integer.parseInt(parts[1]);
+
+        // 3. 시작일과 종료일을 기준으로 전체 기간의 startDateTime, endDateTime 계산
+        LocalDate startDate = createDto.getStartAt();
+        LocalDate endDate = createDto.getEndAt();
+
+        // startDateTime: 시작일의 퇴근 시간
+        LocalDateTime startDateTime = LocalDateTime.of(startDate, workEndTime);
+
+        // endDateTime: 종료일의 퇴근 시간 + dailyOvertimeHours
+        LocalDateTime endDateTime = LocalDateTime.of(endDate, workEndTime)
+                .plusHours(hours)
+                .plusMinutes(minutes);
+
+        // 4. DTO 업데이트 (policyId는 유지)
+        return LeaveRequestCreateDto.builder()
+                .policyId(createDto.getPolicyId()) // 기존 policyId 유지
+                .requestUnit(RequestUnit.TIME_OFF)
+                .startAt(createDto.getStartAt())
+                .endAt(createDto.getEndAt())
+                .startDateTime(startDateTime)
+                .endDateTime(endDateTime)
+                .dailyOvertimeHours(createDto.getDailyOvertimeHours())
+                .reason(createDto.getReason())
+                .requesterComment(createDto.getRequesterComment())
+                .workLocation(createDto.getWorkLocation())
+                .documentId(createDto.getDocumentId())
+                .build();
     }
 
     /**

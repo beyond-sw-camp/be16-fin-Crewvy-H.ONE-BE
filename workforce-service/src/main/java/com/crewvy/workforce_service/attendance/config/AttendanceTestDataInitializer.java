@@ -16,7 +16,9 @@ import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberEmploymentInfoDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,7 +48,8 @@ import java.util.*;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class AttendanceTestDataInitializer implements CommandLineRunner {
+@Order(10)  // ApprovalDocumentInitializer(@Order(1)) 이후에 실행
+public class AttendanceTestDataInitializer implements ApplicationRunner {
 
     private final PolicyRepository policyRepository;
     private final PolicyAssignmentRepository policyAssignmentRepository;
@@ -88,7 +91,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
 
     @Override
     @Transactional
-    public void run(String... args) {
+    public void run(ApplicationArguments args) {
         try {
             // 1단계: 회사 ID 조회 및 직원 정보 조회 (member-service 대기)
             log.info("========================================");
@@ -146,10 +149,75 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
             return;
         }
 
-        // 이미 Policy가 있으면 스킵
-        if (policyRepository.findByCompanyId(companyId, org.springframework.data.domain.Pageable.unpaged()).getTotalElements() > 0) {
-            log.info("✅ 회사 {}의 근태 테스트 데이터가 이미 존재합니다. 초기화를 건너뜁니다.", companyId);
-            return;
+        // 이미 Policy가 있는지 체크
+        boolean policiesExist = policyRepository.findByCompanyId(companyId, org.springframework.data.domain.Pageable.unpaged()).getTotalElements() > 0;
+
+        if (policiesExist) {
+            // Policy는 있는데 PolicyAssignment가 없으면 재할당 필요
+            long assignmentCount = policyAssignmentRepository.findAll()
+                    .stream()
+                    .filter(pa -> pa.getPolicy().getCompanyId().equals(companyId))
+                    .count();
+
+            if (assignmentCount == 0) {
+                log.warn("⚠️  회사 {}의 정책은 존재하지만 정책 할당이 없습니다. 정책 재할당을 진행합니다.", companyId);
+
+                // 정책 조회 및 할당
+                annualLeavePolicy = policyRepository.findAll()
+                        .stream()
+                        .filter(p -> p.getCompanyId().equals(companyId) && p.getPolicyTypeCode() == PolicyTypeCode.ANNUAL_LEAVE)
+                        .findFirst()
+                        .orElse(null);
+                basicWorkPolicy = policyRepository.findAll()
+                        .stream()
+                        .filter(p -> p.getCompanyId().equals(companyId) && p.getPolicyTypeCode() == PolicyTypeCode.STANDARD_WORK)
+                        .findFirst()
+                        .orElse(null);
+                overtimePolicy = policyRepository.findAll()
+                        .stream()
+                        .filter(p -> p.getCompanyId().equals(companyId) && p.getPolicyTypeCode() == PolicyTypeCode.OVERTIME)
+                        .findFirst()
+                        .orElse(null);
+                nightWorkPolicy = policyRepository.findAll()
+                        .stream()
+                        .filter(p -> p.getCompanyId().equals(companyId) && p.getPolicyTypeCode() == PolicyTypeCode.NIGHT_WORK)
+                        .findFirst()
+                        .orElse(null);
+                holidayWorkPolicy = policyRepository.findAll()
+                        .stream()
+                        .filter(p -> p.getCompanyId().equals(companyId) && p.getPolicyTypeCode() == PolicyTypeCode.HOLIDAY_WORK)
+                        .findFirst()
+                        .orElse(null);
+                businessTripPolicy = policyRepository.findAll()
+                        .stream()
+                        .filter(p -> p.getCompanyId().equals(companyId) && p.getPolicyTypeCode() == PolicyTypeCode.BUSINESS_TRIP)
+                        .findFirst()
+                        .orElse(null);
+                maternityLeavePolicy = policyRepository.findAll()
+                        .stream()
+                        .filter(p -> p.getCompanyId().equals(companyId) && p.getPolicyTypeCode() == PolicyTypeCode.MATERNITY_LEAVE)
+                        .findFirst()
+                        .orElse(null);
+                paternityLeavePolicy = policyRepository.findAll()
+                        .stream()
+                        .filter(p -> p.getCompanyId().equals(companyId) && p.getPolicyTypeCode() == PolicyTypeCode.PATERNITY_LEAVE)
+                        .findFirst()
+                        .orElse(null);
+                menstrualLeavePolicy = policyRepository.findAll()
+                        .stream()
+                        .filter(p -> p.getCompanyId().equals(companyId) && p.getPolicyTypeCode() == PolicyTypeCode.MENSTRUAL_LEAVE)
+                        .findFirst()
+                        .orElse(null);
+
+                // 정책 재할당 (자동 연차 부여 트리거)
+                log.info("📋 정책 재할당 중 (자동 연차 부여)...");
+                assignPoliciesToCompany();
+                log.info("✅ 회사 {}의 정책 재할당 및 잔액 부여 완료", companyId);
+                return;
+            } else {
+                log.info("✅ 회사 {}의 근태 테스트 데이터가 이미 존재합니다. 초기화를 건너뜁니다.", companyId);
+                return;
+            }
         }
 
         log.info("📅 시연 기준일: {}", DEMO_DATE);
@@ -804,8 +872,8 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                 // 퇴근 누락 여부: 2025-11-11에 memberIndex % 7 == 0인 직원만 퇴근 누락
                 boolean skipClockOut = date.equals(incompleteDateTarget) && (memberIndex % 7 == 0);
 
-                // 기본 근무 기록 생성
-                int logs = createDailyAttendanceRecord(member, date, skipClockOut, i, memberIndex);
+                // 기본 근무 기록 생성 (정책 전달)
+                int logs = createDailyAttendanceRecord(member, date, skipClockOut, i, memberIndex, basicWorkPolicy);
                 logsCreated += logs;
                 daysCreated++;
 
@@ -834,9 +902,33 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
      * @param skipClockOut true면 퇴근 기록을 생성하지 않음 (미완료 퇴근 케이스)
      * @param workDayIndex 근무일 인덱스 (0부터 시작, 패턴 결정용)
      * @param memberIndex 직원 인덱스 (패턴 결정용)
+     * @param standardWorkPolicy 기본 근무 정책 (휴게시간 계산용)
      */
-    private int createDailyAttendanceRecord(MemberEmploymentInfoDto member, LocalDate date, boolean skipClockOut, int workDayIndex, int memberIndex) {
+    private int createDailyAttendanceRecord(MemberEmploymentInfoDto member, LocalDate date, boolean skipClockOut, int workDayIndex, int memberIndex, Policy standardWorkPolicy) {
         int logsCreated = 0;
+
+        // 정책에서 휴게시간 계산 (람다에서 사용하므로 final)
+        int calculatedBreakMinutes = 60; // 기본값: 1시간
+
+        if (standardWorkPolicy != null
+                && standardWorkPolicy.getRuleDetails() != null
+                && standardWorkPolicy.getRuleDetails().getBreakRule() != null) {
+            var breakRule = standardWorkPolicy.getRuleDetails().getBreakRule();
+            if ("FIXED".equals(breakRule.getType())
+                    && breakRule.getFixedBreakStart() != null
+                    && breakRule.getFixedBreakEnd() != null) {
+                try {
+                    LocalTime breakStart = LocalTime.parse(breakRule.getFixedBreakStart());
+                    LocalTime breakEnd = LocalTime.parse(breakRule.getFixedBreakEnd());
+                    calculatedBreakMinutes = (int) java.time.Duration.between(breakStart, breakEnd).toMinutes();
+                } catch (Exception e) {
+                    log.warn("휴게시간 파싱 실패, 기본값 60분 사용: {}", e.getMessage());
+                    // calculatedBreakMinutes는 이미 60으로 초기화됨
+                }
+            }
+        }
+
+        final int breakMinutes = calculatedBreakMinutes;
 
         // 출근 시간: 08:30 ~ 09:15 사이에서 다양하게 생성
         // 정책: 09:00 기준, 지각 허용 10분
@@ -907,13 +999,13 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
 
             if (isClockOutComplete) {
                 // 실제 출퇴근 시간에 따라 근무 시간 계산
-                // 총 경과 시간 - 휴게 시간(60분) = 근무 시간
+                // 총 경과 시간 - 휴게 시간(정책 기반) = 근무 시간
                 long totalMinutes = java.time.Duration.between(clockIn, clockOut).toMinutes();
-                int workedMinutes = (int) (totalMinutes - 60); // 점심 1시간 제외
+                int workedMinutes = (int) (totalMinutes - breakMinutes);
                 if (workedMinutes < 0) workedMinutes = 0;
 
                 da.setWorkedMinutes(workedMinutes);
-                da.setTotalBreakMinutes(60);
+                da.setTotalBreakMinutes(breakMinutes);
             } else {
                 da.setWorkedMinutes(0);
                 da.setTotalBreakMinutes(0);
@@ -979,11 +1071,12 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
         int rejectedCount = 0;
         int pendingCount = 0;
 
-        // 각 직원별로 3개의 휴가 신청 생성 (승인 2개 + 대기 1개)
+        // 각 직원별로 5개의 휴가 신청 생성 (승인 4개 + 대기 1개)
+        // 시연용: 잔액 없어도 생성 (급여 계산은 DailyAttendance + Policy.isPaid 기반)
         for (int memberIndex = 0; memberIndex < employees.all.size(); memberIndex++) {
             MemberEmploymentInfoDto member = employees.all.get(memberIndex);
 
-            // 잔액 확인
+            // 잔액 확인 (있으면 차감, 없으면 경고만)
             MemberBalance balance = memberBalanceRepository
                     .findByMemberIdAndBalanceTypeCodeAndYear(
                             member.getMemberId(),
@@ -991,15 +1084,20 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                             DEMO_DATE.getYear())
                     .orElse(null);
 
-            if (balance == null || balance.getRemaining() < 1.0) {
-                continue; // 잔액 없으면 스킵
+            if (balance == null) {
+                log.warn("      ⚠️  {} - 연차 잔액이 없습니다. (급여 계산용 DailyAttendance만 생성)", member.getName());
+            } else if (balance.getRemaining() < 1.0) {
+                log.warn("      ⚠️  {} - 잔액 부족({})입니다. (급여 계산용 DailyAttendance만 생성)",
+                         member.getName(), balance.getRemaining());
             }
 
-            // 결정적 패턴: 각 직원별로 3개 (승인 2 + 대기 1)
-            // 최근 날짜로 변경: -3일, -5일 (근태 현황에서 쉽게 확인 가능)
+            // 결정적 패턴: 각 직원별로 5개 (승인 4 + 대기 1)
+            // 최근 날짜로 변경: 더 많은 휴가 상태자 생성
             int[][] requestPatterns = {
-                {-3 - memberIndex, 1, RequestStatus.APPROVED.ordinal()},    // 최근 과거 (승인) - 11/9, 11/8, 11/7...
-                {-5 - memberIndex * 2, 1, RequestStatus.APPROVED.ordinal()}, // 과거 (승인) - 11/7, 11/5, 11/3...
+                {-2, 1, RequestStatus.APPROVED.ordinal()},    // 11/10 (전날)
+                {-3, 1, RequestStatus.APPROVED.ordinal()},    // 11/9
+                {-6 - memberIndex, 1, RequestStatus.APPROVED.ordinal()}, // 11/6, 11/5, 11/4...
+                {-10 - memberIndex * 2, 1, RequestStatus.APPROVED.ordinal()}, // 11/2, 10/31, 10/29...
                 {7 + memberIndex, 1, RequestStatus.PENDING.ordinal()}        // 미래 (대기) - 11/19, 11/20...
             };
 
@@ -1048,28 +1146,28 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
 
                 requestRepository.save(request);
 
-                // 잔액 차감 (builder로 재생성)
-                MemberBalance updatedBalance = MemberBalance.builder()
-                        .id(balance.getId())
-                        .memberId(balance.getMemberId())
-                        .companyId(balance.getCompanyId())
-                        .balanceTypeCode(balance.getBalanceTypeCode())
-                        .year(balance.getYear())
-                        .totalGranted(balance.getTotalGranted())
-                        .totalUsed(balance.getTotalUsed() + 1.0)
-                        .remaining(balance.getRemaining() - 1.0)
-                        .expirationDate(balance.getExpirationDate())
-                        .isPaid(balance.getIsPaid())
-                        .isUsable(balance.getIsUsable())
-                        .build();
-                balance = memberBalanceRepository.save(updatedBalance);
+                // 잔액 차감 (balance가 있을 때만)
+                if (balance != null && balance.getRemaining() >= 1.0) {
+                    MemberBalance updatedBalance = MemberBalance.builder()
+                            .id(balance.getId())
+                            .memberId(balance.getMemberId())
+                            .companyId(balance.getCompanyId())
+                            .balanceTypeCode(balance.getBalanceTypeCode())
+                            .year(balance.getYear())
+                            .totalGranted(balance.getTotalGranted())
+                            .totalUsed(balance.getTotalUsed() + 1.0)
+                            .remaining(balance.getRemaining() - 1.0)
+                            .expirationDate(balance.getExpirationDate())
+                            .isPaid(balance.getIsPaid())
+                            .isUsable(balance.getIsUsable())
+                            .build();
+                    balance = memberBalanceRepository.save(updatedBalance);
+                    log.debug("      - 잔액 차감: {} (남은 잔액: {})", member.getName(), balance.getRemaining());
+                }
 
-                // 2. ApprovalDocument 생성
-                ApprovalDocument document = ApprovalDocument.builder()
-                        .documentName("연차 신청서")
-                        .metadata(Map.of("type", "ANNUAL_LEAVE"))
-                        .build();
-                approvalDocumentRepository.save(document);
+                // 2. ApprovalDocument 조회 (시스템에서 미리 등록된 템플릿 사용)
+                ApprovalDocument document = approvalDocumentRepository.findByDocumentName("휴가 신청서")
+                        .orElseThrow(() -> new RuntimeException("휴가 신청서 템플릿을 찾을 수 없습니다. Approval 서비스에서 먼저 등록되어야 합니다."));
 
                 // 3. Approval 생성 (시연용: memberPositionId는 companyId 사용)
                 Approval approval = Approval.builder()
@@ -1129,6 +1227,9 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
                         da.setEarlyLeaveMinutes(0);
                     });
 
+                    log.info("      ✓ {} - 휴가 승인 및 DailyAttendance 생성: {} (상태: ANNUAL_LEAVE)",
+                             member.getName(), leaveDate);
+
                     approvedCount++;
                 } else {
                     // PENDING 상태 유지
@@ -1141,7 +1242,7 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
 
         log.info("   ✓ 총 {}개의 휴가 신청 생성 (승인: {}, 반려: {}, 대기: {})",
                  totalRequests, approvedCount, rejectedCount, pendingCount);
-        log.info("   ✓ 승인된 휴가에 대한 DailyAttendance {} 건 생성", approvedCount);
+        log.info("   ✓ 승인된 휴가에 대한 DailyAttendance {} 건 생성 (급여 계산용)", approvedCount);
         log.info("");
     }
 
@@ -1439,12 +1540,17 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
 
         requestRepository.save(request);
 
-        // 2. ApprovalDocument 생성
-        ApprovalDocument document = ApprovalDocument.builder()
-                .documentName(policy.getName() + " 신청서")
-                .metadata(Map.of("type", policyType.name()))
-                .build();
-        approvalDocumentRepository.save(document);
+        // 2. ApprovalDocument 조회 (시스템에서 미리 등록된 템플릿 사용)
+        // PolicyTypeCode에 따라 올바른 문서 템플릿 선택
+        String documentName;
+        if (policyType == PolicyTypeCode.BUSINESS_TRIP) {
+            documentName = "출장 신청서";
+        } else {
+            // 연장/야간/휴일 모두 "추가근무 신청서" 템플릿 공통 사용
+            documentName = "추가근무 신청서";
+        }
+        ApprovalDocument document = approvalDocumentRepository.findByDocumentName(documentName)
+                .orElseThrow(() -> new RuntimeException(documentName + " 템플릿을 찾을 수 없습니다. ApprovalDocumentInitializer에서 먼저 등록되어야 합니다."));
 
         // 3. Approval 생성
         Approval approval = Approval.builder()
