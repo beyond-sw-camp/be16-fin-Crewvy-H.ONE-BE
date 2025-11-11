@@ -98,60 +98,32 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
             log.info("📋 [1/6] 회사 ID 및 직원 정보 조회 중...");
             log.info("   ⏳ Member Service 연결 대기 중...");
 
-            // 회사 ID 자동 조회
-            this.companyId = fetchCompanyIdWithRetry();
-            log.info("   ✓ 회사 ID: {}", companyId);
+            // 모든 회사 ID 조회
+            List<UUID> companyIds = fetchAllCompanyIdsWithRetry();
 
-            TestEmployees employees = fetchAndClassifyEmployeesWithRetry();
-
-            // 직원이 없으면 초기화 불가
-            if (employees.all.isEmpty()) {
-                log.warn("❌ 직원이 존재하지 않습니다. Member Service에서 직원을 먼저 생성해주세요.");
+            if (companyIds.isEmpty()) {
+                log.warn("❌ 회사가 존재하지 않습니다. Member Service에서 회사를 먼저 생성해주세요.");
                 return;
             }
 
-            // 이미 Policy가 있으면 스킵
-            if (policyRepository.findByCompanyId(companyId, org.springframework.data.domain.Pageable.unpaged()).getTotalElements() > 0) {
-                log.info("✅ 근태 테스트 데이터가 이미 존재합니다. 초기화를 건너뜁니다.");
-                return;
+            log.info("   ✓ 총 {}개 회사 발견", companyIds.size());
+            log.info("");
+
+            // 각 회사별로 테스트 데이터 생성
+            for (int i = 0; i < companyIds.size(); i++) {
+                UUID currentCompanyId = companyIds.get(i);
+                log.info("========================================");
+                log.info("🏢 회사 {}/{} 처리 중 (ID: {})", i + 1, companyIds.size(), currentCompanyId);
+                log.info("========================================");
+                log.info("");
+
+                initializeCompanyData(currentCompanyId, i + 1, companyIds.size());
             }
 
-            log.info("📅 시연 기준일: {}", DEMO_DATE);
-            log.info("📅 데이터 범위: {} ~ {} (전월 전체 + 당월 현재까지)",
-                    DEMO_DATE.minusMonths(1).withDayOfMonth(1), DEMO_DATE.minusDays(1));
-            log.info("");
-
-            logEmployeesSummary(employees);
-
-            // 2단계: 근무지 생성
-            log.info("📋 [2/6] 근무지 생성 중...");
-            createWorkLocations();
-
-            // 3단계: 정책 생성
-            log.info("📋 [3/6] 근태 정책 생성 중...");
-            createPolicies();
-
-            // 4단계: 정책 할당 (자동 연차 부여 트리거)
-            log.info("📋 [4/6] 정책 할당 중 (자동 연차 부여)...");
-            assignPoliciesToCompany();
-
-            // 5단계: 근태 기록 생성
-            log.info("📋 [5/6] 근태 기록 생성 중 (최대 3개월치)...");
-            createAttendanceRecords(employees);
-
-            // 6단계: 휴가 신청 및 결재 연동 데이터 생성
-            log.info("📋 [6/6] 휴가 신청 및 결재 데이터 생성 중 (Request-Approval 완전 연동)...");
-            createLeaveRequests(employees);
-
-            // 7단계: 추가근무 신청 및 DailyAttendance 연동 데이터 생성
-            log.info("📋 [7/7] 추가근무 신청 데이터 생성 중 (연장/야간/휴일근무, 출장)...");
-            createExtraWorkRequests(employees);
-
             log.info("");
             log.info("========================================");
-            log.info("✅ 테스트 데이터 초기화 완료");
+            log.info("✅ 모든 회사 테스트 데이터 초기화 완료");
             log.info("========================================");
-            printTestScenarioChecklist(employees);
 
         } catch (Exception e) {
             log.error("❌ 테스트 데이터 초기화 실패", e);
@@ -160,20 +132,78 @@ public class AttendanceTestDataInitializer implements CommandLineRunner {
     }
 
     /**
-     * 회사 ID 조회 (재시도 로직 포함)
+     * 개별 회사 데이터 초기화
+     */
+    private void initializeCompanyData(UUID currentCompanyId, int companyIndex, int totalCompanies) {
+        this.companyId = currentCompanyId;
+
+        log.info("📋 [1/7] 직원 정보 조회 중...");
+        TestEmployees employees = fetchAndClassifyEmployeesWithRetry();
+
+        // 직원이 없으면 스킵
+        if (employees.all.isEmpty()) {
+            log.warn("⚠️  회사 {}에 직원이 존재하지 않습니다. 스킵합니다.", companyId);
+            return;
+        }
+
+        // 이미 Policy가 있으면 스킵
+        if (policyRepository.findByCompanyId(companyId, org.springframework.data.domain.Pageable.unpaged()).getTotalElements() > 0) {
+            log.info("✅ 회사 {}의 근태 테스트 데이터가 이미 존재합니다. 초기화를 건너뜁니다.", companyId);
+            return;
+        }
+
+        log.info("📅 시연 기준일: {}", DEMO_DATE);
+        log.info("📅 데이터 범위: {} ~ {} (전월 전체 + 당월 현재까지)",
+                DEMO_DATE.minusMonths(1).withDayOfMonth(1), DEMO_DATE.minusDays(1));
+        log.info("");
+
+        logEmployeesSummary(employees);
+
+        // 2단계: 근무지 생성
+        log.info("📋 [2/7] 근무지 생성 중...");
+        createWorkLocations();
+
+        // 3단계: 정책 생성
+        log.info("📋 [3/7] 근태 정책 생성 중...");
+        createPolicies();
+
+        // 4단계: 정책 할당 (자동 연차 부여 트리거)
+        log.info("📋 [4/7] 정책 할당 중 (자동 연차 부여)...");
+        assignPoliciesToCompany();
+
+        // 5단계: 근태 기록 생성 (전월+당월, 퇴근누락자 포함)
+        log.info("📋 [5/7] 근태 기록 생성 중 (전월 전체 + 당월 전일까지, 퇴근누락자 포함)...");
+        createAttendanceRecords(employees);
+
+        // 6단계: 휴가 신청 및 결재 연동 데이터 생성
+        log.info("📋 [6/7] 휴가 신청 데이터 생성 중 (Request-Approval 완전 연동)...");
+        createLeaveRequests(employees);
+
+        // 7단계: 추가근무 신청 및 DailyAttendance 연동 데이터 생성
+        log.info("📋 [7/7] 추가근무 신청 데이터 생성 중 (연장/야간/휴일근무, 출장)...");
+        createExtraWorkRequests(employees);
+
+        log.info("");
+        log.info("✅ 회사 {} 테스트 데이터 초기화 완료", companyId);
+        log.info("");
+        printTestScenarioChecklist(employees);
+    }
+
+    /**
+     * 모든 회사 ID 조회 (재시도 로직 포함)
      * member-service가 준비되지 않았을 경우 자동으로 재시도
      */
-    private UUID fetchCompanyIdWithRetry() {
+    private List<UUID> fetchAllCompanyIdsWithRetry() {
         int maxRetries = 10;
         int retryDelayMs = 3000; // 3초
 
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             try {
                 log.info("   🔄 회사 ID 조회 시도 {}/{}", attempt, maxRetries);
-                var response = memberClient.getFirstCompanyId();
-                UUID fetchedCompanyId = response.getData();
-                log.info("   ✓ 회사 ID 조회 성공: {}", fetchedCompanyId);
-                return fetchedCompanyId;
+                var response = memberClient.getAllCompanyIds();
+                List<UUID> companyIds = response.getData();
+                log.info("   ✓ 회사 ID 조회 성공: {}개 회사", companyIds.size());
+                return companyIds;
             } catch (Exception e) {
                 if (attempt == maxRetries) {
                     log.error("   ❌ 회사 ID 조회 실패 ({}회 시도 후 포기)", maxRetries);

@@ -1447,17 +1447,23 @@ public class MemberService {
     }
 
     /**
-     * 내부 전용: 첫 번째 회사 ID 조회 (테스트 데이터 초기화용)
+     * 내부 전용: 모든 회사 ID 조회 (테스트 데이터 초기화용)
      * 권한 체크 없이 직접 조회 - 시스템 내부 작업에서만 사용
-     * @return 첫 번째 회사 ID
+     * @return 모든 회사 ID 리스트
      */
     @Transactional(readOnly = true)
-    public UUID getFirstCompanyId() {
+    public List<UUID> getAllCompanyIds() {
         // 권한 체크 없음 - 시스템 내부 작업용
-        Member firstMember = memberRepository.findAll().stream()
-                .findFirst()
-                .orElseThrow(() -> new EntityNotFoundException("회사가 존재하지 않습니다. 먼저 회사를 생성해주세요."));
+        // 모든 회원에서 회사 ID를 추출하여 중복 제거
+        List<UUID> companyIds = memberRepository.findAll().stream()
+                .map(member -> member.getCompany().getId())
+                .distinct()
+                .toList();
 
-        return firstMember.getCompany().getId();
+        if (companyIds.isEmpty()) {
+            throw new EntityNotFoundException("회사가 존재하지 않습니다. 먼저 회사를 생성해주세요.");
+        }
+
+        return companyIds;
     }
 }
