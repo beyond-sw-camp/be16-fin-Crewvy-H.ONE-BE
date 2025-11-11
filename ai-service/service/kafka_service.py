@@ -88,9 +88,10 @@ def run_transcribe_pipeline():
 
 
 # asyncio.to_thread를 사용하여 위 동기 함수를 별도 스레드에서 실행하는 비동기 래퍼
-async def run_pipeline_in_background():
+async def run_pipeline_in_background(loop, executor):
     """
-    동기 함수인 run_transcribe_pipeline을 별도의 스레드에서 실행하여
+    동기 함수인 run_transcribe_pipeline을 별도의 프로세스에서 실행하여
     메인 이벤트 루프를 차단하지 않도록 합니다.
     """
-    await asyncio.to_thread(run_transcribe_pipeline)
+    logger.info("별도 프로세스에서 전사 파이프라인 실행")
+    await loop.run_in_executor(executor, run_transcribe_pipeline)

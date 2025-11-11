@@ -1,48 +1,65 @@
-# ---------------------------------------------------------------------
-# Stage 1: Builder (빌드 도구 포함)
-# CUDA 12.8.0 버전 사용 (정확한 태그명은 Docker Hub 확인 필요)
-# 예: nvidia/cuda:12.8.0-cudnn9-devel-ubuntu22.04
-FROM nvidia/cuda:13.0.2-cudnn-devel-ubuntu22.04 AS builder
+# # Use an official Python runtime as a parent image
+# FROM python:3.10 as builder
 
-# Python 3.10 및 `venv` 설치
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# RUN apt-get update && apt-get install -y --no-install-recommends build-essential
+
+# WORKDIR /app
+
+# RUN python -m venv /opt/venv
+# ENV PATH="/opt/venv/bin:$PATH"
+
+# COPY requirements.txt .
+
+# RUN pip install --no-cache-dir -r requirements.txt
+
+# FROM python:3.10
+ 
+# RUN apt-get update && \
+#     apt-get install -y --no-install-recommends ffmpeg && \
+#     rm -rf /var/lib/apt/lists/*
+
+# WORKDIR /app
+
+# COPY --from=builder /opt/venv /opt/venv
+
+# COPY . .
+
+# ENV PATH="/opt/venv/bin:$PATH"
+ 
+# EXPOSE 8080
+
+# CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+
+# Use an official NVIDIA CUDA runtime as a parent image
+# This image includes CUDA 12.1.1 and cuDNN 8, required for GPU acceleration.
+FROM nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04
+
+# Install Python 3.10, pip, venv, build-essential and ffmpeg
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
     python3.10 \
+    python3.10-venv \
     python3-pip \
-    python3-venv \
- && rm -rf /var/lib/apt/lists/*
+    build-essential \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Link python3 to python
+RUN ln -s /usr/bin/python3 /usr/bin/python
 
 WORKDIR /app
 
-# 가상환경 생성
-RUN python3 -m venv /opt/venv
+# Create and activate virtual environment
+RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
+# Copy and install requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# ---------------------------------------------------------------------
-# Stage 2: Runtime (실행용 경량 이미지)
-# Builder와 동일한 OS 및 CUDA 버전 사용
-FROM nvidia/cuda:13.0.2-cudnn-runtime-ubuntu22.04
-
-# 런타임에 필요한 패키지 설치
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    ffmpeg \
-    python3.10 \
- && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Builder에서 생성한 가상환경 복사
-COPY --from=builder /opt/venv /opt/venv
-
+# Copy the rest of the application code
 COPY . .
-
-# 가상환경 PATH 적용
-ENV PATH="/opt/venv/bin:$PATH"
 
 EXPOSE 8080
 
-# uvicorn 실행
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
