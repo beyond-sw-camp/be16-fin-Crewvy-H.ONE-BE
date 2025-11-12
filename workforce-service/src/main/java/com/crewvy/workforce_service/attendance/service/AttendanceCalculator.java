@@ -151,6 +151,22 @@ public class AttendanceCalculator {
                 return 0;
             }
 
+            // 실제 근무 시간이 휴게 시간보다 짧으면 휴게시간을 0으로 처리
+            if (dailyAttendance.getFirstClockIn() != null && dailyAttendance.getLastClockOut() != null) {
+                long actualWorkMinutes = Duration.between(
+                    dailyAttendance.getFirstClockIn(),
+                    dailyAttendance.getLastClockOut()
+                ).toMinutes();
+
+                // 실제 근무 시간이 휴게시간보다 짧으면 휴게 시간 없음으로 처리
+                if (actualWorkMinutes < breakMinutes) {
+                    log.info("실제 근무시간({})이 FIXED 휴게시간({})보다 짧아 휴게시간 미적용: memberId={}, date={}",
+                            actualWorkMinutes, breakMinutes,
+                            dailyAttendance.getMemberId(), dailyAttendance.getAttendanceDate());
+                    return 0;
+                }
+            }
+
             return (int) breakMinutes;
 
         } catch (Exception e) {

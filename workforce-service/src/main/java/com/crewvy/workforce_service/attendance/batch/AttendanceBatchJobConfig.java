@@ -169,7 +169,13 @@ public class AttendanceBatchJobConfig {
                 .pageSize(CHUNK_SIZE)
                 .queryString("SELECT r FROM Request r " +
                              "WHERE r.status = :status " +
-                             "AND r.policy IS NOT NULL AND r.policy.policyTypeCode.isBalanceDeductible = true " +
+                             "AND r.policy IS NOT NULL " +
+                             "AND r.policy.policyTypeCode IN (com.crewvy.workforce_service.attendance.constant.PolicyTypeCode.ANNUAL_LEAVE, " +
+                             "com.crewvy.workforce_service.attendance.constant.PolicyTypeCode.MATERNITY_LEAVE, " +
+                             "com.crewvy.workforce_service.attendance.constant.PolicyTypeCode.PATERNITY_LEAVE, " +
+                             "com.crewvy.workforce_service.attendance.constant.PolicyTypeCode.CHILDCARE_LEAVE, " +
+                             "com.crewvy.workforce_service.attendance.constant.PolicyTypeCode.FAMILY_CARE_LEAVE, " +
+                             "com.crewvy.workforce_service.attendance.constant.PolicyTypeCode.MENSTRUAL_LEAVE) " +
                              "AND r.endDateTime >= :start AND r.startDateTime <= :end")
                 .parameterValues(Map.of("status", RequestStatus.APPROVED, "start", startOfDay, "end", endOfDay))
                 .build();
