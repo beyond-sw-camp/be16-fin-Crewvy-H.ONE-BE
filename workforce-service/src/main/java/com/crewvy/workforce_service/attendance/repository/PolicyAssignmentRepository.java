@@ -29,4 +29,10 @@ public interface PolicyAssignmentRepository extends JpaRepository<PolicyAssignme
 
     @Query("SELECT pa FROM PolicyAssignment pa WHERE pa.policy.id = :policyId AND pa.targetId IN :targetIds AND pa.scopeType = :scopeType")
     List<PolicyAssignment> findByPolicyIdAndTargetIdInAndScopeType(@Param("policyId") UUID policyId, @Param("targetIds") List<UUID> targetIds, @Param("scopeType") PolicyScopeType scopeType);
+
+    /**
+     * Policy를 즉시 로딩하여 LazyInitializationException 방지
+     */
+    @Query("SELECT pa FROM PolicyAssignment pa JOIN FETCH pa.policy")
+    List<PolicyAssignment> findAllWithPolicy();
 }

@@ -154,7 +154,7 @@ public class AttendanceTestDataInitializer implements ApplicationRunner {
 
         if (policiesExist) {
             // Policy는 있는데 PolicyAssignment가 없으면 재할당 필요
-            long assignmentCount = policyAssignmentRepository.findAll()
+            long assignmentCount = policyAssignmentRepository.findAllWithPolicy()
                     .stream()
                     .filter(pa -> pa.getPolicy().getCompanyId().equals(companyId))
                     .count();
@@ -863,7 +863,6 @@ public class AttendanceTestDataInitializer implements ApplicationRunner {
      */
     private void createAttendanceRecords(TestEmployees employees) {
         int totalDays = 0;
-        int totalLogs = 0;
         int incompleteClockOuts = 0;
 
         // 전월 1일 ~ 당월 DEMO_DATE 전날까지
@@ -883,7 +882,6 @@ public class AttendanceTestDataInitializer implements ApplicationRunner {
         int memberIndex = 0;
         for (MemberEmploymentInfoDto member : employees.all) {
             int daysCreated = 0;
-            int logsCreated = 0;
 
             for (int i = 0; i < workDays.size(); i++) {
                 LocalDate date = workDays.get(i);
@@ -897,8 +895,7 @@ public class AttendanceTestDataInitializer implements ApplicationRunner {
                 boolean skipClockOut = date.equals(incompleteDateTarget) && (memberIndex % 7 == 0);
 
                 // 기본 근무 기록 생성 (정책 전달)
-                int logs = createDailyAttendanceRecord(member, date, skipClockOut, i, memberIndex, basicWorkPolicy);
-                logsCreated += logs;
+                createDailyAttendanceRecord(member, date, skipClockOut, i, memberIndex, basicWorkPolicy);
                 daysCreated++;
 
                 if (skipClockOut) {
@@ -909,14 +906,13 @@ public class AttendanceTestDataInitializer implements ApplicationRunner {
             memberIndex++;
 
             totalDays += daysCreated;
-            totalLogs += logsCreated;
 
             if (daysCreated > 0) {
-                log.info("      - {} : {}일 근무, {}개 로그 생성", member.getName(), daysCreated, logsCreated);
+                log.info("      - {} : {}일 근무", member.getName(), daysCreated);
             }
         }
 
-        log.info("   ✓ 총 {}명 직원의 {}일 근무 기록 생성 ({}개 로그)", employees.all.size(), totalDays, totalLogs);
+        log.info("   ✓ 총 {}명 직원의 {}일 DailyAttendance 생성 (AttendanceLog 생략)", employees.all.size(), totalDays);
         log.info("   ⚠️  미완료 퇴근 케이스: {}건 (근태 보정 배치 테스트용)", incompleteClockOuts);
         log.info("");
     }
@@ -929,7 +925,7 @@ public class AttendanceTestDataInitializer implements ApplicationRunner {
      * @param standardWorkPolicy 기본 근무 정책 (휴게시간 계산용)
      */
     private int createDailyAttendanceRecord(MemberEmploymentInfoDto member, LocalDate date, boolean skipClockOut, int workDayIndex, int memberIndex, Policy standardWorkPolicy) {
-        int logsCreated = 0;
+        // AttendanceLog 생성 생략 (시연용 데이터 경량화)
 
         // 정책에서 휴게시간 계산 (람다에서 사용하므로 final)
         int calculatedBreakMinutes = 60; // 기본값: 1시간
@@ -967,17 +963,8 @@ public class AttendanceTestDataInitializer implements ApplicationRunner {
         }
         final LocalDateTime clockIn = LocalDateTime.of(date, LocalTime.of(clockInHour, clockInMinute));
 
-        // AttendanceLog: CLOCK_IN
-        AttendanceLog clockInLog = AttendanceLog.builder()
-                .memberId(member.getMemberId())
-                .eventType(EventType.CLOCK_IN)
-                .eventTime(clockIn)
-                .latitude(mainOffice.getLatitude())
-                .longitude(mainOffice.getLongitude())
-                .isCorrected(false)
-                .build();
-        attendanceLogRepository.save(clockInLog);
-        logsCreated++;
+        // AttendanceLog 생성 생략 (시연용 데이터 경량화)
+        // DailyAttendance의 firstClockIn/lastClockOut 필드로 충분
 
         // 퇴근 시간 (미완료 케이스면 null)
         final LocalDateTime clockOut;
@@ -994,18 +981,7 @@ public class AttendanceTestDataInitializer implements ApplicationRunner {
                 clockOutMinute = clockOutMinute - 60;
             }
             clockOut = LocalDateTime.of(date, LocalTime.of(clockOutHour, clockOutMinute));
-
-            // AttendanceLog: CLOCK_OUT
-            AttendanceLog clockOutLog = AttendanceLog.builder()
-                    .memberId(member.getMemberId())
-                    .eventType(EventType.CLOCK_OUT)
-                    .eventTime(clockOut)
-                    .latitude(mainOffice.getLatitude())
-                    .longitude(mainOffice.getLongitude())
-                    .isCorrected(false)
-                    .build();
-            attendanceLogRepository.save(clockOutLog);
-            logsCreated++;
+            // AttendanceLog 생성 생략 (시연용 데이터 경량화)
         } else {
             clockOut = null;
         }
@@ -1071,7 +1047,7 @@ public class AttendanceTestDataInitializer implements ApplicationRunner {
             }
         });
 
-        return logsCreated;
+        return 0; // AttendanceLog 생성 생략
     }
 
     /**
