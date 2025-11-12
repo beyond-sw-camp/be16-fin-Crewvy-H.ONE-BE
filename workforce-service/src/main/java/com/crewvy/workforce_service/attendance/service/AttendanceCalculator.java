@@ -100,7 +100,7 @@ public class AttendanceCalculator {
 
         // FIXED 모드: 고정 휴게 시간 차감
         if ("FIXED".equals(breakRule.getType())) {
-            calculatedBreakMinutes = calculateFixedBreakMinutes(breakRule, dailyAttendance);
+            calculatedBreakMinutes = calculateFixedBreakMinutes(breakRule, dailyAttendance, clockOutTime);
             if (calculatedBreakMinutes > 0) {
                 log.info("FIXED 모드 휴게시간 자동 적용: memberId={}, date={}, breakMinutes={}",
                         dailyAttendance.getMemberId(), dailyAttendance.getAttendanceDate(), calculatedBreakMinutes);
@@ -125,7 +125,7 @@ public class AttendanceCalculator {
      * FIXED 모드 휴게시간 계산
      * 정책에 설정된 고정 휴게 시간대(예: 12:00-13:00)를 분 단위로 계산
      */
-    private int calculateFixedBreakMinutes(BreakRuleDto breakRule, DailyAttendance dailyAttendance) {
+    private int calculateFixedBreakMinutes(BreakRuleDto breakRule, DailyAttendance dailyAttendance, LocalDateTime clockOutTime) {
         if (breakRule.getFixedBreakStart() == null || breakRule.getFixedBreakEnd() == null) {
             log.warn("FIXED 모드이지만 fixedBreakStart 또는 fixedBreakEnd가 설정되지 않음: memberId={}, date={}",
                     dailyAttendance.getMemberId(), dailyAttendance.getAttendanceDate());
@@ -149,6 +149,22 @@ public class AttendanceCalculator {
                         dailyAttendance.getMemberId(), dailyAttendance.getAttendanceDate(),
                         breakRule.getFixedBreakStart(), breakRule.getFixedBreakEnd());
                 return 0;
+            }
+
+            // 실제 근무 시간이 휴게 시간보다 짧으면 휴게시간을 0으로 처리
+            if (dailyAttendance.getFirstClockIn() != null && clockOutTime != null) {
+                long actualWorkMinutes = Duration.between(
+                    dailyAttendance.getFirstClockIn(),
+                    clockOutTime
+                ).toMinutes();
+
+                // 실제 근무 시간이 휴게시간보다 짧으면 휴게 시간 없음으로 처리
+                if (actualWorkMinutes < breakMinutes) {
+                    log.info("실제 근무시간({})이 FIXED 휴게시간({})보다 짧아 휴게시간 미적용: memberId={}, date={}",
+                            actualWorkMinutes, breakMinutes,
+                            dailyAttendance.getMemberId(), dailyAttendance.getAttendanceDate());
+                    return 0;
+                }
             }
 
             return (int) breakMinutes;

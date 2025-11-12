@@ -15,7 +15,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.Period;
 import java.util.*;
@@ -918,24 +917,16 @@ public class AnnualLeaveAccrualService {
         LocalDate previousMonthStart = referenceDate.minusMonths(1).withDayOfMonth(1);
         LocalDate previousMonthEnd = previousMonthStart.plusMonths(1).minusDays(1);
 
-        // 전월의 총 근무일수 계산 (주말 제외)
-        long totalWorkDays = 0;
-        LocalDate current = previousMonthStart;
-        while (!current.isAfter(previousMonthEnd)) {
-            DayOfWeek dayOfWeek = current.getDayOfWeek();
-            if (dayOfWeek != DayOfWeek.SATURDAY && dayOfWeek != DayOfWeek.SUNDAY) {
-                totalWorkDays++;
-            }
-            current = current.plusDays(1);
-        }
+        // 전월의 DailyAttendance 조회
+        List<DailyAttendance> attendances = dailyAttendanceRepository
+                .findByMemberIdAndAttendanceDateBetween(memberId, previousMonthStart, previousMonthEnd);
+
+        // 총 근무일수 = DailyAttendance가 존재하는 날의 수 (휴일근무 포함)
+        long totalWorkDays = attendances.size();
 
         if (totalWorkDays == 0) {
             return 0.0;
         }
-
-        // 전월의 DailyAttendance 조회
-        List<DailyAttendance> attendances = dailyAttendanceRepository
-                .findByMemberIdAndAttendanceDateBetween(memberId, previousMonthStart, previousMonthEnd);
 
         // 정상 출근일수 계산 (NORMAL_WORK, BUSINESS_TRIP, 휴가 등 모두 포함)
         long actualAttendanceDays = attendances.stream()
