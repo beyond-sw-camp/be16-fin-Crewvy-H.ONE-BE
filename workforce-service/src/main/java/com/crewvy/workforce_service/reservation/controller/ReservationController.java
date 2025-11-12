@@ -25,7 +25,7 @@ public class ReservationController {
 
     // 예약 등록
     @PostMapping("/register")
-    public ResponseEntity<?> create(@RequestHeader("X-Member-UUID") UUID memberId,
+    public ResponseEntity<?> create(@RequestHeader("X-User-UUID") UUID memberId,
                                     @RequestHeader("X-User-CompanyId") UUID companyId,
                                     @RequestBody ReservationCreateReq req) {
         log.error("예약 확인 : {}", req);
@@ -44,22 +44,24 @@ public class ReservationController {
     // 내 예약 조회
     @GetMapping("/myList")
     public ResponseEntity<?> myReservationList(@RequestHeader("X-User-CompanyId") UUID companyId,
-                                               @RequestHeader("X-Member-UUID") UUID memberId) {
+                                               @RequestHeader("X-User-UUID") UUID memberId) {
         List<ReservationRes> res = reservationService.listByCompanyAndMember(companyId, memberId);
         return new ResponseEntity<>(new ApiResponse<>(true, res, "내 예약 조회 성공"), HttpStatus.OK);
     }
 
     // 예약 수정
     @PutMapping("/{id}")
-    public ResponseEntity<?> update(@PathVariable UUID id, @RequestBody ReservationUpdateReq req) {
-        ReservationRes res = reservationService.update(id, req);
+    public ResponseEntity<?> update(@PathVariable UUID id,
+                                    @RequestHeader("X-User-UUID") UUID memberId,
+                                    @RequestBody ReservationUpdateReq req) {
+        ReservationRes res = reservationService.update(id, memberId, req);
         return new ResponseEntity<>(new ApiResponse<>(true, res, "예약 수정 성공"), HttpStatus.OK);
     }
 
     // 예약 삭제
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(@PathVariable UUID id) {
-        reservationService.delete(id);
+    public ResponseEntity<?> delete(@PathVariable UUID id, @RequestHeader("X-User-UUID") UUID memberId) {
+        reservationService.delete(id, memberId);
         return new ResponseEntity<>(new ApiResponse<>(true, null, "예약 삭제 성공"),
                 HttpStatus.OK);
     }
@@ -67,8 +69,9 @@ public class ReservationController {
     // 예약 상태 변경
     @PutMapping("/status/{id}")
     public ResponseEntity<?> updateReservationStatus(@PathVariable UUID id,
+                                                     @RequestHeader("X-User-UUID") UUID memberId,
                                                      @RequestBody ReservationUpdateStatusReq req) {
-        ReservationRes res = reservationService.updateReservationStatus(id, req);
+        ReservationRes res = reservationService.updateReservationStatus(id, memberId, req);
         return new ResponseEntity<>(new ApiResponse<>(true, res, "예약 상태 변경 성공"),
                 HttpStatus.OK);
     }

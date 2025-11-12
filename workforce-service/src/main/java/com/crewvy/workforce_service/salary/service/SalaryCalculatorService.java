@@ -47,7 +47,6 @@ public class SalaryCalculatorService {
     private final HolidayService holidayService;
     private final AttendanceService attendanceService;
     private final IncomeTaxService incomeTaxService;
-
     private final PayrollProperties payrollProperties;
 
     // 급여 계산 메서드
@@ -66,6 +65,19 @@ public class SalaryCalculatorService {
                 new SalaryHistoryListReq(companyId, yearMonth)
         );
 
+        Map<UUID, SalaryHistory> salaryHistoryMap = salaryHistoryList.stream()
+                .collect(Collectors.toMap(SalaryHistory::getMemberId
+                        , salaryHistory -> salaryHistory,
+                        (existingHistory, newHistory) -> {
+                            if (newHistory.getUpdatedAt().isAfter(existingHistory.getUpdatedAt())) {
+                                return newHistory;
+                            } else {
+                                return existingHistory;
+                            }
+                        }));
+
+        Collection<SalaryHistory> newSalaryHistoryList = salaryHistoryMap.values();
+
         // 회원 정보 조회
         ApiResponse<List<MemberSalaryListRes>> salaryListResponse =
                 memberClient.getSalaryList(memberPositionId, companyId);
@@ -79,22 +91,23 @@ public class SalaryCalculatorService {
         List<SalaryCalculationRes> result = new ArrayList<>();
         int workingDays = holidayService.getScheduledWorkingDays(startDate, endDate);
 
-        Map<UUID, List<SalaryDetailRes>> allowanceMap = calculateAllowances(companyId, startDate, endDate);
+        Map<UUID, List<SalaryDetailRes>> allowanceMap = calculateAllowances(companyId, yearMonth, startDate, endDate);
 
         List<FixedAllowanceRes> fixedAllowanceList =  fixedAllowanceService.getFixedAllowanceList(memberPositionId,
-                companyId);
+                companyId, endDate);
 
         Map<UUID, List<FixedAllowanceRes>> fixedAllowanceMap = fixedAllowanceList.stream()
                 .collect(Collectors.groupingBy(FixedAllowanceRes::getMemberId));
 
-        for (SalaryHistory salaryHistory : salaryHistoryList) {
+        for (SalaryHistory salaryHistory : newSalaryHistoryList) {
 
             BigInteger baseSalary = BigInteger.valueOf(salaryHistory.getBaseSalary());
 
-            // 지급항목 계산
+            // 1. 지급항목 (기본급 외)
             List<SalaryDetailRes> allowanceList
                     = allowanceMap.getOrDefault(salaryHistory.getMemberId(), new ArrayList<>());
 
+            // 2. 기본급을 지급항목 리스트에 추가
             if (baseSalary.compareTo(BigInteger.ZERO) > 0) {
                 allowanceList.add(
                         SalaryDetailRes.builder()
@@ -105,26 +118,24 @@ public class SalaryCalculatorService {
                 );
             }
 
-            // 고정항목 계산
+            // 3. 고정항목
             List<FixedAllowanceRes> fixedList
                     = fixedAllowanceMap.getOrDefault(salaryHistory.getMemberId(), new ArrayList<>());
 
-            // 공제항목 계산
-            List<SalaryDetailRes> deductionList = calculateDeductions(
-                    companyId, salaryHistory.getMemberId(), baseSalary, workingDays
-            );
-
-            // 총액 계산
-            BigInteger totalAttendanceAllowance = allowanceList.stream()
+            BigInteger taxableIncome = allowanceList.stream()
                     .map(SalaryDetailRes::getAmount)
                     .reduce(BigInteger.ZERO, BigInteger::add);
 
-            BigInteger totalFixedAllowance = fixedList.stream()
+            // 비과세 총액
+            BigInteger nonTaxableAmount = fixedList.stream()
                     .map(allowance -> BigInteger.valueOf(allowance.getAmount()))
                     .reduce(BigInteger.ZERO, BigInteger::add);
 
-            BigInteger totalAllowance = totalAttendanceAllowance.add(totalFixedAllowance);
+            BigInteger totalAllowance = taxableIncome.add(nonTaxableAmount);
 
+            List<SalaryDetailRes> deductionList = calculateDeductions(taxableIncome);
+
+            // 총액
             BigInteger totalDeduction = deductionList.stream()
                     .map(SalaryDetailRes::getAmount)
                     .reduce(BigInteger.ZERO, BigInteger::add);
@@ -167,7 +178,7 @@ public class SalaryCalculatorService {
     }
 
     // 지급항목 계산
-    private Map<UUID, List<SalaryDetailRes>> calculateAllowances(UUID companyId,
+    private Map<UUID, List<SalaryDetailRes>> calculateAllowances(UUID companyId, YearMonth yearMonth,
                                                                  LocalDate startDate, LocalDate endDate) {
         Map<UUID, List<SalaryDetailRes>> allowanceMap = new HashMap<>();
 
@@ -181,13 +192,21 @@ public class SalaryCalculatorService {
                 , startDate
                 , endDate);
 
-        SalaryHistoryListReq salaryHistoryListReq = new SalaryHistoryListReq(companyId
-                , YearMonth.of(endDate.getYear(), endDate.getMonth()));
+        SalaryHistoryListReq salaryHistoryListReq = new SalaryHistoryListReq(companyId, yearMonth);
 
         List<SalaryHistory> salaryHistoryList = salaryHistoryService.getSalaryHistories(salaryHistoryListReq);
 
         Map<UUID, SalaryHistory> salaryHistoryMap = salaryHistoryList.stream()
-                .collect(Collectors.toMap(SalaryHistory::getMemberId, sh -> sh));
+                .collect(Collectors.toMap(SalaryHistory::getMemberId
+                        , salaryHistory -> salaryHistory,
+                        (existingHistory, newHistory) -> {
+
+                            if (newHistory.getUpdatedAt().isAfter(existingHistory.getUpdatedAt())) {
+                                return newHistory;
+                            } else {
+                                return existingHistory;
+                            }
+                        }));
 
         for (DailyAttendanceRes dailyAttendanceRes : dailyAttendanceResList) {
             UUID memberId = dailyAttendanceRes.getMemberId();
@@ -197,17 +216,6 @@ public class SalaryCalculatorService {
             if (salaryHistory == null) {
                 log.warn("급여 계약 정보가 없는 회원입니다 (계산 제외): {}", memberId);
                 continue;
-            }
-
-            BigInteger baseSalary = BigInteger.valueOf(salaryHistory.getBaseSalary());
-            if (baseSalary.compareTo(BigInteger.ZERO) > 0) {
-                SalaryDetailRes baseSalaryRes = SalaryDetailRes.builder()
-                        .salaryName("기본급")
-                        .salaryType(SalaryType.ALLOWANCE.name())
-                        .amount(baseSalary)
-                        .build();
-
-                allowanceMap.computeIfAbsent(memberId, k -> new ArrayList<>()).add(baseSalaryRes);
             }
 
             // 통상 시급 계산
@@ -272,14 +280,14 @@ public class SalaryCalculatorService {
     }
 
     // 공제항목 계산
-    private List<SalaryDetailRes> calculateDeductions(UUID companyId, UUID memberId, BigInteger baseSalary, int workingDays) {
+    private List<SalaryDetailRes> calculateDeductions(BigInteger taxableIncome) {
         List<SalaryDetailRes> deductionList = new ArrayList<>();
 
         PayrollProperties.Rates rates = payrollProperties.getRates();
-        BigDecimal baseSalaryDecimal = new BigDecimal(baseSalary);
+        BigDecimal taxableDecimal = new BigDecimal(taxableIncome);
 
         // 국민연금
-        BigDecimal nationalPension = baseSalaryDecimal.multiply(rates.getNationalPension())
+        BigDecimal nationalPension = taxableDecimal.multiply(rates.getNationalPension())
                 .setScale(0, RoundingMode.DOWN);
         deductionList.add(SalaryDetailRes.builder()
                 .salaryName("국민연금")
@@ -288,7 +296,7 @@ public class SalaryCalculatorService {
                 .build());
 
         // 건강보험
-        BigDecimal healthInsurance = baseSalaryDecimal.multiply(rates.getHealthInsurance())
+        BigDecimal healthInsurance = taxableDecimal.multiply(rates.getHealthInsurance())
                 .setScale(0, RoundingMode.DOWN);
         deductionList.add(SalaryDetailRes.builder()
                 .salaryName("건강보험")
@@ -297,7 +305,7 @@ public class SalaryCalculatorService {
                 .build());
 
         // 장기요양보험
-        BigDecimal longTermCare = baseSalaryDecimal.multiply(rates.getLongTermCareInsurance())
+        BigDecimal longTermCare = taxableDecimal.multiply(rates.getLongTermCareInsurance())
                 .setScale(0, RoundingMode.DOWN);
         deductionList.add(SalaryDetailRes.builder()
                 .salaryName("장기요양보험")
@@ -306,7 +314,7 @@ public class SalaryCalculatorService {
                 .build());
 
         // 고용보험
-        BigDecimal employmentInsurance = baseSalaryDecimal.multiply(rates.getEmploymentInsurance())
+        BigDecimal employmentInsurance = taxableDecimal.multiply(rates.getEmploymentInsurance())
                 .setScale(0, RoundingMode.DOWN);
         deductionList.add(SalaryDetailRes.builder()
                 .salaryName("고용보험")
@@ -316,8 +324,11 @@ public class SalaryCalculatorService {
 
         // 근로소득세
         int dependentCount = 1;
-        long incomeTaxLong = (long) incomeTaxService.lookupTaxTable(baseSalary.longValue(), dependentCount);
-        BigDecimal incomeTax = BigDecimal.valueOf(incomeTaxLong);
+
+        long incomeTaxLong = (long) incomeTaxService.lookupTaxTable(taxableIncome.longValue(), dependentCount);
+
+        BigDecimal incomeTax = BigDecimal.valueOf(incomeTaxLong / 1000L);
+
         deductionList.add(SalaryDetailRes.builder()
                 .salaryName("근로소득세")
                 .salaryType(SalaryType.DEDUCTION.name())

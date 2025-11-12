@@ -44,12 +44,21 @@ public class SalaryConfigService {
 
         Map<UUID, SalaryHistory> salaryHistoryMap = salaryHistoryList.stream()
                 .collect(Collectors.toMap(SalaryHistory::getMemberId
-                        , salaryHistory -> salaryHistory));
+                        , salaryHistory -> salaryHistory,
+                        (existingHistory, newHistory) -> {
 
+                            if (newHistory.getUpdatedAt().isAfter(existingHistory.getUpdatedAt())) {
+                                return newHistory;
+                            } else {
+                                return existingHistory;
+                            }
+                        }));
+
+        LocalDate endDate = yearMonth.atEndOfMonth();
 
         // 고정 수당 항목 조회
         List<FixedAllowanceRes> fixedAllowanceResList =  fixedAllowanceService.getFixedAllowanceList(memberPositionId,
-                companyId);
+                companyId, endDate);
 
         Map<UUID, List<FixedAllowanceRes>> fixedAllowanceResMap = fixedAllowanceResList.stream()
                 .collect(Collectors.groupingBy(FixedAllowanceRes::getMemberId));
