@@ -1,9 +1,5 @@
 package com.crewvy.workforce_service.attendance.config;
 
-import com.crewvy.workforce_service.attendance.constant.*;
-import com.crewvy.workforce_service.attendance.dto.rule.*;
-import com.crewvy.workforce_service.attendance.entity.*;
-import com.crewvy.workforce_service.attendance.repository.*;
 import com.crewvy.workforce_service.approval.constant.ApprovalState;
 import com.crewvy.workforce_service.approval.constant.LineStatus;
 import com.crewvy.workforce_service.approval.entity.Approval;
@@ -12,6 +8,10 @@ import com.crewvy.workforce_service.approval.entity.ApprovalLine;
 import com.crewvy.workforce_service.approval.repository.ApprovalDocumentRepository;
 import com.crewvy.workforce_service.approval.repository.ApprovalLineRepository;
 import com.crewvy.workforce_service.approval.repository.ApprovalRepository;
+import com.crewvy.workforce_service.attendance.constant.*;
+import com.crewvy.workforce_service.attendance.dto.rule.*;
+import com.crewvy.workforce_service.attendance.entity.*;
+import com.crewvy.workforce_service.attendance.repository.*;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.response.MemberEmploymentInfoDto;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +20,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -62,9 +62,10 @@ public class AttendanceTestDataInitializer implements ApplicationRunner {
     private final ApprovalDocumentRepository approvalDocumentRepository;
     private final ApprovalLineRepository approvalLineRepository;
     private final MemberClient memberClient;
+    private final TransactionTemplate transactionTemplate;
 
-    // 시연 기준일
-    private static final LocalDate DEMO_DATE = LocalDate.of(2025, 11, 12);
+    // 시연 기준일 (오늘 날짜 기준)
+    private static final LocalDate DEMO_DATE = LocalDate.now();
 
     // 회사 ID (member-service로부터 자동 조회)
     private UUID companyId;
@@ -90,7 +91,6 @@ public class AttendanceTestDataInitializer implements ApplicationRunner {
     private WorkLocation mainOffice;
 
     @Override
-    @Transactional
     public void run(ApplicationArguments args) {
         try {
             // 1단계: 회사 ID 조회 및 직원 정보 조회 (member-service 대기)
@@ -209,9 +209,12 @@ public class AttendanceTestDataInitializer implements ApplicationRunner {
                         .findFirst()
                         .orElse(null);
 
-                // 정책 재할당 (자동 연차 부여 트리거)
+                // 정책 재할당 (자동 연차 부여 트리거, 개별 트랜잭션)
                 log.info("📋 정책 재할당 중 (자동 연차 부여)...");
-                assignPoliciesToCompany();
+                transactionTemplate.execute(status -> {
+                    assignPoliciesToCompany();
+                    return null;
+                });
                 log.info("✅ 회사 {}의 정책 재할당 및 잔액 부여 완료", companyId);
                 return;
             } else {
@@ -227,33 +230,54 @@ public class AttendanceTestDataInitializer implements ApplicationRunner {
 
         logEmployeesSummary(employees);
 
-        // 2단계: 근무지 생성
+        // 2단계: 근무지 생성 (개별 트랜잭션)
         log.info("📋 [2/7] 근무지 생성 중...");
-        createWorkLocations();
+        transactionTemplate.execute(status -> {
+            createWorkLocations();
+            return null;
+        });
 
-        // 3단계: 정책 생성
+        // 3단계: 정책 생성 (개별 트랜잭션)
         log.info("📋 [3/7] 근태 정책 생성 중...");
-        createPolicies();
+        transactionTemplate.execute(status -> {
+            createPolicies();
+            return null;
+        });
 
-        // 4단계: 정책 할당 (자동 연차 부여 트리거)
+        // 4단계: 정책 할당 (개별 트랜잭션, 자동 연차 부여 트리거)
         log.info("📋 [4/7] 정책 할당 중 (자동 연차 부여)...");
-        assignPoliciesToCompany();
+        transactionTemplate.execute(status -> {
+            assignPoliciesToCompany();
+            return null;
+        });
 
-        // 5단계: 근태 기록 생성 (전월+당월, 퇴근누락자 포함)
+        // 5단계: 근태 기록 생성 (개별 트랜잭션)
         log.info("📋 [5/7] 근태 기록 생성 중 (전월 전체 + 당월 전일까지, 퇴근누락자 포함)...");
-        createAttendanceRecords(employees);
+        transactionTemplate.execute(status -> {
+            createAttendanceRecords(employees);
+            return null;
+        });
 
-        // 6단계: 휴가 신청 및 결재 연동 데이터 생성
+        // 6단계: 휴가 신청 및 결재 연동 데이터 생성 (개별 트랜잭션)
         log.info("📋 [6/8] 휴가 신청 데이터 생성 중 (Request-Approval 완전 연동)...");
-        createLeaveRequests(employees);
+        transactionTemplate.execute(status -> {
+            createLeaveRequests(employees);
+            return null;
+        });
 
-        // 6-2단계: 출장 신청 데이터 생성
+        // 6-2단계: 출장 신청 데이터 생성 (개별 트랜잭션)
         log.info("📋 [6-2/8] 출장 신청 데이터 생성 중...");
-        createTripRequests(employees);
+        transactionTemplate.execute(status -> {
+            createTripRequests(employees);
+            return null;
+        });
 
-        // 7단계: 추가근무 신청 및 DailyAttendance 연동 데이터 생성
+        // 7단계: 추가근무 신청 및 DailyAttendance 연동 데이터 생성 (개별 트랜잭션)
         log.info("📋 [7/8] 추가근무 신청 데이터 생성 중 (연장/야간/휴일근무)...");
-        createExtraWorkRequests(employees);
+        transactionTemplate.execute(status -> {
+            createExtraWorkRequests(employees);
+            return null;
+        });
 
         log.info("");
         log.info("✅ 회사 {} 테스트 데이터 초기화 완료", companyId);
