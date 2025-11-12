@@ -33,5 +33,5 @@ public interface CalendarRepository extends JpaRepository<Calendar, UUID> {
 
     List<Calendar> findByOriginId(UUID originId);
 
-    Optional<Calendar> findByOriginIdAndMemberId(UUID originId, UUID memberId);
+    Optional<Calendar> findByOriginIdAndMemberIdAndIsDeleted(UUID originId, UUID memberId, Bool isDeleted);
 }

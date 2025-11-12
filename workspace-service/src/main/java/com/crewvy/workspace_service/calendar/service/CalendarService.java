@@ -132,7 +132,7 @@ public class CalendarService {
 
 //    개인 일정 외 일정 저장 및 수정
     public void saveSchedule(ScheduleDto dto) {
-        Optional<Calendar> optionalCalendar = calendarRepository.findByOriginIdAndMemberId(dto.getOriginId(), dto.getMemberId());
+        Optional<Calendar> optionalCalendar = calendarRepository.findByOriginIdAndMemberIdAndIsDeleted(dto.getOriginId(), dto.getMemberId(), Bool.FALSE);
 
         if (optionalCalendar.isPresent()) {
             // [수정 로직] 이미 존재하면, 기존 일정을 업데이트
