@@ -13,8 +13,12 @@ spring:
     username: ${DB_ID}
     password: ${DB_PW}
     hikari:
-      max-lifetime: 28500000
-      idle-timeout: 600000
+      minimum-idle: 5
+      maximum-pool-size: 10
+      idle-timeout: 600000         # 10분 (유휴 커넥션 정리)
+      max-lifetime: 3300000        # 55분 (RDS의 1시간보다 짧게)
+      connection-timeout: 30000    # 30초 (커넥션 획득 대기 시간)
+      connection-test-query: SELECT 1
   jpa:
     database: mysql
     database-platform: org.hibernate.dialect.MariaDBDialect
