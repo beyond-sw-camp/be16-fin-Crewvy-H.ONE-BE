@@ -5,6 +5,7 @@ import com.crewvy.workspace_service.meeting.constant.VideoConferenceStatus;
 import com.crewvy.workspace_service.meeting.repository.VideoConferenceRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -23,12 +24,22 @@ public class MeetingScheduler {
 
     @Scheduled(cron = "0 0 0 * * *")
     @Async
+    @SchedulerLock(
+            name = "deletePastScheduledMeetings", // ★ 중요: 작업별로 고유한 이름 지정
+            lockAtMostFor = "PT10M",  // 작업이 10분 이상 걸리면 강제 잠금 해제
+            lockAtLeastFor = "PT30S"  // 작업이 빨리 끝나도 최소 30초간 잠금 유지
+    )
     public void deletePastScheduledMeetings() {
         videoConferenceRepository.deleteByScheduledStartTimeBeforeAndStatus(LocalDateTime.now(), VideoConferenceStatus.WAITING);
     }
 
     @Scheduled(cron = "0 0,15,30,45 * * * *")
     @Async
+    @SchedulerLock(
+            name = "sendScheduledMeetingNotifications", // ★ 중요: 작업별로 고유한 이름 지정
+            lockAtMostFor = "PT10M",  // 작업이 10분 이상 걸리면 강제 잠금 해제
+            lockAtLeastFor = "PT30S"  // 작업이 빨리 끝나도 최소 30초간 잠금 유지
+    )
     public void sendScheduledMeetingNotifications() {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime after15Minutes = now.plusMinutes(1);

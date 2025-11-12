@@ -504,6 +504,14 @@ public class PerformanceService {
         if(!teamGoal.getMemberPositionId().equals(memberPositionId)) {
             throw new BusinessException("수정 권한이 없습니다.");
         }
+        for(Goal g : teamGoal.getGoalList()) {
+            if(g.getStartDate().isBefore(dto.getStartDate())) {
+                dto.setStartDate(g.getStartDate());
+            }
+            if(g.getEndDate().isAfter(dto.getEndDate())) {
+                dto.setEndDate(g.getEndDate());
+            }
+        }
 
         teamGoal.updateTeamGoal(dto.getTitle(), dto.getContents(), dto.getStartDate(), dto.getEndDate());
 
@@ -521,6 +529,12 @@ public class PerformanceService {
         Set<UUID> existingMemberIds = existingMembers.stream()
                 .map(TeamGoalMember::getMemberPositionId)
                 .collect(Collectors.toSet());
+
+        for(Goal g : teamGoal.getGoalList()) {
+            if(existingMemberIds.contains(g.getMemberPositionId())) {
+                newMemberIds.add(g.getMemberPositionId());
+            }
+        }
 
         // 2-4. [삭제] 기존 멤버 중 -> 새 목록에 없는 멤버를 제거
         // (Iterator를 사용해야 ConcurrentModificationException이 발생하지 않음)
