@@ -5,6 +5,7 @@ import com.crewvy.common.dto.ScheduleDeleteDto;
 import com.crewvy.common.dto.ScheduleDto;
 import com.crewvy.common.entity.Bool;
 import com.crewvy.common.exception.ResourceNotFoundException;
+import com.crewvy.workforce_service.aop.AuthUser;
 import com.crewvy.workforce_service.aop.CheckPermission;
 import com.crewvy.workforce_service.feignClient.MemberClient;
 import com.crewvy.workforce_service.feignClient.dto.request.IdListReq;
@@ -48,8 +49,9 @@ public class ReservationService {
     private final RecurringSettingRepository recurringSettingRepository;
     private final MemberClient memberClient;
 
+    @Transactional
     @CheckPermission(resource = "reservation", action = "CREATE", scope = "INDIVIDUAL")
-    public ReservationRes create(UUID memberId, UUID companyId, ReservationCreateReq reservationCreateReq) {
+    public ReservationRes create(@AuthUser UUID memberId, UUID companyId, ReservationCreateReq reservationCreateReq) {
         ReservationType type = reservationTypeRepository.findWithLockById(reservationCreateReq.getReservationTypeId())
                 .orElseThrow(() -> new ResourceNotFoundException("예약 자원을 찾을 수 없습니다."));
 
@@ -72,6 +74,7 @@ public class ReservationService {
         Reservation savedReservation = reservationRepository.save(reservation);
 
         ScheduleDto scheduleDto = ScheduleDto.builder()
+                .memberId(memberId)
                 .originId(savedReservation.getId())
                 .title(savedReservation.getTitle())
                 .contents(savedReservation.getNote())
@@ -113,6 +116,7 @@ public class ReservationService {
         for (Reservation reservation : savedReservations) {
 
             ScheduleDto scheduleDto = ScheduleDto.builder()
+                    .memberId(memberId)
                     .originId(reservation.getId())
                     .title(reservation.getTitle())
                     .contents(reservation.getNote())
@@ -174,8 +178,8 @@ public class ReservationService {
     }
 
     @Transactional(readOnly = true)
-    @CheckPermission(resource = "reservation", action = "CREATE", scope = "INDIVIDUAL")
-    public List<ReservationRes> listByCompany(UUID memberPositionId, UUID companyId) {
+    @CheckPermission(resource = "reservation", action = "READ", scope = "INDIVIDUAL")
+    public List<ReservationRes> listByCompany(@AuthUser UUID memberPositionId, UUID companyId) {
         List<ReservationRes> response = reservationRepository.findByCompanyId(companyId)
                 .stream()
                 .map(ReservationRes::fromEntity)
@@ -204,15 +208,18 @@ public class ReservationService {
     }
 
     @Transactional(readOnly = true)
-    @CheckPermission(resource = "reservation", action = "CREATE", scope = "INDIVIDUAL")
-    public List<ReservationRes> listByCompanyAndMember(UUID companyId, UUID memberId) {
+    @CheckPermission(resource = "reservation", action = "READ", scope = "INDIVIDUAL")
+    public List<ReservationRes> listByCompanyAndMember(UUID companyId, @AuthUser UUID memberId) {
 
         return reservationRepository.findByCompanyIdAndMemberId(companyId, memberId)
                 .stream().map(ReservationRes::fromEntity)
                 .collect(Collectors.toList());
     }
 
-    public ReservationRes update(UUID id, ReservationUpdateReq req) {
+
+    @Transactional
+    @CheckPermission(resource = "reservation", action = "UPDATE", scope = "INDIVIDUAL")
+    public ReservationRes update(UUID id, @AuthUser UUID memberId, ReservationUpdateReq req) {
         Reservation reservation = reservationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("예약을 찾을 수 없습니다."));
 
@@ -231,7 +238,8 @@ public class ReservationService {
         return ReservationRes.fromEntity(saved);
     }
 
-    public void delete(UUID id) {
+    @CheckPermission(resource = "reservation", action = "DELETE", scope = "INDIVIDUAL")
+    public void delete(UUID id, @AuthUser UUID memberId) {
         if (!reservationRepository.existsById(id)) {
             throw new ResourceNotFoundException("예약을 찾을 수 없습니다.");
         }
@@ -245,8 +253,8 @@ public class ReservationService {
     }
 
     @Transactional
-    @CheckPermission(resource = "reservation", action = "CREATE", scope = "INDIVIDUAL")
-    public ReservationRes updateReservationStatus(UUID id, ReservationUpdateStatusReq req) {
+    @CheckPermission(resource = "reservation", action = "UPDATE", scope = "INDIVIDUAL")
+    public ReservationRes updateReservationStatus(UUID id, @AuthUser UUID memberId, ReservationUpdateStatusReq req) {
         Reservation reservation = reservationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("예약을 찾을 수 없습니다."));
 
